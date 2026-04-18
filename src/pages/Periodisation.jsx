@@ -78,15 +78,14 @@ export default function Periodisation() {
     let cancelled = false;
     (async () => {
       const user = getCurrentUser();
-      if (!user?.teamIds?.length) {
+      if (!user?.orgId) {
         if (!cancelled) setTeams([]);
         return;
       }
-      const { data: teamsData, error } = await supabase
+      const { data: teamList, error } = await supabase
         .from('teams')
         .select('id, name')
         .eq('org_id', user.orgId)
-        .in('id', user.teamIds)
         .order('name');
       if (cancelled) return;
       if (error) {
@@ -94,7 +93,7 @@ export default function Periodisation() {
         setTeams([]);
         return;
       }
-      const list = teamsData ?? [];
+      const list = teamList ?? [];
       setTeams(list);
       if (list.length) {
         setSelectedTeamId((current) =>
