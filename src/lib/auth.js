@@ -11,7 +11,7 @@ export const getCurrentUser = () => ({
     periodisation: 'edit',   // view | edit | admin
     assessments: 'edit',
     reports: 'view',
-    sessionLibrary: 'edit',
+    sessionLibrary: 'admin',
   },
   teamIds: [
     'b2000000-0000-0000-0000-000000000001',

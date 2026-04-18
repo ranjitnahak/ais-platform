@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentUser } from '../lib/auth';
 
@@ -9,8 +9,17 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
   const [loading, setLoading] = useState(true);
   const user = getCurrentUser();
 
+  const athleteIdRef = useRef(athleteId);
+  const enabledRef = useRef(enabled);
+  athleteIdRef.current = athleteId;
+  enabledRef.current = enabled;
+
   const fetchPlan = useCallback(async () => {
-    if (!enabled) {
+    const enabledNow = enabledRef.current;
+    const athleteIdNow = athleteIdRef.current;
+    const u = getCurrentUser();
+
+    if (!enabledNow) {
       setPlan(null);
       setRows([]);
       setCells([]);
@@ -18,7 +27,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       return;
     }
 
-    if (!teamId || !user?.teamIds?.includes(teamId)) {
+    if (!teamId || !u?.teamIds?.includes(teamId)) {
       setPlan(null);
       setRows([]);
       setCells([]);
@@ -31,13 +40,13 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     let q = supabase
       .from('periodisation_plans')
       .select('*')
-      .eq('org_id', user.orgId)
+      .eq('org_id', u.orgId)
       .eq('team_id', teamId)
-      .in('team_id', user.teamIds)
+      .in('team_id', u.teamIds)
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (athleteId) q = q.eq('athlete_id', athleteId);
+    if (athleteIdNow) q = q.eq('athlete_id', athleteIdNow);
     else q = q.is('athlete_id', null);
 
     const { data: planData, error: planErr } = await q.maybeSingle();
@@ -64,7 +73,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       .from('plan_rows')
       .select('*')
       .eq('plan_id', planData.id)
-      .eq('org_id', user.orgId)
+      .eq('org_id', u.orgId)
       .order('sort_order');
 
     if (rowErr) {
@@ -82,7 +91,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       const { data: cellData, error: cellErr } = await supabase
         .from('plan_cells')
         .select('*')
-        .eq('org_id', user.orgId)
+        .eq('org_id', u.orgId)
         .in('row_id', rowIds);
       if (cellErr) console.error(cellErr);
       setCells(cellData || []);
@@ -91,13 +100,12 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     }
 
     setLoading(false);
-  }, [teamId, athleteId, enabled, user.orgId, user.teamIds]);
+  }, [teamId]);
 
   useEffect(() => {
-    // Data fetch on mount / when team or athlete scope changes
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchPlan updates loading/plan state from Supabase
     void fetchPlan();
-  }, [fetchPlan]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- teamId only; fetchPlan is stable for a given teamId
+  }, [teamId]);
 
   const upsertCell = async (cellData) => {
     const payload = { ...cellData, org_id: user.orgId };

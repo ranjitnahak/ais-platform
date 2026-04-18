@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser, canEditPlan, can } from '../lib/auth';
@@ -44,6 +44,7 @@ export default function Periodisation() {
   });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
+  const planScopeRef = useRef({ athleteId: null, viewMode: 'team', enabled: true });
 
   const athleteIdForPlan = viewMode === 'athlete' ? selectedAthleteId : null;
   const planQueryEnabled = !(viewMode === 'athlete' && !selectedAthleteId);
@@ -60,16 +61,31 @@ export default function Periodisation() {
   } = usePeriodisationPlan(selectedTeamId, { athleteId: athleteIdForPlan, enabled: planQueryEnabled });
 
   useEffect(() => {
+    const prev = planScopeRef.current;
+    const next = {
+      athleteId: selectedAthleteId,
+      viewMode,
+      enabled: planQueryEnabled,
+    };
+    const scopeChanged =
+      prev.athleteId !== next.athleteId || prev.viewMode !== next.viewMode || prev.enabled !== next.enabled;
+    planScopeRef.current = next;
+    if (!scopeChanged) return;
+    void fetchPlan();
+  }, [selectedAthleteId, viewMode, planQueryEnabled, fetchPlan]);
+
+  useEffect(() => {
     (async () => {
+      const u = getCurrentUser();
       const { data } = await supabase
         .from('teams')
         .select('id, name')
-        .eq('org_id', user.orgId)
-        .in('id', user.teamIds)
+        .eq('org_id', u.orgId)
+        .in('id', u.teamIds)
         .order('name');
       setTeams(data ?? []);
     })();
-  }, [user.orgId, user.teamIds]);
+  }, [user.orgId]);
 
   useEffect(() => {
     if (viewMode !== 'athlete' || !selectedTeamId) {
