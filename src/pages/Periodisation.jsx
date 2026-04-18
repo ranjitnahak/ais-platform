@@ -82,11 +82,13 @@ export default function Periodisation() {
         if (!cancelled) setTeams([]);
         return;
       }
+      console.log('org_id being used:', user.orgId);
       const { data: teamList, error } = await supabase
         .from('teams')
         .select('id, name')
         .eq('org_id', user.orgId)
         .order('name');
+      console.log('Teams fetched:', teamList, 'Error:', error);
       if (cancelled) return;
       if (error) {
         console.error(error);
