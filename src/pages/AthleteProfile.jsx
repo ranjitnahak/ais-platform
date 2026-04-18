@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import ImageCropModal from '../components/athletes/ImageCropModal';
+import Sidebar from '../components/Sidebar';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -30,15 +31,6 @@ const FIELD_STYLE = {
   input: 'w-full px-3 py-2.5 bg-[#2a2a2c] text-[#e4e2e4] text-sm rounded-lg outline-none focus:ring-1 focus:ring-[#F97316]/50',
   select: 'w-full px-3 py-2.5 bg-[#2a2a2c] text-[#e4e2e4] text-sm rounded-lg outline-none focus:ring-1 focus:ring-[#F97316]/50 appearance-none',
 };
-
-const NAV_ITEMS = [
-  { icon: 'dashboard',  label: 'Dashboard',  to: '/'         },
-  { icon: 'groups',     label: 'Squad',      to: '/'         },
-  { icon: 'person',     label: 'Athletes',   to: '/athletes' },
-  { icon: 'assessment', label: 'Reports',    to: '/reports'  },
-  { icon: 'speed',      label: 'Assessment', to: '/assess'   },
-  { icon: 'settings',   label: 'Settings',   to: '/settings' },
-];
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
@@ -224,29 +216,7 @@ export default function AthleteProfile() {
     )}
     <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
 
-      {/* Sidebar */}
-      <aside className="hidden md:flex flex-col h-full w-64 fixed left-0 top-0 bg-[#131315] border-r border-white/5 shadow-2xl py-6 z-50">
-        <div className="px-6 mb-10">
-          <span className="text-2xl font-black tracking-tighter text-white uppercase">AIS</span>
-        </div>
-        <nav className="flex-1 space-y-1">
-          {NAV_ITEMS.map(({ icon, label, to }) => (
-            <NavLink
-              key={label}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                `w-full mx-2 my-1 px-4 py-3 flex items-center gap-3 transition-colors rounded-lg text-left ${
-                  isActive ? 'bg-[#F97316] text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`
-              }
-            >
-              <span className="material-symbols-outlined">{icon}</span>
-              <span className="font-['Inter'] tracking-tight font-bold uppercase text-[10px]">{label}</span>
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
+      <Sidebar />
 
       {/* Top bar */}
       <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 md:pl-72">
