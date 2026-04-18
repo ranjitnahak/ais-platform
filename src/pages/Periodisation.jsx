@@ -75,17 +75,37 @@ export default function Periodisation() {
   }, [selectedAthleteId, viewMode, planQueryEnabled, fetchPlan]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const u = getCurrentUser();
-      const { data } = await supabase
+      const user = getCurrentUser();
+      if (!user?.teamIds?.length) {
+        if (!cancelled) setTeams([]);
+        return;
+      }
+      const { data: teamsData, error } = await supabase
         .from('teams')
         .select('id, name')
-        .eq('org_id', u.orgId)
-        .in('id', u.teamIds)
+        .eq('org_id', user.orgId)
+        .in('id', user.teamIds)
         .order('name');
-      setTeams(data ?? []);
+      if (cancelled) return;
+      if (error) {
+        console.error(error);
+        setTeams([]);
+        return;
+      }
+      const list = teamsData ?? [];
+      setTeams(list);
+      if (list.length) {
+        setSelectedTeamId((current) =>
+          current && list.some((t) => t.id === current) ? current : list[0].id
+        );
+      }
     })();
-  }, [user.orgId]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (viewMode !== 'athlete' || !selectedTeamId) {
