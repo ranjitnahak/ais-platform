@@ -134,35 +134,6 @@ export default function Periodisation() {
   }, []);
 
   useEffect(() => {
-    if (viewMode !== 'athlete' || !selectedTeamId) {
-      setAthletes([]);
-      return;
-    }
-    supabase
-      .from('athlete_teams')
-      .select('athlete_id')
-      .eq('team_id', selectedTeamId)
-      .then(({ data: links }) => {
-        const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
-        if (!ids.length) {
-          setAthletes([]);
-          return;
-        }
-        return supabase
-          .from('athletes')
-          .select('id, full_name')
-          .eq('org_id', user.orgId)
-          .in('id', ids)
-          .order('full_name');
-      })
-      .then((result) => {
-        if (!result) return;
-        setAthletes(result.data ?? []);
-      })
-      .catch((err) => console.error('Athlete fetch error:', err));
-  }, [viewMode, selectedTeamId, user.orgId]);
-
-  useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('plan_templates')
@@ -227,6 +198,23 @@ export default function Periodisation() {
     } finally {
       setCreating(false);
     }
+  }
+
+  async function fetchAthletesForTeam(teamId) {
+    if (!teamId) { setAthletes([]); return; }
+    const { data: links } = await supabase
+      .from('athlete_teams')
+      .select('athlete_id')
+      .eq('team_id', teamId);
+    const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
+    if (!ids.length) { setAthletes([]); return; }
+    const { data: ath } = await supabase
+      .from('athletes')
+      .select('id, full_name')
+      .eq('org_id', user.orgId)
+      .in('id', ids)
+      .order('full_name');
+    setAthletes(ath ?? []);
   }
 
   return (
@@ -369,7 +357,11 @@ export default function Periodisation() {
               setSelectedAthleteId(null);
             }}
             viewMode={viewMode}
-            setViewMode={setViewMode}
+            setViewMode={(mode) => {
+              setViewMode(mode);
+              if (mode === 'athlete') fetchAthletesForTeam(selectedTeamId);
+              else setAthletes([]);
+            }}
             athletes={athletes}
             selectedAthleteId={selectedAthleteId}
             setSelectedAthleteId={setSelectedAthleteId}
@@ -414,7 +406,12 @@ export default function Periodisation() {
               </select>
               <select
                 value={viewMode}
-                onChange={(e) => setViewMode(e.target.value)}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setViewMode(mode);
+                  if (mode === 'athlete') fetchAthletesForTeam(selectedTeamId);
+                  else setAthletes([]);
+                }}
                 className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs"
               >
                 <option value="team">Team Plan</option>
