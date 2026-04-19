@@ -17,9 +17,8 @@ export function startOfWeekMonday(d) {
 
 /** Inclusive list of week-start Mondays between planStart and planEnd */
 export function weekStartsBetween(planStart, planEnd) {
-  const start = startOfWeekMonday(new Date(planStart));
-  const end = new Date(planEnd);
-  end.setHours(23, 59, 59, 999);
+  const start = startOfWeekMonday(planStart);
+  const end = new Date(planEnd + 'T23:59:59');
   const weeks = [];
   const cur = new Date(start);
   let i = 0;
