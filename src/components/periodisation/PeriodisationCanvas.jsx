@@ -466,6 +466,28 @@ export default function PeriodisationCanvas({
   }, []);
 
   useEffect(() => {
+    const onWinMouseMove = (e) => {
+      if (!spanDragRef.current) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (!el) return;
+      const cell = el.closest('[data-span-cell]');
+      if (!cell) return;
+      const raw = cell.getAttribute('data-span-cell');
+      if (!raw) return;
+      const [cellRowId, cellIdxStr] = raw.split('::');
+      const cellIdx = parseInt(cellIdxStr, 10);
+      if (Number.isNaN(cellIdx)) return;
+      if (cellRowId === spanDragRef.current.rowId) {
+        spanDragRef.current.endIdx = cellIdx;
+        const { rowId, startIdx, endIdx } = spanDragRef.current;
+        setSpanSelection({
+          rowId,
+          startIdx: Math.min(startIdx, endIdx),
+          endIdx: Math.max(startIdx, endIdx),
+        });
+      }
+    };
+
     const onWinMouseUp = () => {
       const d = spanDragRef.current;
       if (!d) return;
@@ -473,10 +495,12 @@ export default function PeriodisationCanvas({
       const dragStart = Math.min(startIdx, endIdx);
       const dragEnd = Math.max(startIdx, endIdx);
       console.log('mouseup fired, selection:', { dragStart, dragEnd });
-      spanDragRef.current = null;
       const wA = weeks[dragStart];
       const wB = weeks[dragEnd];
-      if (!wA || !wB) return;
+      if (!wA || !wB) {
+        spanDragRef.current = null;
+        return;
+      }
       setSpanSelection({ rowId, startIdx: dragStart, endIdx: dragEnd });
       const anchorEl = document.querySelector(`[data-span-cell="${rowId}::${endIdx}"]`);
       let anchorRect = { left: 24, bottom: 120, width: 48 };
@@ -494,9 +518,14 @@ export default function PeriodisationCanvas({
         selectedColor: BAND_PRESET_COLORS[0].value,
         anchorRect,
       });
+      spanDragRef.current = null;
     };
+    window.addEventListener('mousemove', onWinMouseMove);
     window.addEventListener('mouseup', onWinMouseUp);
-    return () => window.removeEventListener('mouseup', onWinMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onWinMouseMove);
+      window.removeEventListener('mouseup', onWinMouseUp);
+    };
   }, [weeks]);
 
   useEffect(() => {
