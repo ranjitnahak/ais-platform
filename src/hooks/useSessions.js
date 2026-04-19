@@ -4,17 +4,16 @@ import { getCurrentUser } from '../lib/auth';
 
 export const useSessions = (teamId, planId, weekStart, weekEnd) => {
   const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const user = getCurrentUser();
 
   const fetchSessions = useCallback(async () => {
     if (!teamId || !weekStart || !weekEnd || !user?.teamIds?.includes(teamId)) {
       setSessions([]);
-      setLoading(false);
+      setInitialLoading(false);
       return;
     }
 
-    setLoading(true);
     let q = supabase
       .from('sessions')
       .select('*')
@@ -35,11 +34,11 @@ export const useSessions = (teamId, planId, weekStart, weekEnd) => {
     } else {
       setSessions(data || []);
     }
-    setLoading(false);
-  }, [teamId, planId, weekStart, weekEnd, user.orgId, user.teamIds]);
+    setInitialLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId, planId, weekStart, weekEnd]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchSessions updates loading/sessions from Supabase
     void fetchSessions();
   }, [fetchSessions]);
 
@@ -67,5 +66,5 @@ export const useSessions = (teamId, planId, weekStart, weekEnd) => {
     return data[0];
   };
 
-  return { sessions, loading, fetchSessions, upsertSession };
+  return { sessions, loading: initialLoading, fetchSessions, upsertSession };
 };

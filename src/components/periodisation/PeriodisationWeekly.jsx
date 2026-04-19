@@ -77,7 +77,7 @@ export default function PeriodisationWeekly({
   onNext,
 }) {
   const user = getCurrentUser();
-  const { sessions, loading, upsertSession, fetchSessions } = useSessions(teamId, plan.id, weekStartIso, weekEndIso);
+  const { sessions, loading: initialLoading, upsertSession } = useSessions(teamId, plan.id, weekStartIso, weekEndIso);
   const [drawer, setDrawer] = useState(null);
   const [libraryItems, setLibraryItems] = useState([]);
   const [planNotes, setPlanNotes] = useState(plan?.notes ?? '');
@@ -220,13 +220,13 @@ export default function PeriodisationWeekly({
           </div>
         </div>
 
-        {loading && (
+        {initialLoading && (
           <div className="flex justify-center py-12">
             <span className="material-symbols-outlined text-[#F97316] animate-spin text-3xl">refresh</span>
           </div>
         )}
 
-        {!loading && (
+        {!initialLoading && (
           <div className="overflow-x-auto">
             <div className="flex gap-1 min-w-[720px]">
               {days.map((d) => {
@@ -343,7 +343,6 @@ export default function PeriodisationWeekly({
           libraryItems={libraryItems}
           onClose={() => setDrawer(null)}
           upsertSession={upsertSession}
-          fetchSessions={fetchSessions}
         />
       )}
     </div>
@@ -402,7 +401,7 @@ function SessionBlock({ slot, dayIso, getSession, onOpen }) {
   );
 }
 
-function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSession, fetchSessions }) {
+function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSession }) {
   const { dayIso, slot } = drawer;
   const existing = getSession(dayIso, slot);
   const [category, setCategory] = useState('strength');
@@ -461,7 +460,6 @@ function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSessio
         recovery_modality: recovery || null,
         notes: notes || null,
       });
-      await fetchSessions();
       onClose();
     } catch (e) {
       console.error(e);
