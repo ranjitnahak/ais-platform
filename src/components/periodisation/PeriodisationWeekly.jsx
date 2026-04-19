@@ -75,17 +75,22 @@ function normalizeCategory(raw) {
 }
 
 function weekDays(weekStartIso) {
+  // Always anchor to the Monday of the week containing weekStartIso
+  const d = new Date(weekStartIso + 'T12:00:00');
+  const dow = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const daysFromMonday = dow === 0 ? -6 : 1 - dow;
+  const mondayIso = addDays(weekStartIso, daysFromMonday);
   const days = [];
   for (let i = 0; i < 7; i++) {
-    const iso = addDays(weekStartIso, i);
-    const d = new Date(iso + 'T12:00:00');
-    const dow = d.getDay();
+    const iso = addDays(mondayIso, i);
+    const date = new Date(iso + 'T12:00:00');
+    const dayOfWeek = date.getDay();
     const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     days.push({
       iso,
-      label: names[dow],
-      isSunday: dow === 0,
-      date: d,
+      label: names[dayOfWeek],
+      isSunday: dayOfWeek === 0,
+      date,
     });
   }
   return days;
