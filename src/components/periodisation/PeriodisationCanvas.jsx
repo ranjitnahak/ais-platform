@@ -51,6 +51,24 @@ function cellDisplayColor(cell, fallback = '#3b82f6') {
   return cell?.value_color || cell?.color || fallback;
 }
 
+/** Human-readable title when `display_label` is unset (handles snake_case keys). */
+function formatRowGroupForDisplay(rowGroup) {
+  if (!rowGroup) return '';
+  const g = String(rowGroup);
+  if (ROW_GROUPS.includes(g)) return g;
+  return g
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function getGroupHeaderDisplay(groupCanonical, groupRows) {
+  const dl = groupRows.map((r) => r.display_label).find((x) => x != null && String(x).trim() !== '');
+  if (dl) return String(dl).trim();
+  return formatRowGroupForDisplay(groupCanonical);
+}
+
 const ROW_TYPE_OPTIONS = [
   {
     row_type: 'band',
@@ -143,6 +161,7 @@ export default function PeriodisationCanvas({
   updatePlanRow,
   reorderPlanRows,
   reorderPlanRowsWithGroups,
+  updateDisplayLabelForGroup,
   onWeekSelect,
   fetchPlan,
   templates = [],
@@ -164,7 +183,8 @@ export default function PeriodisationCanvas({
   const [spanSelection, setSpanSelection] = useState(null);
   const [spanPopover, setSpanPopover] = useState(null); // inline create/edit for span rows
   const spanDragRef = useRef(null);
-  const [addRowModal, setAddRowModal] = useState(null); // { step: 1|2, group?, rowType?, name?, insertCtx? }
+  const [addRowModal, setAddRowModal] = useState(null); // { group, rowType?, name?, insertCtx? }
+  const [editingGroupHeader, setEditingGroupHeader] = useState(null); // { groupKey, value }
   const [numPopover, setNumPopover] = useState(null); // number picker: { rowId, monday, current, x, y }
 
   // Row drag-to-reorder
@@ -417,6 +437,7 @@ export default function PeriodisationCanvas({
     setSpanPopover(null);
     setSpanSelection(null);
     setAddRowModal(null);
+    setEditingGroupHeader(null);
   };
 
   const dismissSpanPopover = useCallback(() => {
@@ -449,28 +470,29 @@ export default function PeriodisationCanvas({
       const d = spanDragRef.current;
       if (!d) return;
       const { rowId, startIdx, endIdx, mode } = d;
+      const dragStart = Math.min(startIdx, endIdx);
+      const dragEnd = Math.max(startIdx, endIdx);
+      console.log('mouseup fired, selection:', { dragStart, dragEnd });
       spanDragRef.current = null;
-      const a = Math.min(startIdx, endIdx);
-      const b = Math.max(startIdx, endIdx);
-      const wA = weeks[a];
-      const wB = weeks[b];
+      const wA = weeks[dragStart];
+      const wB = weeks[dragEnd];
       if (!wA || !wB) return;
-      setSpanSelection({ rowId, startIdx: a, endIdx: b });
-      const anchorIdx = endIdx;
-      const el = document.querySelector(`[data-span-cell="${rowId}::${anchorIdx}"]`);
-      let anchor = { left: 80, top: 120, width: 40, height: 22 };
-      if (el) {
-        const r = el.getBoundingClientRect();
-        anchor = { left: r.left, top: r.top, width: r.width, height: r.height };
+      setSpanSelection({ rowId, startIdx: dragStart, endIdx: dragEnd });
+      const anchorEl = document.querySelector(`[data-span-cell="${rowId}::${endIdx}"]`);
+      let anchorRect = { left: 24, bottom: 120, width: 48 };
+      if (anchorEl) {
+        const r = anchorEl.getBoundingClientRect();
+        anchorRect = { left: r.left, bottom: r.bottom, width: r.width };
       }
       setSpanPopover({
         rowId,
+        anchorWeekIndex: endIdx,
         startIso: wA.monday,
         endIso: wB.monday,
         mode,
-        anchor,
         name: '',
         selectedColor: BAND_PRESET_COLORS[0].value,
+        anchorRect,
       });
     };
     window.addEventListener('mouseup', onWinMouseUp);
@@ -511,9 +533,10 @@ export default function PeriodisationCanvas({
   };
 
   const completeAddRow = async () => {
-    if (!addRowModal?.group || !addRowModal.rowType || !addRowModal?.name?.trim()) return;
+    if (!addRowModal?.rowType || !addRowModal?.name?.trim()) return;
     const name = addRowModal.name.trim();
-    const { group, rowType, insertCtx } = addRowModal;
+    const group = addRowModal.group ?? 'Planning';
+    const { rowType, insertCtx } = addRowModal;
     let sortOrder = 0;
     if (insertCtx) {
       const { anchorRow, position } = insertCtx;
@@ -615,7 +638,7 @@ export default function PeriodisationCanvas({
           onClick={(e) => {
             e.stopPropagation();
             if (!canEdit) return;
-            setAddRowModal({ step: 1 });
+            setAddRowModal({ group: 'Planning', rowType: undefined, name: '' });
           }}
           className="px-2 py-1.5 rounded border border-white/15 text-[10px] font-bold uppercase text-gray-300 hover:bg-white/5 disabled:opacity-40"
         >
@@ -694,14 +717,66 @@ export default function PeriodisationCanvas({
             const isCollapsed = collapsed[groupName];
             return (
               <div key={groupName} className="border-b border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setCollapsed((c) => ({ ...c, [groupName]: !c[groupName] }))}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 bg-[#2d2d30] text-left text-[11px] font-bold text-gray-200 sticky left-0"
-                >
-                  <span className="text-gray-500">{isCollapsed ? '▸' : '▾'}</span>
-                  {groupName}
-                </button>
+                <div className="w-full flex items-center gap-2 px-2 py-1.5 bg-[#2d2d30] text-left text-[11px] font-bold text-gray-200 sticky left-0">
+                  <button
+                    type="button"
+                    className="text-gray-500 shrink-0 w-4"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCollapsed((c) => ({ ...c, [groupName]: !c[groupName] }));
+                    }}
+                    aria-label={isCollapsed ? 'Expand section' : 'Collapse section'}
+                  >
+                    {isCollapsed ? '▸' : '▾'}
+                  </button>
+                  {editingGroupHeader?.groupKey === groupName ? (
+                    <input
+                      autoFocus
+                      value={editingGroupHeader.value}
+                      onChange={(e) =>
+                        setEditingGroupHeader((h) => (h ? { ...h, value: e.target.value } : h))
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                      onBlur={async () => {
+                        if (!editingGroupHeader || !updateDisplayLabelForGroup) {
+                          setEditingGroupHeader(null);
+                          return;
+                        }
+                        const v = editingGroupHeader.value.trim();
+                        try {
+                          await updateDisplayLabelForGroup(groupName, v || null);
+                        } catch (err) {
+                          console.error(err);
+                        }
+                        setEditingGroupHeader(null);
+                      }}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Escape') {
+                          setEditingGroupHeader(null);
+                          return;
+                        }
+                        if (e.key !== 'Enter') return;
+                        e.currentTarget.blur();
+                      }}
+                      className="flex-1 min-w-0 bg-[#1C1C1E] border border-[#F97316] rounded px-2 py-0.5 text-[11px] text-white outline-none"
+                    />
+                  ) : (
+                    <span
+                      className="flex-1 min-w-0 truncate cursor-default"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (!canEdit || !updateDisplayLabelForGroup) return;
+                        setEditingGroupHeader({
+                          groupKey: groupName,
+                          value: getGroupHeaderDisplay(groupName, groupRows),
+                        });
+                      }}
+                      title={canEdit ? 'Double-click to edit section title' : undefined}
+                    >
+                      {getGroupHeaderDisplay(groupName, groupRows)}
+                    </span>
+                  )}
+                </div>
 
                 {!isCollapsed &&
                   groupRows.map((row) => {
@@ -784,8 +859,13 @@ export default function PeriodisationCanvas({
                             <div
                               key={w.monday}
                               data-span-cell={`${row.id}::${wi}`}
-                              className="border-r border-white/5 shrink-0 flex items-center justify-center p-0.5"
+                              className={`border-r border-white/5 shrink-0 flex items-center justify-center p-0.5 ${
+                                rowUsesSpanInteraction(row) ? 'relative z-10' : ''
+                              }`}
                               style={{ width: pxPerWeek, fontSize: 10 }}
+                              onClick={
+                                rowUsesSpanInteraction(row) ? (e) => e.stopPropagation() : undefined
+                              }
                             >
                               <CellRenderer
                                 row={row}
@@ -836,67 +916,15 @@ export default function PeriodisationCanvas({
         </div>
       </div>
 
-      {/* ── Number 1–10 floating popover — issue #4 ────────────────────── */}
-      {numPopover && (
+      {/* ── Phase span popover: fixed to anchor cell (avoids overflow-x clip); z-index 1000 ─ */}
+      {spanPopover && canEdit && spanPopover.anchorRect && (
         <div
-          className="fixed z-[70] bg-[#2a2a2c] border border-white/10 rounded-lg shadow-2xl p-2"
-          style={{ top: numPopover.y, left: numPopover.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="grid grid-cols-5 gap-1 mb-1">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
-              const st = numberCellStyle(n);
-              const isCurrent = numPopover.current === n;
-              return (
-                <button
-                  key={n}
-                  type="button"
-                  className="w-7 h-7 rounded text-[10px] font-black transition-transform hover:scale-110 active:scale-95"
-                  style={{
-                    background: st.bg,
-                    color: st.text,
-                    outline: isCurrent ? '2px solid #F97316' : 'none',
-                    outlineOffset: 2,
-                  }}
-                  onClick={() => {
-                    patchCell(numPopover.rowId, numPopover.monday, {
-                      ...(cells.find(
-                        (c) => c.row_id === numPopover.rowId && c.cell_date === numPopover.monday
-                      ) ?? {}),
-                      row_id: numPopover.rowId,
-                      cell_date: numPopover.monday,
-                      value_number: n,
-                    });
-                    setNumPopover(null);
-                  }}
-                >
-                  {n}
-                </button>
-              );
-            })}
-          </div>
-          {numPopover.current != null && (
-            <button
-              type="button"
-              className="w-full text-[9px] text-gray-500 hover:text-red-400 text-center py-0.5"
-              onClick={() => {
-                patchCell(numPopover.rowId, numPopover.monday, null);
-                setNumPopover(null);
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── Span band / text: inline popover (selection stays highlighted at 40%) ─ */}
-      {spanPopover && canEdit && (
-        <div
-          className="fixed z-[70] bg-[#2a2a2c] border border-white/10 rounded-lg shadow-2xl p-2 w-[min(260px,calc(100vw-24px))]"
+          className="bg-[#2a2a2c] border border-white/10 rounded-lg shadow-2xl p-2 w-[min(260px,calc(100vw-24px))]"
           style={{
-            left: Math.min(spanPopover.anchor.left, window.innerWidth - 268),
-            top: spanPopover.anchor.top + spanPopover.anchor.height + 6,
+            position: 'fixed',
+            zIndex: 1000,
+            left: Math.min(spanPopover.anchorRect.left, window.innerWidth - 272),
+            top: spanPopover.anchorRect.bottom + 6,
           }}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
@@ -958,7 +986,61 @@ export default function PeriodisationCanvas({
         </div>
       )}
 
-      {/* ── Add row: step 1 = group, step 2 = row type + name (local only, INSERT on confirm) ─ */}
+      {/* ── Number 1–10 floating popover — issue #4 ────────────────────── */}
+      {numPopover && (
+        <div
+          className="fixed z-[70] bg-[#2a2a2c] border border-white/10 rounded-lg shadow-2xl p-2"
+          style={{ top: numPopover.y, left: numPopover.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="grid grid-cols-5 gap-1 mb-1">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+              const st = numberCellStyle(n);
+              const isCurrent = numPopover.current === n;
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  className="w-7 h-7 rounded text-[10px] font-black transition-transform hover:scale-110 active:scale-95"
+                  style={{
+                    background: st.bg,
+                    color: st.text,
+                    outline: isCurrent ? '2px solid #F97316' : 'none',
+                    outlineOffset: 2,
+                  }}
+                  onClick={() => {
+                    patchCell(numPopover.rowId, numPopover.monday, {
+                      ...(cells.find(
+                        (c) => c.row_id === numPopover.rowId && c.cell_date === numPopover.monday
+                      ) ?? {}),
+                      row_id: numPopover.rowId,
+                      cell_date: numPopover.monday,
+                      value_number: n,
+                    });
+                    setNumPopover(null);
+                  }}
+                >
+                  {n}
+                </button>
+              );
+            })}
+          </div>
+          {numPopover.current != null && (
+            <button
+              type="button"
+              className="w-full text-[9px] text-gray-500 hover:text-red-400 text-center py-0.5"
+              onClick={() => {
+                patchCell(numPopover.rowId, numPopover.monday, null);
+                setNumPopover(null);
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Add row: type + name (defaults to Planning; drag row to change group) ─ */}
       {addRowModal && (
         <div
           className="fixed inset-0 z-[65] flex items-center justify-center bg-black/60 p-4"
@@ -972,104 +1054,68 @@ export default function PeriodisationCanvas({
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            {addRowModal.step === 1 && (
-              <>
-                <p className="text-xs font-bold text-white">Choose group</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {ROW_GROUPS.map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      className="text-left rounded-lg border border-white/10 px-3 py-2 text-[11px] text-gray-200 hover:bg-white/5 hover:border-[#F97316]/50"
-                      onClick={() =>
-                        setAddRowModal((m) =>
-                          m ? { ...m, step: 2, group: g, rowType: undefined, name: '' } : m
-                        )
-                      }
-                    >
-                      {g}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="text-[10px] text-gray-500"
-                  onClick={() => setAddRowModal(null)}
-                >
-                  Cancel
-                </button>
-              </>
-            )}
-            {addRowModal.step === 2 && (
-              <>
-                <p className="text-xs font-bold text-white">Row type & name</p>
-                <p className="text-[10px] text-gray-500">Group: {addRowModal.group}</p>
-                <div className="space-y-2 max-h-[40vh] overflow-y-auto">
-                  {ROW_TYPE_OPTIONS.map((opt) => {
-                    const selected = addRowModal.rowType === opt.row_type;
-                    return (
-                      <button
-                        key={opt.row_type}
-                        type="button"
-                        className={`w-full text-left rounded-lg border px-3 py-2 ${
-                          selected ? 'border-[#F97316] bg-white/5' : 'border-white/10 hover:bg-white/5'
-                        }`}
-                        onClick={() =>
-                          setAddRowModal((m) => (m ? { ...m, rowType: opt.row_type } : m))
-                        }
-                      >
-                        <span className="text-[11px] font-bold text-white">{opt.title}</span>
-                        <span className="block text-[10px] text-gray-500 mt-0.5">{opt.desc}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <input
-                  placeholder="Row name…"
-                  value={addRowModal.name ?? ''}
-                  onChange={(e) => setAddRowModal((m) => (m ? { ...m, name: e.target.value } : m))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      void completeAddRow();
-                    }
-                  }}
-                  className="w-full bg-[#1C1C1E] border border-white/10 rounded px-2 py-2 text-sm"
-                />
-                <div className="flex gap-2 flex-wrap">
+            <p className="text-xs font-bold text-white">New row</p>
+            <p className="text-[10px] text-gray-500">
+              {addRowModal.insertCtx ? (
+                <>
+                  Row will be created in <span className="text-gray-400">{addRowModal.group}</span>{' '}
+                  next to the selected row.
+                </>
+              ) : (
+                <>
+                  New rows start in <span className="text-gray-400">Planning</span> — drag the row to
+                  another section if needed.
+                </>
+              )}
+            </p>
+            <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+              {ROW_TYPE_OPTIONS.map((opt) => {
+                const selected = addRowModal.rowType === opt.row_type;
+                return (
                   <button
+                    key={opt.row_type}
                     type="button"
-                    className="flex-1 min-w-[120px] py-2 rounded bg-[#F97316] text-black text-[10px] font-black uppercase"
-                    onClick={() => void completeAddRow()}
-                  >
-                    Create row
-                  </button>
-                  <button
-                    type="button"
-                    className="text-[10px] text-gray-500 px-2"
+                    className={`w-full text-left rounded-lg border px-3 py-2 ${
+                      selected ? 'border-[#F97316] bg-white/5' : 'border-white/10 hover:bg-white/5'
+                    }`}
                     onClick={() =>
-                      setAddRowModal((m) =>
-                        m
-                          ? {
-                              ...m,
-                              step: 1,
-                              group: undefined,
-                              rowType: undefined,
-                              name: '',
-                              insertCtx: m.insertCtx,
-                            }
-                          : m
-                      )
+                      setAddRowModal((m) => (m ? { ...m, rowType: opt.row_type } : m))
                     }
                   >
-                    Back
+                    <span className="text-[11px] font-bold text-white">{opt.title}</span>
+                    <span className="block text-[10px] text-gray-500 mt-0.5">{opt.desc}</span>
                   </button>
-                  <button type="button" className="text-[10px] text-gray-500 px-2" onClick={() => setAddRowModal(null)}>
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
+                );
+              })}
+            </div>
+            <input
+              placeholder="Row name…"
+              value={addRowModal.name ?? ''}
+              onChange={(e) => setAddRowModal((m) => (m ? { ...m, name: e.target.value } : m))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void completeAddRow();
+                }
+              }}
+              className="w-full bg-[#1C1C1E] border border-white/10 rounded px-2 py-2 text-sm"
+            />
+            <div className="flex gap-2 flex-wrap items-center">
+              <button
+                type="button"
+                className="flex-1 min-w-[120px] py-2 rounded bg-[#F97316] text-black text-[10px] font-black uppercase"
+                onClick={() => void completeAddRow()}
+              >
+                CREATE ROW
+              </button>
+              <button
+                type="button"
+                className="text-[10px] text-gray-500 px-2"
+                onClick={() => setAddRowModal(null)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1126,8 +1172,9 @@ export default function PeriodisationCanvas({
                     }
                     if (label === 'Insert row above' || label === 'Insert row below') {
                       setAddRowModal({
-                        step: 2,
                         group: row.row_group,
+                        rowType: undefined,
+                        name: '',
                         insertCtx: {
                           anchorRow: row,
                           position: label === 'Insert row below' ? 'below' : 'above',
@@ -1251,6 +1298,7 @@ function CellRenderer({
           }}
           onMouseDown={(e) => onSpanPointerDown(row, weekIndex, e)}
           onMouseEnter={() => onSpanPointerEnter(row.id, weekIndex)}
+          onClick={(e) => e.stopPropagation()}
         />
       );
     }
@@ -1268,6 +1316,7 @@ function CellRenderer({
         } ${monday === end ? 'rounded-r-md' : ''}`}
         style={{ background: bg, color: fg }}
         title={cell.value_text}
+        onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();

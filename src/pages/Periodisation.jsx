@@ -60,6 +60,7 @@ export default function Periodisation() {
     updatePlanRow,
     reorderPlanRows,
     reorderPlanRowsWithGroups,
+    updateDisplayLabelForGroup,
   } = usePeriodisationPlan(selectedTeamId, { athleteId: athleteIdForPlan, enabled: planQueryEnabled });
 
   useEffect(() => {
@@ -288,6 +289,7 @@ export default function Periodisation() {
             updatePlanRow={updatePlanRow}
             reorderPlanRows={reorderPlanRows}
             reorderPlanRowsWithGroups={reorderPlanRowsWithGroups}
+            updateDisplayLabelForGroup={updateDisplayLabelForGroup}
             onWeekSelect={setSelectedWeek}
             fetchPlan={fetchPlan}
             templates={templates}

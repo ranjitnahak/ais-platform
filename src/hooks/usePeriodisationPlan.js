@@ -188,6 +188,22 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     });
   };
 
+  /** Sets `display_label` on every row in this plan that belongs to `rowGroup` (section header). */
+  const updateDisplayLabelForGroup = async (rowGroup, displayLabel) => {
+    if (!plan?.id) return;
+    const value = displayLabel?.trim() ? displayLabel.trim() : null;
+    const { error } = await supabase
+      .from('plan_rows')
+      .update({ display_label: value })
+      .eq('plan_id', plan.id)
+      .eq('org_id', user.orgId)
+      .eq('row_group', rowGroup);
+    if (error) throw error;
+    setRows((prev) =>
+      prev.map((r) => (r.row_group === rowGroup ? { ...r, display_label: value } : r))
+    );
+  };
+
   return {
     plan,
     rows,
@@ -200,5 +216,6 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     updatePlanRow,
     reorderPlanRows,
     reorderPlanRowsWithGroups,
+    updateDisplayLabelForGroup,
   };
 };
