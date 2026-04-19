@@ -66,5 +66,20 @@ export const useSessions = (teamId, planId, weekStart, weekEnd) => {
     return data[0];
   };
 
-  return { sessions, loading: initialLoading, fetchSessions, upsertSession };
+  const deleteSession = async (id) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', id)
+        .eq('org_id', user.orgId);
+      if (error) throw error;
+    } catch (e) {
+      await fetchSessions();
+      throw e;
+    }
+  };
+
+  return { sessions, loading: initialLoading, fetchSessions, upsertSession, deleteSession };
 };

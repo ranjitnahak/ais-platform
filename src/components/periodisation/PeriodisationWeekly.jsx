@@ -152,7 +152,7 @@ export default function PeriodisationWeekly({
   onNext,
 }) {
   const user = getCurrentUser();
-  const { sessions, loading: initialLoading, upsertSession } = useSessions(teamId, plan.id, weekStartIso, weekEndIso);
+  const { sessions, loading: initialLoading, upsertSession, deleteSession } = useSessions(teamId, plan.id, weekStartIso, weekEndIso);
   const [drawer, setDrawer] = useState(null);
   const [libraryItems, setLibraryItems] = useState([]);
   const [planNotes, setPlanNotes] = useState(plan?.notes ?? '');
@@ -687,7 +687,17 @@ export default function PeriodisationWeekly({
               <button
                 type="button"
                 className="w-full text-left px-3 py-2 text-[11px] text-red-400 hover:bg-white/10"
-                onClick={() => setCtxMenu(null)}
+                onClick={async () => {
+                  const id = ctxMenu.session?.id;
+                  setCtxMenu(null);
+                  if (id) {
+                    try {
+                      await deleteSession(id);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }
+                }}
               >
                 Delete session
               </button>
