@@ -46,6 +46,18 @@ function durationToHeight(mins) {
   return slots * SLOT_HEIGHT - 4;
 }
 
+// Given a Y pixel position relative to the top of the time grid
+// element, return the nearest 30-min snapped time string "HH:MM:00"
+// Grid starts at 05:00. Each SLOT_HEIGHT px = 30 minutes.
+function pixelToSnappedTime(offsetPx) {
+  const totalSlots = Math.round(offsetPx / SLOT_HEIGHT);
+  const totalMins = 5 * 60 + totalSlots * 30;
+  const clamped = Math.min(Math.max(totalMins, 5 * 60), 22 * 60);
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+}
+
 // Get default venue for a session type value
 function defaultVenueFor(typeValue) {
   return SESSION_TYPES.find((t) => t.value === typeValue)?.venue ?? 'Gym';
@@ -144,11 +156,13 @@ export default function PeriodisationWeekly({
   const [ctxMenu, setCtxMenu] = useState(null);
   const [dragSession, setDragSession] = useState(null);
   const [dragOverDay, setDragOverDay] = useState(null);
+  const [dragOverTime, setDragOverTime] = useState(null);
   const [dragPos, setDragPos] = useState(null);
   const [dragOrigin, setDragOrigin] = useState(null);
   const dragOriginRef = useRef(null);
   const dragMovedRef = useRef(false);
   const suppressClickRef = useRef(false);
+  const timeGridRef = useRef(null);
 
   const [expandedZones, setExpandedZones] = useState({});
 
@@ -275,20 +289,34 @@ export default function PeriodisationWeekly({
     await supabase.from('periodisation_plans').update({ notes: planNotes }).eq('id', plan.id).eq('org_id', user.orgId);
   }
 
-  async function handleDropOnDay(targetDayIso, sessionToMove = null) {
+  async function handleDropOnDay(targetDayIso, targetTime = null, sessionToMove = null) {
     const sess = sessionToMove ?? dragSession;
-    if (!sess || sess.session_date === targetDayIso) {
+    if (!sess) {
       setDragSession(null);
       setDragOverDay(null);
+      setDragOverTime(null);
+      return;
+    }
+    // Only skip if BOTH day and time are unchanged
+    const timeUnchanged = !targetTime || targetTime === sess.start_time;
+    if (sess.session_date === targetDayIso && timeUnchanged) {
+      setDragSession(null);
+      setDragOverDay(null);
+      setDragOverTime(null);
       return;
     }
     try {
-      await upsertSession({ ...sess, session_date: targetDayIso });
+      await upsertSession({
+        ...sess,
+        session_date: targetDayIso,
+        start_time: targetTime ?? sess.start_time,
+      });
     } catch (e) {
       console.error(e);
     }
     setDragSession(null);
     setDragOverDay(null);
+    setDragOverTime(null);
   }
 
   function handleCopy(session) {
@@ -299,13 +327,13 @@ export default function PeriodisationWeekly({
     setCtxMenu(null);
   }
 
-  async function handlePaste(targetDayIso) {
+  async function handlePaste(targetDayIso, targetTime = null) {
     if (!clipboard) return;
     try {
       await upsertSession({
         ...clipboard,
         session_date: targetDayIso,
-        start_time: clipboard.start_time || DEFAULT_AM_TIME,
+        start_time: targetTime ?? clipboard.start_time ?? DEFAULT_AM_TIME,
         id: undefined,
       });
     } catch (e) {
@@ -325,6 +353,13 @@ export default function PeriodisationWeekly({
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const col = el?.closest('[data-day-iso]');
       if (col?.dataset?.dayIso) setDragOverDay(col.dataset.dayIso);
+
+      // Compute snapped time from Y position relative to time grid
+      if (timeGridRef.current) {
+        const gridRect = timeGridRef.current.getBoundingClientRect();
+        const offsetPx = e.clientY - gridRect.top;
+        setDragOverTime(pixelToSnappedTime(offsetPx));
+      }
     }
     function onPointerUp(e) {
       if (dragMovedRef.current) {
@@ -333,18 +368,33 @@ export default function PeriodisationWeekly({
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const col = el?.closest('[data-day-iso]');
       const sess = dragSession;
+      let snapTime = dragOverTime;
+      if (timeGridRef.current) {
+        const gridRect = timeGridRef.current.getBoundingClientRect();
+        snapTime = pixelToSnappedTime(e.clientY - gridRect.top);
+      }
       setDragPos(null);
       setDragOrigin(null);
       dragOriginRef.current = null;
       dragMovedRef.current = false;
-      if (col && col.dataset.dayIso && sess && col.dataset.dayIso !== sess.session_date) {
+      if (col && col.dataset.dayIso && sess) {
+        const targetDay = col.dataset.dayIso;
+        const timeUnchanged = !snapTime || snapTime === sess.start_time;
+        if (sess.session_date === targetDay && timeUnchanged) {
+          setDragSession(null);
+          setDragOverDay(null);
+          setDragOverTime(null);
+          return;
+        }
         setDragSession(null);
         setDragOverDay(null);
-        void handleDropOnDay(col.dataset.dayIso, sess);
+        void handleDropOnDay(targetDay, snapTime, sess);
+        setDragOverTime(null);
         return;
       }
       setDragSession(null);
       setDragOverDay(null);
+      setDragOverTime(null);
     }
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
@@ -431,7 +481,7 @@ export default function PeriodisationWeekly({
           </div>
 
           {/* Time grid */}
-          <div className="relative">
+          <div className="relative" ref={timeGridRef}>
             {timeSegments.map((seg, i) => {
               if (seg.isDead) {
                 const zoneKey = `${seg.from}-${seg.to}`;
@@ -493,7 +543,18 @@ export default function PeriodisationWeekly({
                           e.preventDefault();
                           e.stopPropagation();
                           if (clipboard) {
-                            setCtxMenu({ x: e.clientX, y: e.clientY, session: null, pasteTargetDay: d.iso });
+                            let slotTime = DEFAULT_AM_TIME;
+                            if (timeGridRef.current) {
+                              const gridRect = timeGridRef.current.getBoundingClientRect();
+                              slotTime = pixelToSnappedTime(e.clientY - gridRect.top);
+                            }
+                            setCtxMenu({
+                              x: e.clientX,
+                              y: e.clientY,
+                              session: null,
+                              pasteTargetDay: d.iso,
+                              pasteTargetTime: slotTime,
+                            });
                           }
                         }}
                       >
@@ -639,7 +700,7 @@ export default function PeriodisationWeekly({
               type="button"
               className="w-full text-left px-3 py-2 text-[11px] text-[#F97316] hover:bg-white/10"
               onClick={() => {
-                handlePaste(ctxMenu.pasteTargetDay);
+                handlePaste(ctxMenu.pasteTargetDay, ctxMenu.pasteTargetTime);
                 setCtxMenu(null);
               }}
             >
@@ -651,11 +712,16 @@ export default function PeriodisationWeekly({
 
       {dragSession && dragPos && dragOrigin && (
         <div
-          className="fixed z-[250] pointer-events-none rounded border border-white/20 bg-[#2a2a2c]/95 px-2 py-1 text-[10px] font-bold text-white shadow-lg max-w-[160px] truncate"
+          className="fixed z-[250] pointer-events-none rounded border border-white/20 bg-[#2a2a2c]/95 px-2 py-1 text-[10px] font-bold text-white shadow-lg max-w-[200px]"
           style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(8px, 8px)' }}
           aria-hidden
         >
-          {(SESSION_TYPES.find((t) => t.value === dragSession.session_type) || SESSION_TYPES[0]).label}
+          <span className="truncate block">
+            {(SESSION_TYPES.find((t) => t.value === dragSession.session_type) || SESSION_TYPES[0]).label}
+            {dragOverDay
+              ? ` → ${days.find((d) => d.iso === dragOverDay)?.label ?? ''}${dragOverTime ? ` ${dragOverTime.slice(0, 5)}` : ''}`
+              : ''}
+          </span>
         </div>
       )}
 
