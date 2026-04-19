@@ -558,14 +558,18 @@ export default function PeriodisationCanvas({
       spanPopover.mode === 'text'
         ? FOCUS_SPAN_DEFAULT_COLOR
         : spanPopover.selectedColor ?? BAND_PRESET_COLORS[0].value;
-    await upsertCell({
+    const payload = {
       row_id: spanPopover.rowId,
       cell_date: spanPopover.startIso,
       span_end_date: spanPopover.endIso,
       value_text: label,
       value_color: color,
       color,
-    });
+    };
+    if (spanPopover.isEdit) {
+      payload.id = spanPopover.existingCellId;
+    }
+    await upsertCell(payload);
     dismissSpanPopover();
     await fetchPlan?.();
   };
@@ -926,8 +930,8 @@ export default function PeriodisationCanvas({
                                 onSpanPointerDown={onSpanPointerDown}
                                 onSpanPointerEnter={onSpanPointerEnter}
                                 setNumPopover={setNumPopover}
-                                onBandRightClick={(x, y, cell) =>
-                                  setBandCtxMenu({ x, y, cell, rowId: row.id })
+                                onBandRightClick={(x, y, cell, rowType) =>
+                                  setBandCtxMenu({ x, y, cell, rowId: row.id, mode: rowType })
                                 }
                               />
                             </div>
@@ -1012,7 +1016,7 @@ export default function PeriodisationCanvas({
             className="w-full py-2 rounded bg-[#F97316] text-black text-[10px] font-black uppercase"
             onClick={() => void saveSpanPopover()}
           >
-            Create
+            {spanPopover.isEdit ? 'Update' : 'Create'}
           </button>
         </div>
       )}
@@ -1158,6 +1162,36 @@ export default function PeriodisationCanvas({
           style={{ left: bandCtxMenu.x, top: bandCtxMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
+          <li>
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 hover:bg-white/5"
+              onClick={() => {
+                setSpanPopover({
+                  rowId: bandCtxMenu.rowId,
+                  anchorWeekIndex: 0,
+                  startIso: bandCtxMenu.cell.cell_date,
+                  endIso: bandCtxMenu.cell.span_end_date || bandCtxMenu.cell.cell_date,
+                  mode: bandCtxMenu.mode || 'band',
+                  name: bandCtxMenu.cell.value_text || '',
+                  selectedColor:
+                    bandCtxMenu.cell.value_color ||
+                    bandCtxMenu.cell.color ||
+                    '#3b82f6',
+                  anchorRect: {
+                    left: bandCtxMenu.x,
+                    bottom: bandCtxMenu.y + 8,
+                    width: 48,
+                  },
+                  isEdit: true,
+                  existingCellId: bandCtxMenu.cell.id,
+                });
+                setBandCtxMenu(null);
+              }}
+            >
+              Edit
+            </button>
+          </li>
           <li>
             <button
               type="button"
@@ -1350,7 +1384,7 @@ function CellRenderer({
     const bandContextMenu = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      onBandRightClick(e.clientX, e.clientY, cell);
+      onBandRightClick(e.clientX, e.clientY, cell, row.row_type);
     };
 
     if (monday === cell.cell_date) {
