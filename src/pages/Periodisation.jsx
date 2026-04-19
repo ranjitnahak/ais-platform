@@ -52,9 +52,10 @@ export default function Periodisation() {
     plan,
     rows,
     cells,
-    loading,
+    initialLoading,
     fetchPlan,
     upsertCell,
+    deletePlanCellById,
     insertPlanRow,
     deletePlanRow,
     updatePlanRow,
@@ -223,19 +224,19 @@ export default function Periodisation() {
       </header>
 
       <main className="pt-20 pb-28 px-4 md:pl-72 md:pr-6 min-h-screen">
-        {loading && (
+        {initialLoading && (
           <div className="flex items-center justify-center py-24">
             <span className="material-symbols-outlined text-[#F97316] animate-spin text-4xl">refresh</span>
           </div>
         )}
 
-        {!loading && !planQueryEnabled && (
+        {!initialLoading && !planQueryEnabled && (
           <div className="max-w-md mx-auto mt-16 text-center text-sm text-gray-400 border border-white/10 rounded-lg p-8 bg-[#252528]">
             Choose <strong className="text-white">Individual Athlete</strong> and pick an athlete from the dropdown to view their plan.
           </div>
         )}
 
-        {!loading && !plan && planQueryEnabled && (
+        {!initialLoading && !plan && planQueryEnabled && (
           <div className="max-w-lg mx-auto mt-16 text-center space-y-8">
             <div className="space-y-2">
               <span className="text-4xl font-black tracking-tighter text-white uppercase">AIS</span>
@@ -267,7 +268,7 @@ export default function Periodisation() {
           </div>
         )}
 
-        {!loading && plan && !selectedWeek && (
+        {!initialLoading && plan && !selectedWeek && (
           <PeriodisationCanvas
             plan={plan}
             rows={rows}
@@ -284,6 +285,7 @@ export default function Periodisation() {
             setZoomLevel={setZoomLevel}
             canEdit={canEdit}
             upsertCell={upsertCell}
+            deletePlanCellById={deletePlanCellById}
             insertPlanRow={insertPlanRow}
             deletePlanRow={deletePlanRow}
             updatePlanRow={updatePlanRow}
@@ -291,12 +293,11 @@ export default function Periodisation() {
             reorderPlanRowsWithGroups={reorderPlanRowsWithGroups}
             updateDisplayLabelForGroup={updateDisplayLabelForGroup}
             onWeekSelect={setSelectedWeek}
-            fetchPlan={fetchPlan}
             templates={templates}
           />
         )}
 
-        {!loading && plan && selectedWeek && (
+        {!initialLoading && plan && selectedWeek && (
           <PeriodisationWeekly
             team={selectedTeam}
             plan={plan}

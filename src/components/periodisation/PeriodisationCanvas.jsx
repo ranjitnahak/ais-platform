@@ -22,8 +22,6 @@ import {
   ROW_GROUPS,
   ZOOM_PX,
 } from '../../lib/periodisationUtils';
-import { supabase } from '../../lib/supabaseClient';
-import { getCurrentUser } from '../../lib/auth';
 import ColorPicker from '../ui/ColorPicker';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
@@ -127,11 +125,6 @@ function findSpanningCell(rowId, monday, cells, patches) {
   return null;
 }
 
-async function deletePlanCellById(id) {
-  const user = getCurrentUser();
-  await supabase.from('plan_cells').delete().eq('id', id).eq('org_id', user.orgId);
-}
-
 function formatPlanDate(iso) {
   if (!iso) return '';
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', {
@@ -157,6 +150,7 @@ export default function PeriodisationCanvas({
   setZoomLevel,
   canEdit,
   upsertCell,
+  deletePlanCellById,
   insertPlanRow,
   deletePlanRow,
   updatePlanRow,
@@ -164,7 +158,6 @@ export default function PeriodisationCanvas({
   reorderPlanRowsWithGroups,
   updateDisplayLabelForGroup,
   onWeekSelect,
-  fetchPlan,
   templates = [],
 }) {
   const scrollRef = useRef(null);
@@ -354,7 +347,6 @@ export default function PeriodisationCanvas({
     setPatches({});
     setHistory([]);
     setFuture([]);
-    await fetchPlan?.();
   };
 
   const monthSpans = useMemo(() => {
@@ -422,7 +414,6 @@ export default function PeriodisationCanvas({
     } else {
       await reorderPlanRows?.(ordered.map((r) => r.id));
     }
-    await fetchPlan?.();
   };
 
   const handleRowDragEnd = () => {
@@ -571,7 +562,6 @@ export default function PeriodisationCanvas({
     }
     await upsertCell(payload);
     dismissSpanPopover();
-    await fetchPlan?.();
   };
 
   const completeAddRow = async () => {
@@ -863,7 +853,6 @@ export default function PeriodisationCanvas({
                                 const label = editingRowLabel.value.trim();
                                 if (label && label !== row.label) {
                                   await updatePlanRow(row.id, { label });
-                                  await fetchPlan?.();
                                 }
                                 setEditingRowLabel(null);
                               }}
@@ -1201,7 +1190,6 @@ export default function PeriodisationCanvas({
                 setBandCtxMenu(null);
                 if (cell?.id) {
                   await deletePlanCellById(cell.id);
-                  await fetchPlan?.();
                 } else if (cell?.cell_date) {
                   patchCell(rowId, cell.cell_date, null);
                 }
@@ -1233,7 +1221,6 @@ export default function PeriodisationCanvas({
                     setCtxMenu(null);
                     if (label === 'Delete row') {
                       if (window.confirm('Delete this row?')) await deletePlanRow(row.id);
-                      await fetchPlan?.();
                     }
                     if (label === 'Insert row above' || label === 'Insert row below') {
                       setAddRowModal({
@@ -1251,7 +1238,6 @@ export default function PeriodisationCanvas({
                       for (const c of rowCells) {
                         if (c?.id) await deletePlanCellById(c.id);
                       }
-                      await fetchPlan?.();
                     }
                     if (label === 'Edit row label…') {
                       setEditingRowLabel({ rowId: row.id, value: row.label });

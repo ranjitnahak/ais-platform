@@ -6,7 +6,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
   const [plan, setPlan] = useState(null);
   const [rows, setRows] = useState([]);
   const [cells, setCells] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const user = getCurrentUser();
 
   const athleteIdRef = useRef(athleteId);
@@ -23,7 +23,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
-      setLoading(false);
+      setInitialLoading(false);
       return;
     }
 
@@ -31,11 +31,9 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
-      setLoading(false);
+      setInitialLoading(false);
       return;
     }
-
-    setLoading(true);
 
     let q = supabase
       .from('periodisation_plans')
@@ -55,7 +53,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
-      setLoading(false);
+      setInitialLoading(false);
       return;
     }
 
@@ -63,7 +61,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
-      setLoading(false);
+      setInitialLoading(false);
       return;
     }
 
@@ -80,7 +78,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       console.error(rowErr);
       setRows([]);
       setCells([]);
-      setLoading(false);
+      setInitialLoading(false);
       return;
     }
 
@@ -99,7 +97,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setCells([]);
     }
 
-    setLoading(false);
+    setInitialLoading(false);
   }, [teamId]);
 
   useEffect(() => {
@@ -108,75 +106,157 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
   }, [teamId]);
 
   const upsertCell = async (cellData) => {
+    const tempId = cellData.id ? null : `temp-cell-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const payload = { ...cellData, org_id: user.orgId };
-    const { data, error } = await supabase.from('plan_cells').upsert(payload).select();
-    if (error) throw error;
-    if (!data?.[0]) return null;
+
     setCells((prev) => {
-      const idx = prev.findIndex((c) => c.id === data[0].id);
+      const idx = cellData.id
+        ? prev.findIndex((c) => c.id === cellData.id)
+        : prev.findIndex(
+            (c) => c.row_id === cellData.row_id && c.cell_date === cellData.cell_date
+          );
+      const base = idx >= 0 ? prev[idx] : {};
+      const optimistic = {
+        ...base,
+        ...cellData,
+        id: cellData.id || tempId,
+        org_id: user.orgId,
+      };
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = data[0];
+        next[idx] = optimistic;
         return next;
       }
-      return [...prev, data[0]];
+      return [...prev, optimistic];
     });
-    return data[0];
+
+    try {
+      const { data, error } = await supabase.from('plan_cells').upsert(payload).select();
+      if (error) throw error;
+      if (!data?.[0]) return null;
+
+      const saved = data[0];
+      setCells((prev) => {
+        let next = tempId ? prev.filter((c) => c.id !== tempId) : [...prev];
+        const byId = next.findIndex((c) => c.id === saved.id);
+        if (byId >= 0) {
+          next[byId] = saved;
+          return next;
+        }
+        const byKey = next.findIndex(
+          (c) => c.row_id === saved.row_id && c.cell_date === saved.cell_date
+        );
+        if (byKey >= 0) {
+          next[byKey] = saved;
+          return next;
+        }
+        return [...next, saved];
+      });
+      return saved;
+    } catch (e) {
+      await fetchPlan();
+      throw e;
+    }
+  };
+
+  const deletePlanCellById = async (id) => {
+    setCells((prev) => prev.filter((c) => c.id !== id));
+    try {
+      const { error } = await supabase.from('plan_cells').delete().eq('id', id).eq('org_id', user.orgId);
+      if (error) throw error;
+    } catch (e) {
+      await fetchPlan();
+      throw e;
+    }
   };
 
   const insertPlanRow = async (rowPayload) => {
     if (!plan?.id) return null;
-    const { data, error } = await supabase
-      .from('plan_rows')
-      .insert({ ...rowPayload, org_id: user.orgId, plan_id: plan.id })
-      .select()
-      .single();
-    if (error) throw error;
-    setRows((prev) => [...prev, data].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)));
-    return data;
+    const tempId = `temp-row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const optimisticRow = {
+      ...rowPayload,
+      id: tempId,
+      plan_id: plan.id,
+      org_id: user.orgId,
+    };
+    setRows((prev) =>
+      [...prev, optimisticRow].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    );
+
+    try {
+      const { data, error } = await supabase
+        .from('plan_rows')
+        .insert({ ...rowPayload, org_id: user.orgId, plan_id: plan.id })
+        .select()
+        .single();
+      if (error) throw error;
+      setRows((prev) =>
+        prev
+          .map((r) => (r.id === tempId ? data : r))
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      );
+      return data;
+    } catch (e) {
+      setRows((prev) => prev.filter((r) => r.id !== tempId));
+      throw e;
+    }
   };
 
   const deletePlanRow = async (rowId) => {
-    const { error } = await supabase.from('plan_rows').delete().eq('id', rowId).eq('org_id', user.orgId);
-    if (error) throw error;
     setRows((prev) => prev.filter((r) => r.id !== rowId));
     setCells((prev) => prev.filter((c) => c.row_id !== rowId));
+    try {
+      const { error } = await supabase.from('plan_rows').delete().eq('id', rowId).eq('org_id', user.orgId);
+      if (error) throw error;
+    } catch (e) {
+      await fetchPlan();
+      throw e;
+    }
   };
 
   const updatePlanRow = async (rowId, patch) => {
-    const { data, error } = await supabase
-      .from('plan_rows')
-      .update(patch)
-      .eq('id', rowId)
-      .eq('org_id', user.orgId)
-      .select()
-      .single();
-    if (error) throw error;
-    setRows((prev) => prev.map((r) => (r.id === rowId ? data : r)).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)));
-    return data;
+    setRows((prev) =>
+      prev
+        .map((r) => (r.id === rowId ? { ...r, ...patch } : r))
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    );
+    try {
+      const { data, error } = await supabase
+        .from('plan_rows')
+        .update(patch)
+        .eq('id', rowId)
+        .eq('org_id', user.orgId)
+        .select()
+        .single();
+      if (error) throw error;
+      setRows((prev) =>
+        prev.map((r) => (r.id === rowId ? data : r)).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      );
+      return data;
+    } catch (e) {
+      await fetchPlan();
+      throw e;
+    }
   };
 
   const reorderPlanRows = async (orderedIds) => {
-    const updates = orderedIds.map((id, i) =>
-      supabase.from('plan_rows').update({ sort_order: i }).eq('id', id).eq('org_id', user.orgId)
-    );
-    await Promise.all(updates);
     setRows((prev) => {
       const map = new Map(prev.map((r) => [r.id, r]));
       return orderedIds.map((id, i) => ({ ...map.get(id), sort_order: i })).filter(Boolean);
     });
+    try {
+      const updates = orderedIds.map((id, i) =>
+        supabase.from('plan_rows').update({ sort_order: i }).eq('id', id).eq('org_id', user.orgId)
+      );
+      await Promise.all(updates);
+    } catch (e) {
+      await fetchPlan();
+      throw e;
+    }
   };
 
   /** Each entry is `{ id, row_group }` in global display order (same as sort_order indices). */
   const reorderPlanRowsWithGroups = async (ordered) => {
-    const updates = ordered.map((r, i) =>
-      supabase
-        .from('plan_rows')
-        .update({ sort_order: i, row_group: r.row_group })
-        .eq('id', r.id)
-        .eq('org_id', user.orgId)
-    );
-    await Promise.all(updates);
     setRows((prev) => {
       const map = new Map(prev.map((x) => [x.id, x]));
       return ordered
@@ -186,31 +266,48 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
         })
         .filter(Boolean);
     });
+    try {
+      const updates = ordered.map((r, i) =>
+        supabase
+          .from('plan_rows')
+          .update({ sort_order: i, row_group: r.row_group })
+          .eq('id', r.id)
+          .eq('org_id', user.orgId)
+      );
+      await Promise.all(updates);
+    } catch (e) {
+      await fetchPlan();
+      throw e;
+    }
   };
 
   /** Sets `display_label` on every row in this plan that belongs to `rowGroup` (section header). */
   const updateDisplayLabelForGroup = async (rowGroup, displayLabel) => {
     if (!plan?.id) return;
     const value = displayLabel?.trim() ? displayLabel.trim() : null;
-    const { error } = await supabase
-      .from('plan_rows')
-      .update({ display_label: value })
-      .eq('plan_id', plan.id)
-      .eq('org_id', user.orgId)
-      .eq('row_group', rowGroup);
-    if (error) throw error;
-    setRows((prev) =>
-      prev.map((r) => (r.row_group === rowGroup ? { ...r, display_label: value } : r))
-    );
+    setRows((prev) => prev.map((r) => (r.row_group === rowGroup ? { ...r, display_label: value } : r)));
+    try {
+      const { error } = await supabase
+        .from('plan_rows')
+        .update({ display_label: value })
+        .eq('plan_id', plan.id)
+        .eq('org_id', user.orgId)
+        .eq('row_group', rowGroup);
+      if (error) throw error;
+    } catch (e) {
+      await fetchPlan();
+      throw e;
+    }
   };
 
   return {
     plan,
     rows,
     cells,
-    loading,
+    initialLoading,
     fetchPlan,
     upsertCell,
+    deletePlanCellById,
     insertPlanRow,
     deletePlanRow,
     updatePlanRow,
