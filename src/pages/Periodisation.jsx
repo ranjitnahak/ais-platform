@@ -138,32 +138,28 @@ export default function Periodisation() {
       setAthletes([]);
       return;
     }
-    let cancelled = false;
-    console.log('Athlete fetch firing', { viewMode, selectedTeamId, cancelled });
-    (async () => {
-      const { data: links, error: linkErr } = await supabase
-        .from('athlete_teams')
-        .select('athlete_id')
-        .eq('team_id', selectedTeamId);
-      if (linkErr) console.error('athlete_teams fetch:', linkErr);
-      if (cancelled) return;
-      const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
-      if (!ids.length) {
-        setAthletes([]);
-        return;
-      }
-      const { data: ath, error: athErr } = await supabase
-        .from('athletes')
-        .select('id, full_name')
-        .eq('org_id', user.orgId)
-        .in('id', ids)
-        .order('full_name');
-      if (athErr) console.error('athletes fetch:', athErr);
-      if (cancelled) return;
-      setAthletes(ath ?? []);
-      console.log('Athletes fetched:', ath?.length, ath);
-    })();
-    return () => { cancelled = true; };
+    supabase
+      .from('athlete_teams')
+      .select('athlete_id')
+      .eq('team_id', selectedTeamId)
+      .then(({ data: links }) => {
+        const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
+        if (!ids.length) {
+          setAthletes([]);
+          return;
+        }
+        return supabase
+          .from('athletes')
+          .select('id, full_name')
+          .eq('org_id', user.orgId)
+          .in('id', ids)
+          .order('full_name');
+      })
+      .then((result) => {
+        if (!result) return;
+        setAthletes(result.data ?? []);
+      })
+      .catch((err) => console.error('Athlete fetch error:', err));
   }, [viewMode, selectedTeamId, user.orgId]);
 
   useEffect(() => {
