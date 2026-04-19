@@ -1,16 +1,17 @@
 /** Monday ISO date string YYYY-MM-DD */
 export function toISODate(d) {
   const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
+  x.setHours(12, 0, 0, 0);
   return x.toISOString().slice(0, 10);
 }
 
 export function startOfWeekMonday(d) {
-  const x = new Date(d);
+  const iso = typeof d === 'string' ? d : d.toISOString().slice(0, 10);
+  const x = new Date(iso + 'T12:00:00');
   const day = x.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   x.setDate(x.getDate() + diff);
-  x.setHours(0, 0, 0, 0);
+  x.setHours(12, 0, 0, 0);
   return x;
 }
 
