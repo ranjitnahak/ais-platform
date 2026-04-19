@@ -897,9 +897,15 @@ export default function PeriodisationCanvas({
                               key={w.monday}
                               data-span-cell={`${row.id}::${wi}`}
                               className={`border-r border-white/5 shrink-0 flex items-center justify-center p-0.5 ${
-                                rowUsesSpanInteraction(row) ? 'relative z-10' : ''
+                                rowUsesSpanInteraction(row) ? 'relative z-10 overflow-visible' : ''
                               }`}
-                              style={{ width: pxPerWeek, fontSize: 10 }}
+                              style={{
+                                width: pxPerWeek,
+                                fontSize: 10,
+                                ...(rowUsesSpanInteraction(row)
+                                  ? { position: 'relative', overflow: 'visible' }
+                                  : {}),
+                              }}
                               onClick={
                                 rowUsesSpanInteraction(row) ? (e) => e.stopPropagation() : undefined
                               }
@@ -909,6 +915,7 @@ export default function PeriodisationCanvas({
                                 monday={w.monday}
                                 weekIndex={wi}
                                 weeks={weeks}
+                                pxPerWeek={pxPerWeek}
                                 cells={cells}
                                 patches={patches}
                                 acwrSeries={acwrSeries}
@@ -1248,6 +1255,7 @@ function CellRenderer({
   monday,
   weekIndex,
   weeks,
+  pxPerWeek,
   cells,
   patches,
   acwrSeries,
@@ -1343,28 +1351,71 @@ function CellRenderer({
 
     const start = cell.cell_date;
     const end = cell.span_end_date || cell.cell_date;
-    const isFirst = monday === start;
     const isTextSpan = row.row_type === 'text';
     const bg = isTextSpan ? cellDisplayColor(cell, FOCUS_SPAN_DEFAULT_COLOR) : cellDisplayColor(cell);
     const fg = isTextSpan ? '#f9fafb' : '#0f172a';
-    return (
-      <div
-        data-span-cell={`${row.id}::${weekIndex}`}
-        className={`w-full min-h-[22px] h-full flex items-center justify-center text-[9px] font-bold truncate px-1 ${
-          isFirst ? 'rounded-l-md' : ''
-        } ${monday === end ? 'rounded-r-md' : ''}`}
-        style={{ background: bg, color: fg }}
-        title={cell.value_text}
-        onClick={(e) => e.stopPropagation()}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onBandRightClick(e.clientX, e.clientY, cell);
-        }}
-      >
-        {isFirst ? cell.value_text : ''}
-      </div>
-    );
+
+    const spanWeeks = weeks.filter(
+      (w) => w.monday >= cell.cell_date && w.monday <= (cell.span_end_date || cell.cell_date)
+    ).length;
+    const pillWidth = spanWeeks * pxPerWeek - 4;
+
+    const bandContextMenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onBandRightClick(e.clientX, e.clientY, cell);
+    };
+
+    if (monday === cell.cell_date) {
+      return (
+        <div
+          className="relative w-full h-full min-h-[22px]"
+          data-span-cell={`${row.id}::${weekIndex}`}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={bandContextMenu}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              left: 2,
+              top: 2,
+              width: pillWidth,
+              height: 'calc(100% - 4px)',
+              background: bg,
+              borderRadius: 4,
+              zIndex: 5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 10,
+              fontWeight: 600,
+              color: fg,
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              paddingLeft: 8,
+              paddingRight: 8,
+            }}
+            title={cell.value_text}
+          >
+            {cell.value_text}
+          </div>
+        </div>
+      );
+    }
+
+    if (monday > cell.cell_date && monday <= end) {
+      return (
+        <div
+          className="w-full h-full min-h-[22px]"
+          data-span-cell={`${row.id}::${weekIndex}`}
+          style={{ background: 'transparent' }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={bandContextMenu}
+        />
+      );
+    }
+
+    return null;
   }
 
   if (row.row_type === 'marker') {
