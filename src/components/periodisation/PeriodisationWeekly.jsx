@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { getCurrentUser, canEditSessionLibrary } from '../../lib/auth';
 import { useSessions } from '../../hooks/useSessions';
 import { addDays, formatRange, rowMetricKey, weekStartsBetween, computeAcwrSeries, acwrStyle } from '../../lib/periodisationUtils';
+import RichTextToolbar from '../ui/RichTextToolbar';
 
 const CAT_STYLES = {
   strength: { bg: '#fef9c3', text: '#713f12', label: 'Strength' },
@@ -156,6 +157,8 @@ export default function PeriodisationWeekly({
   const [drawer, setDrawer] = useState(null);
   const [libraryItems, setLibraryItems] = useState([]);
   const [planNotes, setPlanNotes] = useState(plan?.notes ?? '');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
 
   const [clipboard, setClipboard] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -168,6 +171,7 @@ export default function PeriodisationWeekly({
   const dragMovedRef = useRef(false);
   const suppressClickRef = useRef(false);
   const timeGridRef = useRef(null);
+  const notesRef = useRef(null);
 
   const [expandedZones, setExpandedZones] = useState({});
 
@@ -291,7 +295,17 @@ export default function PeriodisationWeekly({
   const todayIso = new Date().toISOString().slice(0, 10);
 
   async function savePlanNotes() {
-    await supabase.from('periodisation_plans').update({ notes: planNotes }).eq('id', plan.id).eq('org_id', user.orgId);
+    setNotesSaving(true);
+    setNotesSaved(false);
+    try {
+      await supabase.from('periodisation_plans').update({ notes: planNotes }).eq('id', plan.id).eq('org_id', user.orgId);
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2000);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setNotesSaving(false);
+    }
   }
 
   async function handleDropOnDay(targetDayIso, targetTime = null, sessionToMove = null) {
@@ -613,14 +627,25 @@ export default function PeriodisationWeekly({
 
       {/* Week notes */}
       <div className="mt-3 rounded-lg border border-white/10 bg-[#252528] p-3">
-        <label className="text-[10px] font-bold uppercase text-gray-500">Week notes</label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-[10px] font-bold uppercase text-gray-500">Week notes</label>
+          <button
+            type="button"
+            disabled={notesSaving}
+            onClick={savePlanNotes}
+            className="text-[9px] font-bold uppercase px-2 py-1 rounded bg-[#F97316] text-black disabled:opacity-40 transition-opacity"
+          >
+            {notesSaving ? 'Saving…' : notesSaved ? 'Saved ✓' : 'Save'}
+          </button>
+        </div>
+        <RichTextToolbar textareaRef={notesRef} value={planNotes} onChange={setPlanNotes} />
         <textarea
+          ref={notesRef}
           value={planNotes}
           onChange={(e) => setPlanNotes(e.target.value)}
-          onBlur={savePlanNotes}
-          rows={2}
+          rows={4}
           placeholder="Plan-level notes…"
-          className="mt-1 w-full bg-[#1C1C1E] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600"
+          className="w-full bg-[#1C1C1E] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 font-mono"
         />
       </div>
 
