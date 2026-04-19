@@ -24,6 +24,7 @@ import {
 } from '../../lib/periodisationUtils';
 import { supabase } from '../../lib/supabaseClient';
 import { getCurrentUser } from '../../lib/auth';
+import ColorPicker from '../ui/ColorPicker';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -998,26 +999,12 @@ export default function PeriodisationCanvas({
             </button>
           </div>
           {spanPopover.mode === 'band' && (
-            <div className="flex gap-1.5 flex-nowrap justify-between mb-2">
-              {BAND_PRESET_COLORS.map((c) => {
-                const selected = spanPopover.selectedColor === c.value;
-                return (
-                  <button
-                    key={c.value}
-                    type="button"
-                    title={c.label}
-                    className="w-7 h-7 rounded-full transition-transform hover:scale-110 shrink-0"
-                    style={{
-                      background: c.value,
-                      outline: selected ? '2px solid #F97316' : '2px solid transparent',
-                      outlineOffset: 2,
-                    }}
-                    onClick={() =>
-                      setSpanPopover((p) => (p ? { ...p, selectedColor: c.value } : p))
-                    }
-                  />
-                );
-              })}
+            <div className="flex items-center mb-2">
+              <ColorPicker
+                value={spanPopover.selectedColor}
+                onChange={(color) => setSpanPopover((p) => (p ? { ...p, selectedColor: color } : p))}
+                size="sm"
+              />
             </div>
           )}
           <button
