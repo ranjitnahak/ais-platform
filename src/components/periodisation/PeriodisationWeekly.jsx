@@ -352,7 +352,7 @@ export default function PeriodisationWeekly({
       setDragPos({ x: e.clientX, y: e.clientY });
       const ox = dragOriginRef.current?.x ?? e.clientX;
       const oy = dragOriginRef.current?.y ?? e.clientY;
-      if (Math.hypot(e.clientX - ox, e.clientY - oy) > 8) {
+      if (Math.hypot(e.clientX - ox, e.clientY - oy) > 12) {
         dragMovedRef.current = true;
       }
       const el = document.elementFromPoint(e.clientX, e.clientY);
@@ -367,39 +367,32 @@ export default function PeriodisationWeekly({
       }
     }
     function onPointerUp(e) {
-      if (dragMovedRef.current) {
+      const moved = dragMovedRef.current;
+      if (moved) {
         suppressClickRef.current = true;
       }
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const col = el?.closest('[data-day-iso]');
       const sess = dragSession;
-      let snapTime = dragOverTime;
+      let dropTime = dragOverTime;
       if (timeGridRef.current) {
         const gridRect = timeGridRef.current.getBoundingClientRect();
-        snapTime = pixelToSnappedTime(e.clientY - gridRect.top);
+        dropTime = pixelToSnappedTime(e.clientY - gridRect.top);
       }
       setDragPos(null);
       setDragOrigin(null);
       dragOriginRef.current = null;
       dragMovedRef.current = false;
-      if (col && col.dataset.dayIso && sess) {
-        const targetDay = col.dataset.dayIso;
-        const timeUnchanged = !snapTime || snapTime === sess.start_time;
-        if (sess.session_date === targetDay && timeUnchanged) {
-          setDragSession(null);
-          setDragOverDay(null);
-          setDragOverTime(null);
-          return;
-        }
-        setDragSession(null);
-        setDragOverDay(null);
-        void handleDropOnDay(targetDay, snapTime, sess);
-        setDragOverTime(null);
-        return;
-      }
       setDragSession(null);
       setDragOverDay(null);
       setDragOverTime(null);
+
+      // Only move if pointer actually travelled more than 12px
+      if (!moved) return;
+
+      if (col && col.dataset.dayIso && sess) {
+        void handleDropOnDay(col.dataset.dayIso, dropTime, sess);
+      }
     }
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
