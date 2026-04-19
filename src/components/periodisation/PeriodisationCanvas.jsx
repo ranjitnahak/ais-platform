@@ -491,29 +491,28 @@ export default function PeriodisationCanvas({
       }
     };
 
-    const onWinMouseUp = () => {
+    const onWinMouseUp = (e) => {
       const d = spanDragRef.current;
       if (!d) return;
       const { rowId, startIdx, endIdx, mode } = d;
       const dragStart = Math.min(startIdx, endIdx);
       const dragEnd = Math.max(startIdx, endIdx);
-      console.log('mouseup fired, selection:', { dragStart, dragEnd });
       const wA = weeks[dragStart];
       const wB = weeks[dragEnd];
       if (!wA || !wB) {
         spanDragRef.current = null;
+        setSpanSelection(null);
         return;
       }
       setSpanSelection({ rowId, startIdx: dragStart, endIdx: dragEnd });
-      const anchorEl = document.querySelector(`[data-span-cell="${rowId}::${endIdx}"]`);
-      let anchorRect = { left: 24, bottom: 120, width: 48 };
-      if (anchorEl) {
-        const r = anchorEl.getBoundingClientRect();
-        anchorRect = { left: r.left, bottom: r.bottom, width: r.width };
-      }
+      const anchorRect = {
+        left: Math.min(e.clientX, window.innerWidth - 272),
+        bottom: e.clientY + 8,
+        width: 48,
+      };
       setSpanPopover({
         rowId,
-        anchorWeekIndex: endIdx,
+        anchorWeekIndex: dragEnd,
         startIso: wA.monday,
         endIso: wB.monday,
         mode,
