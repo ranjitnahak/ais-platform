@@ -9,6 +9,15 @@ import PeriodisationCanvas from '../components/periodisation/PeriodisationCanvas
 import PeriodisationWeekly from '../components/periodisation/PeriodisationWeekly';
 import { addDays } from '../lib/periodisationUtils';
 
+function toMondayIso(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  const dow = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const diff = dow === 0 ? -6 : 1 - dow;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  return mon.toISOString().slice(0, 10);
+}
+
 const formatPlanDate = (iso) => {
   if (!iso) return '';
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', {
@@ -370,7 +379,13 @@ export default function Periodisation() {
             reorderPlanRows={reorderPlanRows}
             reorderPlanRowsWithGroups={reorderPlanRowsWithGroups}
             updateDisplayLabelForGroup={updateDisplayLabelForGroup}
-            onWeekSelect={setSelectedWeek}
+            onWeekSelect={(w) =>
+              setSelectedWeek({
+                ...w,
+                weekStartIso: toMondayIso(w.weekStartIso),
+                weekEndIso: addDays(toMondayIso(w.weekStartIso), 6),
+              })
+            }
             templates={templates}
           />
         )}
@@ -389,18 +404,14 @@ export default function Periodisation() {
             onPrev={() =>
               setSelectedWeek((w) => {
                 if (!w) return w;
-                const d = new Date(w.weekStartIso + 'T12:00:00');
-                d.setDate(d.getDate() - 7);
-                const mon = d.toISOString().slice(0, 10);
+                const mon = toMondayIso(addDays(w.weekStartIso, -7));
                 return { ...w, weekStartIso: mon, weekIndex: Math.max(0, w.weekIndex - 1), weekEndIso: addDays(mon, 6) };
               })
             }
             onNext={() =>
               setSelectedWeek((w) => {
                 if (!w) return w;
-                const d = new Date(w.weekStartIso + 'T12:00:00');
-                d.setDate(d.getDate() + 7);
-                const mon = d.toISOString().slice(0, 10);
+                const mon = toMondayIso(addDays(w.weekStartIso, 7));
                 return { ...w, weekStartIso: mon, weekIndex: w.weekIndex + 1, weekEndIso: addDays(mon, 6) };
               })
             }
