@@ -470,7 +470,10 @@ export default function PeriodisationCanvas({
       if (!spanDragRef.current) return;
       const el = document.elementFromPoint(e.clientX, e.clientY);
       if (!el) return;
-      const cell = el.closest('[data-span-cell]');
+      const cell =
+        el.closest('[data-span-cell]') ||
+        el.querySelector('[data-span-cell]') ||
+        el.parentElement?.closest('[data-span-cell]');
       if (!cell) return;
       const raw = cell.getAttribute('data-span-cell');
       if (!raw) return;
@@ -1321,6 +1324,7 @@ function CellRenderer({
         <button
           type="button"
           disabled={!canEdit}
+          data-span-cell={`${row.id}::${weekIndex}`}
           className="w-full h-full min-h-[22px] rounded border border-transparent"
           style={{
             background: inSelectionRange ? SPAN_SELECTION_HIGHLIGHT : 'rgba(255,255,255,0.05)',
@@ -1340,6 +1344,7 @@ function CellRenderer({
     const fg = isTextSpan ? '#f9fafb' : '#0f172a';
     return (
       <div
+        data-span-cell={`${row.id}::${weekIndex}`}
         className={`w-full min-h-[22px] h-full flex items-center justify-center text-[9px] font-bold truncate px-1 ${
           isFirst ? 'rounded-l-md' : ''
         } ${monday === end ? 'rounded-r-md' : ''}`}
