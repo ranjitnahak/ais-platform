@@ -139,6 +139,7 @@ export default function Periodisation() {
       return;
     }
     let cancelled = false;
+    console.log('Athlete fetch firing', { viewMode, selectedTeamId, cancelled });
     (async () => {
       const { data: links, error: linkErr } = await supabase
         .from('athlete_teams')
@@ -160,6 +161,7 @@ export default function Periodisation() {
       if (athErr) console.error('athletes fetch:', athErr);
       if (cancelled) return;
       setAthletes(ath ?? []);
+      console.log('Athletes fetched:', ath?.length, ath);
     })();
     return () => { cancelled = true; };
   }, [viewMode, selectedTeamId, user.orgId]);
