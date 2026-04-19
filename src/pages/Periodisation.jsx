@@ -125,6 +125,7 @@ export default function Periodisation() {
         setSelectedTeamId((current) =>
           current && list.some((t) => t.id === current) ? current : list[0].id
         );
+        setSelectedAthleteId(null);
       }
     })();
     return () => {
@@ -137,24 +138,30 @@ export default function Periodisation() {
       setAthletes([]);
       return;
     }
+    let cancelled = false;
     (async () => {
-      const { data: links } = await supabase
+      const { data: links, error: linkErr } = await supabase
         .from('athlete_teams')
         .select('athlete_id')
         .eq('team_id', selectedTeamId);
+      if (linkErr) console.error('athlete_teams fetch:', linkErr);
+      if (cancelled) return;
       const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
       if (!ids.length) {
         setAthletes([]);
         return;
       }
-      const { data: ath } = await supabase
+      const { data: ath, error: athErr } = await supabase
         .from('athletes')
         .select('id, full_name')
         .eq('org_id', user.orgId)
         .in('id', ids)
         .order('full_name');
+      if (athErr) console.error('athletes fetch:', athErr);
+      if (cancelled) return;
       setAthletes(ath ?? []);
     })();
+    return () => { cancelled = true; };
   }, [viewMode, selectedTeamId, user.orgId]);
 
   useEffect(() => {
@@ -335,7 +342,10 @@ export default function Periodisation() {
               </label>
               <select
                 value={selectedTeamId ?? ''}
-                onChange={(e) => setSelectedTeamId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedTeamId(e.target.value);
+                  setSelectedAthleteId(null);
+                }}
                 className="w-full max-w-sm bg-[#2a2a2c] border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
               >
                 {teams.map((t) => (
@@ -362,7 +372,10 @@ export default function Periodisation() {
             cells={cells}
             teams={teams}
             selectedTeamId={selectedTeamId}
-            setSelectedTeamId={setSelectedTeamId}
+            setSelectedTeamId={(id) => {
+              setSelectedTeamId(id);
+              setSelectedAthleteId(null);
+            }}
             viewMode={viewMode}
             setViewMode={setViewMode}
             athletes={athletes}
