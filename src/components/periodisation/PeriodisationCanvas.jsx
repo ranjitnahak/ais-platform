@@ -183,6 +183,7 @@ export default function PeriodisationCanvas({
   const [spanSelection, setSpanSelection] = useState(null);
   const [spanPopover, setSpanPopover] = useState(null); // inline create/edit for span rows
   const spanDragRef = useRef(null);
+  const justFinishedDragRef = useRef(false);
   const [addRowModal, setAddRowModal] = useState(null); // { group, rowType?, name?, insertCtx? }
   const [editingGroupHeader, setEditingGroupHeader] = useState(null); // { groupKey, value }
   const [numPopover, setNumPopover] = useState(null); // number picker: { rowId, monday, current, x, y }
@@ -431,6 +432,7 @@ export default function PeriodisationCanvas({
 
   // ── Close all floating UI on outer click ────────────────────────────────
   const closeAll = () => {
+    if (justFinishedDragRef.current) return;
     setCtxMenu(null);
     setBandCtxMenu(null);
     setNumPopover(null);
@@ -505,6 +507,10 @@ export default function PeriodisationCanvas({
         return;
       }
       setSpanSelection({ rowId, startIdx: dragStart, endIdx: dragEnd });
+      justFinishedDragRef.current = true;
+      setTimeout(() => {
+        justFinishedDragRef.current = false;
+      }, 100);
       const anchorRect = {
         left: Math.min(e.clientX, window.innerWidth - 272),
         bottom: e.clientY + 8,
