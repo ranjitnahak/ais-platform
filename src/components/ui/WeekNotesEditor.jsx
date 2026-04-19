@@ -9,6 +9,7 @@ export default function WeekNotesEditor({ planId, weekStartIso }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -105,6 +106,7 @@ export default function WeekNotesEditor({ planId, weekStartIso }) {
       if (error) throw error;
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+      setIsEditing(false);
     } catch (e) {
       console.error(e);
     } finally {
@@ -158,71 +160,119 @@ export default function WeekNotesEditor({ planId, weekStartIso }) {
           outline: none;
         }
       `}</style>
-      <div className="mt-3 rounded-lg border border-white/10 bg-[#252528] p-3" aria-busy={!loaded}>
+
+      <div className="mt-3 rounded-lg border border-white/10 bg-[#252528] p-3">
+        {/* Header row */}
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-bold uppercase text-gray-500">Week notes</span>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={handleSave}
-            className="text-[9px] font-bold uppercase px-2 py-1 rounded bg-[#F97316] text-black disabled:opacity-40"
-          >
-            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}
-          </button>
+          <div className="flex items-center gap-2">
+            {saved && (
+              <span className="text-[9px] text-emerald-400 font-bold">Saved ✓</span>
+            )}
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditing(false);
+                    // Reload saved content to discard unsaved edits
+                    loadNotes();
+                  }}
+                  className="text-[9px] font-bold uppercase px-2 py-1 rounded border border-white/10 text-gray-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleSave}
+                  className="text-[9px] font-bold uppercase px-2 py-1 rounded bg-[#F97316] text-black disabled:opacity-40"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-1 text-[9px] text-gray-500 hover:text-white transition-colors"
+              >
+                <span className="material-symbols-outlined text-[14px]">edit</span>
+                Edit
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Toolbar */}
-        <div className="flex items-center gap-1 mb-2 pb-2 border-b border-white/10 flex-wrap">
-          <button
-            type="button"
-            className={`${btnBase} font-bold ${editor.isActive('bold') ? btnActive : ''}`}
-            onClick={() => editor.chain().focus().toggleBold().run()}
-          >
-            B
-          </button>
-          <button
-            type="button"
-            className={`${btnBase} italic ${editor.isActive('italic') ? btnActive : ''}`}
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-          >
-            I
-          </button>
-          <button
-            type="button"
-            className={`${btnBase} ${editor.isActive('bulletList') ? btnActive : ''}`}
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-          >
-            • List
-          </button>
-          <button
-            type="button"
-            className={`${btnBase} ${editor.isActive('orderedList') ? btnActive : ''}`}
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          >
-            1. List
-          </button>
-          <button
-            type="button"
-            className={`${btnBase} ${editor.isActive('heading', { level: 3 }) ? btnActive : ''}`}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          >
-            H
-          </button>
-          <button type="button" className={`${btnBase}`} onClick={() => editor.chain().focus().undo().run()}>
-            ↩
-          </button>
-          <button type="button" className={`${btnBase}`} onClick={() => editor.chain().focus().redo().run()}>
-            ↪
-          </button>
-        </div>
+        {/* View mode */}
+        {!isEditing && (
+          <div
+            className="tiptap-editor min-h-[40px] cursor-pointer text-sm text-gray-300 hover:text-white transition-colors"
+            onClick={() => setIsEditing(true)}
+            dangerouslySetInnerHTML={{
+              __html:
+                editor?.getHTML() === '<p></p>' || !editor?.getText()
+                  ? '<p class="text-gray-600 italic">Add notes for this week…</p>'
+                  : editor?.getHTML() ?? '',
+            }}
+          />
+        )}
 
-        {/* Editor area */}
-        <div
-          className="tiptap-editor bg-[#1C1C1E] border border-white/10 rounded-lg px-3 py-2 min-h-[80px] cursor-text"
-          onClick={() => editor.commands.focus()}
-        >
-          <EditorContent editor={editor} />
-        </div>
+        {/* Edit mode */}
+        {isEditing && (
+          <>
+            <div className="flex items-center gap-1 mb-2 pb-2 border-b border-white/10 flex-wrap">
+              <button
+                type="button"
+                className={`${btnBase} font-bold ${editor.isActive('bold') ? btnActive : ''}`}
+                onClick={() => editor.chain().focus().toggleBold().run()}
+              >
+                B
+              </button>
+              <button
+                type="button"
+                className={`${btnBase} italic ${editor.isActive('italic') ? btnActive : ''}`}
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+              >
+                I
+              </button>
+              <button
+                type="button"
+                className={`${btnBase} ${editor.isActive('bulletList') ? btnActive : ''}`}
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+              >
+                • List
+              </button>
+              <button
+                type="button"
+                className={`${btnBase} ${editor.isActive('orderedList') ? btnActive : ''}`}
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              >
+                1. List
+              </button>
+              <button
+                type="button"
+                className={`${btnBase} ${editor.isActive('heading', { level: 3 }) ? btnActive : ''}`}
+                onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+              >
+                H
+              </button>
+              <button type="button" className={btnBase} onClick={() => editor.chain().focus().undo().run()}>
+                ↩
+              </button>
+              <button type="button" className={btnBase} onClick={() => editor.chain().focus().redo().run()}>
+                ↪
+              </button>
+            </div>
+
+            <div
+              className="tiptap-editor bg-[#1C1C1E] border border-white/10 rounded-lg px-3 py-2 min-h-[80px] cursor-text"
+              onClick={() => editor.commands.focus()}
+            >
+              <EditorContent editor={editor} />
+            </div>
+          </>
+        )}
       </div>
     </>
   );
