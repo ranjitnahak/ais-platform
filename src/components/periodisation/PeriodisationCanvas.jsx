@@ -31,12 +31,55 @@ const LEFT_COL = 140;
 const ZOOMS = ['4Y', '1Y', '6M', '1M', '1W'];
 
 const BAND_PRESET_COLORS = [
-  { label: 'Blue',   value: '#3b82f6' },
-  { label: 'Green',  value: '#22c55e' },
+  { label: 'Blue', value: '#3b82f6' },
+  { label: 'Green', value: '#22c55e' },
   { label: 'Yellow', value: '#eab308' },
   { label: 'Orange', value: '#f97316' },
-  { label: 'Red',    value: '#ef4444' },
-  { label: 'Purple', value: '#a855f7' },
+  { label: 'Red', value: '#ef4444' },
+  { label: 'Purple', value: '#8b5cf6' },
+];
+
+const FOCUS_SPAN_DEFAULT_COLOR = '#6b7280';
+const SPAN_DRAG_HIGHLIGHT = 'rgba(249, 115, 22, 0.3)';
+
+function isFocusSpanTextRow(row) {
+  return row?.row_type === 'text' && /focus/i.test(row.label || '');
+}
+
+function rowUsesSpanInteraction(row) {
+  return row?.row_type === 'band' || isFocusSpanTextRow(row);
+}
+
+function cellDisplayColor(cell, fallback = '#3b82f6') {
+  return cell?.value_color || cell?.color || fallback;
+}
+
+const ROW_TYPE_OPTIONS = [
+  {
+    row_type: 'band',
+    title: 'Phase band',
+    desc: 'Drag to paint colored spans, e.g. Pre-season, Competition',
+  },
+  {
+    row_type: 'text',
+    title: 'Text / label',
+    desc: 'Type short labels per week or spanning, e.g. Primary focus',
+  },
+  {
+    row_type: 'number',
+    title: 'Number (1–10)',
+    desc: 'Click to set a value 1–10 per week, e.g. Volume, Intensity',
+  },
+  {
+    row_type: 'marker',
+    title: 'Event marker',
+    desc: 'Single dot markers per week, e.g. Match day, Travel',
+  },
+  {
+    row_type: 'toggle',
+    title: 'On/Off toggle',
+    desc: 'On/off per week, e.g. Recovery week, Holiday',
+  },
 ];
 
 function compositeKey(rowId, monday) {
@@ -53,8 +96,8 @@ function getCellForWeek(rowId, monday, cells, patches) {
   return cells.find((c) => c.row_id === rowId && c.cell_date === monday) ?? null;
 }
 
-/** Band rows store one cell at `cell_date` with `span_end_date`; resolve cover for any week column. */
-function findBandCell(rowId, monday, cells, patches) {
+/** Band / focus-span rows store one cell at `cell_date` with `span_end_date`; resolve cover for any week column. */
+function findSpanningCell(rowId, monday, cells, patches) {
   for (const [key, val] of Object.entries(patches)) {
     if (!key.startsWith(`${rowId}|`) || val === null || !val?.value_text) continue;
     const end = val.span_end_date || val.cell_date;
@@ -102,6 +145,7 @@ export default function PeriodisationCanvas({
   deletePlanRow,
   updatePlanRow,
   reorderPlanRows,
+  reorderPlanRowsWithGroups,
   onWeekSelect,
   fetchPlan,
   templates = [],
@@ -118,10 +162,12 @@ export default function PeriodisationCanvas({
 
   // Menus / popovers
   const [ctxMenu, setCtxMenu] = useState(null);       // row label right-click
-  const [bandCtxMenu, setBandCtxMenu] = useState(null); // band cell right-click
-  const [bandPopover, setBandPopover] = useState(null); // band create: { rowId, startIso, endIso, selectedColor }
-  const [dragBand, setDragBand] = useState(null);     // band span drag: { rowId, startIdx, endIdx }
-  const [editing, setEditing] = useState(null);       // text cell modal: { rowId, monday, initial }
+  const [bandCtxMenu, setBandCtxMenu] = useState(null); // band / focus-span right-click
+  const [spanHighlight, setSpanHighlight] = useState(null); // { rowId, startIdx, endIdx } while dragging
+  const [spanPopover, setSpanPopover] = useState(null); // inline create/edit for span rows
+  const spanDragRef = useRef(null);
+  const [addRowModal, setAddRowModal] = useState(null); // { step, group?, rowType?, insertCtx? }
+  const [editing, setEditing] = useState(null); // text cell modal (non–focus-span only)
   const [numPopover, setNumPopover] = useState(null); // number picker: { rowId, monday, current, x, y }
 
   // Row drag-to-reorder
@@ -340,21 +386,23 @@ export default function PeriodisationCanvas({
     if (!srcId || srcId === targetRow.id) return;
 
     const srcRow = rows.find((r) => r.id === srcId);
-    if (!srcRow || srcRow.row_group !== targetRow.row_group) return;
+    if (!srcRow) return;
 
-    const groupRows = rows
-      .filter((r) => r.row_group === srcRow.row_group)
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-
-    const fromIdx = groupRows.findIndex((r) => r.id === srcId);
-    const toIdx = groupRows.findIndex((r) => r.id === targetRow.id);
+    let ordered = [...rows].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    let fromIdx = ordered.findIndex((r) => r.id === srcId);
+    let toIdx = ordered.findIndex((r) => r.id === targetRow.id);
     if (fromIdx === -1 || toIdx === -1) return;
 
-    const reordered = [...groupRows];
-    const [moved] = reordered.splice(fromIdx, 1);
-    reordered.splice(toIdx, 0, moved);
+    const [moved] = ordered.splice(fromIdx, 1);
+    if (fromIdx < toIdx) toIdx -= 1;
+    const newGroup = targetRow.row_group;
+    ordered.splice(toIdx, 0, { ...moved, row_group: newGroup });
 
-    await reorderPlanRows?.(reordered.map((r) => r.id));
+    if (reorderPlanRowsWithGroups) {
+      await reorderPlanRowsWithGroups(ordered.map((r) => ({ id: r.id, row_group: r.row_group })));
+    } else {
+      await reorderPlanRows?.(ordered.map((r) => r.id));
+    }
     await fetchPlan?.();
   };
 
@@ -369,12 +417,136 @@ export default function PeriodisationCanvas({
     setCtxMenu(null);
     setBandCtxMenu(null);
     setNumPopover(null);
+    setSpanPopover(null);
+    setAddRowModal(null);
+  };
+
+  const onSpanPointerDown = useCallback(
+    (row, weekIndex, e) => {
+      if (!canEdit || !rowUsesSpanInteraction(row)) return;
+      e.preventDefault();
+      const mode = row.row_type === 'band' ? 'band' : 'focus';
+      spanDragRef.current = { rowId: row.id, startIdx: weekIndex, endIdx: weekIndex, mode };
+      setSpanHighlight({ rowId: row.id, startIdx: weekIndex, endIdx: weekIndex });
+    },
+    [canEdit]
+  );
+
+  const onSpanPointerEnter = useCallback((rowId, weekIndex) => {
+    const d = spanDragRef.current;
+    if (!d || d.rowId !== rowId) return;
+    d.endIdx = weekIndex;
+    setSpanHighlight({ rowId, startIdx: d.startIdx, endIdx: weekIndex });
+  }, []);
+
+  useEffect(() => {
+    const onWinMouseUp = () => {
+      const d = spanDragRef.current;
+      if (!d) return;
+      const { rowId, startIdx, endIdx, mode } = d;
+      spanDragRef.current = null;
+      setSpanHighlight(null);
+      const a = Math.min(startIdx, endIdx);
+      const b = Math.max(startIdx, endIdx);
+      const wA = weeks[a];
+      const wB = weeks[b];
+      if (!wA || !wB) return;
+      const anchorIdx = endIdx;
+      const el = document.querySelector(`[data-span-cell="${rowId}::${anchorIdx}"]`);
+      let anchor = { left: 80, top: 120, width: 40, height: 22 };
+      if (el) {
+        const r = el.getBoundingClientRect();
+        anchor = { left: r.left, top: r.top, width: r.width, height: r.height };
+      }
+      setSpanPopover({
+        rowId,
+        startIso: wA.monday,
+        endIso: wB.monday,
+        mode,
+        anchor,
+        name: '',
+        selectedColor: BAND_PRESET_COLORS[0].value,
+      });
+    };
+    window.addEventListener('mouseup', onWinMouseUp);
+    return () => window.removeEventListener('mouseup', onWinMouseUp);
+  }, [weeks]);
+
+  useEffect(() => {
+    const k = (e) => {
+      if (e.key !== 'Escape') return;
+      setSpanPopover(null);
+      if (spanDragRef.current) {
+        spanDragRef.current = null;
+        setSpanHighlight(null);
+      }
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+
+  const saveSpanPopover = async () => {
+    if (!spanPopover) return;
+    const label = spanPopover.name.trim();
+    if (!label) return;
+    const color =
+      spanPopover.mode === 'focus'
+        ? FOCUS_SPAN_DEFAULT_COLOR
+        : spanPopover.selectedColor ?? BAND_PRESET_COLORS[0].value;
+    await upsertCell({
+      row_id: spanPopover.rowId,
+      cell_date: spanPopover.startIso,
+      span_end_date: spanPopover.endIso,
+      value_text: label,
+      value_color: color,
+      color,
+    });
+    setSpanPopover(null);
+    await fetchPlan?.();
+  };
+
+  const completeAddRow = async () => {
+    if (!addRowModal?.group || !addRowModal?.rowType || !addRowModal?.name?.trim()) return;
+    const name = addRowModal.name.trim();
+    const { group, rowType, insertCtx } = addRowModal;
+    let sortOrder = 0;
+    if (insertCtx) {
+      const { anchorRow, position } = insertCtx;
+      const target = (anchorRow.sort_order ?? 0) + (position === 'below' ? 1 : 0);
+      const toShift = rows
+        .filter((x) => (x.sort_order ?? 0) >= target)
+        .sort((a, b) => (b.sort_order ?? 0) - (a.sort_order ?? 0));
+      for (const r of toShift) {
+        await updatePlanRow(r.id, { sort_order: (r.sort_order ?? 0) + 1 });
+      }
+      sortOrder = target;
+    } else {
+      sortOrder = Math.max(-1, ...rows.map((r) => r.sort_order ?? 0)) + 1;
+    }
+    await insertPlanRow({
+      row_group: group,
+      label: name,
+      row_type: rowType,
+      sort_order: sortOrder,
+    });
+    setAddRowModal(null);
+    await fetchPlan?.();
   };
 
   const planDateRange =
     plan?.start_date && plan?.end_date
       ? `${formatPlanDate(plan.start_date)} — ${formatPlanDate(plan.end_date)}`
       : '';
+
+  const dragSrcRow = dragRowId ? rows.find((r) => r.id === dragRowId) : null;
+  const dragTgtRow = dragOverRowId ? rows.find((r) => r.id === dragOverRowId) : null;
+  const crossGroupDrop =
+    !!dragSrcRow &&
+    !!dragTgtRow &&
+    dragSrcRow.row_group !== dragTgtRow.row_group &&
+    !!dragRowId &&
+    !!dragOverRowId &&
+    dragRowId !== dragOverRowId;
 
   return (
     <div className="space-y-3 text-[#e4e2e4]" onClick={closeAll}>
@@ -436,17 +608,7 @@ export default function PeriodisationCanvas({
         <button
           type="button"
           disabled={!canEdit}
-          onClick={async () => {
-            const newRow = await insertPlanRow({
-              row_group: ROW_GROUPS[0],
-              label: 'New row',
-              row_type: 'text',
-              sort_order: rows.length,
-            });
-            await fetchPlan?.();
-            // Auto-focus the new row label for inline editing — issue #3
-            if (newRow?.id) setEditingRowLabel({ rowId: newRow.id, value: 'New row' });
-          }}
+          onClick={() => canEdit && setAddRowModal({ step: 1 })}
           className="px-2 py-1.5 rounded border border-white/15 text-[10px] font-bold uppercase text-gray-300 hover:bg-white/5 disabled:opacity-40"
         >
           + Add row
@@ -537,6 +699,7 @@ export default function PeriodisationCanvas({
                   groupRows.map((row) => {
                     const isDragTarget = dragOverRowId === row.id && dragRowId !== row.id;
                     const isDragging = dragRowId === row.id;
+                    const showGroupDropHint = isDragTarget && crossGroupDrop;
                     return (
                       <div
                         key={row.id}
@@ -597,6 +760,14 @@ export default function PeriodisationCanvas({
                               {row.label}
                             </span>
                           )}
+                          {showGroupDropHint && (
+                            <span
+                              className="shrink-0 text-[9px] font-bold text-[#F97316] max-w-[72px] truncate"
+                              title={`Drop into ${row.row_group}`}
+                            >
+                              → {row.row_group}
+                            </span>
+                          )}
                         </div>
 
                         {/* Cell area */}
@@ -604,6 +775,7 @@ export default function PeriodisationCanvas({
                           {weeks.map((w, wi) => (
                             <div
                               key={w.monday}
+                              data-span-cell={`${row.id}::${wi}`}
                               className="border-r border-white/5 shrink-0 flex items-center justify-center p-0.5"
                               style={{ width: pxPerWeek, fontSize: 10 }}
                             >
@@ -618,9 +790,9 @@ export default function PeriodisationCanvas({
                                 canEdit={canEdit}
                                 patchCell={patchCell}
                                 setEditing={setEditing}
-                                dragBand={dragBand}
-                                setDragBand={setDragBand}
-                                setBandPopover={setBandPopover}
+                                spanHighlight={spanHighlight}
+                                onSpanPointerDown={onSpanPointerDown}
+                                onSpanPointerEnter={onSpanPointerEnter}
                                 setNumPopover={setNumPopover}
                                 onBandRightClick={(x, y, cell) =>
                                   setBandCtxMenu({ x, y, cell, rowId: row.id })
@@ -756,74 +928,180 @@ export default function PeriodisationCanvas({
         </div>
       )}
 
-      {/* ── Band creation popover — 6 preset colors — issue #2 ─────────── */}
-      {bandPopover && canEdit && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
-          <form
-            className="bg-[#2a2a2c] border border-white/10 rounded-lg p-4 w-full max-w-xs space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const label = new FormData(e.target).get('label');
-              patchCell(bandPopover.rowId, bandPopover.startIso, {
-                row_id: bandPopover.rowId,
-                cell_date: bandPopover.startIso,
-                span_end_date: bandPopover.endIso,
-                value_text: String(label || ''),
-                color: bandPopover.selectedColor ?? BAND_PRESET_COLORS[0].value,
-              });
-              setBandPopover(null);
+      {/* ── Span band / focus: inline popover (anchored to selection) ─────── */}
+      {spanPopover && canEdit && (
+        <div
+          className="fixed z-[70] bg-[#2a2a2c] border border-white/10 rounded-lg shadow-2xl p-2 w-[min(240px,calc(100vw-24px))]"
+          style={{
+            left: Math.min(spanPopover.anchor.left, window.innerWidth - 248),
+            top: spanPopover.anchor.top + spanPopover.anchor.height + 6,
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            autoFocus
+            placeholder={spanPopover.mode === 'band' ? 'Phase name…' : 'Label…'}
+            value={spanPopover.name}
+            onChange={(e) => setSpanPopover((p) => (p ? { ...p, name: e.target.value } : p))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void saveSpanPopover();
+              }
             }}
+            className="w-full bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs text-white mb-2"
+          />
+          {spanPopover.mode === 'band' && (
+            <div className="flex gap-1.5 flex-wrap mb-2">
+              {BAND_PRESET_COLORS.map((c) => {
+                const selected = spanPopover.selectedColor === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    type="button"
+                    title={c.label}
+                    className="w-6 h-6 rounded-full transition-transform hover:scale-110"
+                    style={{
+                      background: c.value,
+                      outline: selected ? '2px solid #F97316' : '2px solid transparent',
+                      outlineOffset: 2,
+                    }}
+                    onClick={() =>
+                      setSpanPopover((p) => (p ? { ...p, selectedColor: c.value } : p))
+                    }
+                  />
+                );
+              })}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="flex-1 py-1.5 rounded bg-[#F97316] text-black text-[10px] font-black uppercase"
+              onClick={() => void saveSpanPopover()}
+            >
+              OK
+            </button>
+            <button
+              type="button"
+              className="flex-1 py-1.5 rounded border border-white/10 text-[10px]"
+              onClick={() => setSpanPopover(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add row: group → type → name ─────────────────────────────────── */}
+      {addRowModal && (
+        <div
+          className="fixed inset-0 z-[65] flex items-center justify-center bg-black/60 p-4"
+          onMouseDown={() => setAddRowModal(null)}
+        >
+          <div
+            className="bg-[#2a2a2c] border border-white/10 rounded-lg p-4 w-full max-w-md space-y-4"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-xs font-bold text-white">New band</p>
-            <input
-              name="label"
-              placeholder="Band name…"
-              autoFocus
-              required
-              className="w-full bg-[#1C1C1E] border border-white/10 rounded px-2 py-2 text-sm"
-            />
-            <div>
-              <p className="text-[10px] text-gray-500 mb-2">Color</p>
-              <div className="flex gap-2.5">
-                {BAND_PRESET_COLORS.map((c) => {
-                  const selected =
-                    (bandPopover.selectedColor ?? BAND_PRESET_COLORS[0].value) === c.value;
-                  return (
+            {addRowModal.step === 1 && (
+              <>
+                <p className="text-xs font-bold text-white">Choose group</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {ROW_GROUPS.map((g) => (
                     <button
-                      key={c.value}
+                      key={g}
                       type="button"
-                      title={c.label}
-                      className="w-6 h-6 rounded-full transition-transform hover:scale-110"
-                      style={{
-                        background: c.value,
-                        outline: selected ? '2px solid #F97316' : '2px solid transparent',
-                        outlineOffset: 2,
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setBandPopover((prev) => ({ ...prev, selectedColor: c.value }));
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="flex-1 py-2 rounded bg-[#F97316] text-black text-[10px] font-black uppercase"
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className="flex-1 py-2 rounded border border-white/10 text-[10px]"
-                onClick={() => setBandPopover(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+                      className="text-left rounded-lg border border-white/10 px-3 py-2 text-[11px] text-gray-200 hover:bg-white/5 hover:border-[#F97316]/50"
+                      onClick={() => setAddRowModal((m) => (m ? { ...m, step: 2, group: g } : m))}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-500"
+                  onClick={() => setAddRowModal(null)}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+            {addRowModal.step === 2 && (
+              <>
+                <p className="text-xs font-bold text-white">Row type</p>
+                <p className="text-[10px] text-gray-500">Group: {addRowModal.group}</p>
+                <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                  {ROW_TYPE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.row_type}
+                      type="button"
+                      className="w-full text-left rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5"
+                      onClick={() =>
+                        setAddRowModal((m) => (m ? { ...m, step: 3, rowType: opt.row_type } : m))
+                      }
+                    >
+                      <span className="text-[11px] font-bold text-white">{opt.title}</span>
+                      <span className="block text-[10px] text-gray-500 mt-0.5">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="text-[10px] text-gray-500"
+                    onClick={() =>
+                      setAddRowModal((m) => (m ? { ...m, step: 1, rowType: undefined } : m))
+                    }
+                  >
+                    Back
+                  </button>
+                  <button type="button" className="text-[10px] text-gray-500" onClick={() => setAddRowModal(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+            {addRowModal.step === 3 && (
+              <>
+                <p className="text-xs font-bold text-white">Row name</p>
+                <p className="text-[10px] text-gray-500">
+                  {addRowModal.group} · {ROW_TYPE_OPTIONS.find((o) => o.row_type === addRowModal.rowType)?.title}
+                </p>
+                <input
+                  autoFocus
+                  placeholder="Name this row…"
+                  value={addRowModal.name ?? ''}
+                  onChange={(e) => setAddRowModal((m) => (m ? { ...m, name: e.target.value } : m))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void completeAddRow();
+                    }
+                  }}
+                  className="w-full bg-[#1C1C1E] border border-white/10 rounded px-2 py-2 text-sm"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="flex-1 py-2 rounded bg-[#F97316] text-black text-[10px] font-black uppercase"
+                    onClick={() => void completeAddRow()}
+                  >
+                    Create
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 py-2 rounded border border-white/10 text-[10px]"
+                    onClick={() => setAddRowModal((m) => (m ? { ...m, step: 2, name: undefined } : m))}
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -849,7 +1127,7 @@ export default function PeriodisationCanvas({
                 }
               }}
             >
-              Delete band
+              Delete
             </button>
           </li>
         </ul>
@@ -878,25 +1156,18 @@ export default function PeriodisationCanvas({
                       await fetchPlan?.();
                     }
                     if (label === 'Insert row above' || label === 'Insert row below') {
-                      const order = row.sort_order ?? 0;
-                      const target = order + (label === 'Insert row below' ? 1 : 0);
-                      for (const r of rows
-                        .filter((x) => (x.sort_order ?? 0) >= target)
-                        .sort((a, b) => (b.sort_order ?? 0) - (a.sort_order ?? 0))) {
-                        await updatePlanRow(r.id, { sort_order: (r.sort_order ?? 0) + 1 });
-                      }
-                      const newRow = await insertPlanRow({
-                        row_group: row.row_group,
-                        label: 'New row',
-                        row_type: 'text',
-                        sort_order: target,
+                      setAddRowModal({
+                        step: 2,
+                        group: row.row_group,
+                        insertCtx: {
+                          anchorRow: row,
+                          position: label === 'Insert row below' ? 'below' : 'above',
+                        },
                       });
-                      await fetchPlan?.();
-                      if (newRow?.id) setEditingRowLabel({ rowId: newRow.id, value: 'New row' });
                     }
                     if (label === 'Clear row cells') {
-                      for (const w of weeks) {
-                        const c = cells.find((x) => x.row_id === row.id && x.cell_date === w.monday);
+                      const rowCells = cells.filter((x) => x.row_id === row.id);
+                      for (const c of rowCells) {
                         if (c?.id) await deletePlanCellById(c.id);
                       }
                       await fetchPlan?.();
@@ -930,16 +1201,15 @@ function CellRenderer({
   canEdit,
   patchCell,
   setEditing,
-  dragBand,
-  setDragBand,
-  setBandPopover,
+  spanHighlight,
+  onSpanPointerDown,
+  onSpanPointerEnter,
   setNumPopover,
   onBandRightClick,
 }) {
-  const cell =
-    row.row_type === 'band'
-      ? findBandCell(row.id, monday, cells, patches)
-      : getCellForWeek(row.id, monday, cells, patches);
+  const cell = rowUsesSpanInteraction(row)
+    ? findSpanningCell(row.id, monday, cells, patches)
+    : getCellForWeek(row.id, monday, cells, patches);
   const rk = rowMetricKey(row);
 
   if (row.row_type === 'auto' && rk === 'acwr') {
@@ -996,7 +1266,7 @@ function CellRenderer({
     );
   }
 
-  if (row.row_type === 'text') {
+  if (row.row_type === 'text' && !isFocusSpanTextRow(row)) {
     const t = cell?.value_text ?? '';
     const prev =
       weekIndex > 0
@@ -1013,6 +1283,51 @@ function CellRenderer({
       >
         {t || '—'}
       </button>
+    );
+  }
+
+  if (rowUsesSpanInteraction(row)) {
+    const inDragRange =
+      spanHighlight?.rowId === row.id &&
+      weekIndex >= Math.min(spanHighlight.startIdx, spanHighlight.endIdx) &&
+      weekIndex <= Math.max(spanHighlight.startIdx, spanHighlight.endIdx);
+
+    if (!cell?.value_text || !cell.cell_date) {
+      return (
+        <button
+          type="button"
+          disabled={!canEdit}
+          className="w-full h-full min-h-[22px] rounded border border-transparent"
+          style={{
+            background: inDragRange ? SPAN_DRAG_HIGHLIGHT : 'rgba(255,255,255,0.05)',
+          }}
+          onMouseDown={(e) => onSpanPointerDown(row, weekIndex, e)}
+          onMouseEnter={() => onSpanPointerEnter(row.id, weekIndex)}
+        />
+      );
+    }
+
+    const start = cell.cell_date;
+    const end = cell.span_end_date || cell.cell_date;
+    const isFirst = monday === start;
+    const isFocus = isFocusSpanTextRow(row);
+    const bg = isFocus ? cellDisplayColor(cell, FOCUS_SPAN_DEFAULT_COLOR) : cellDisplayColor(cell);
+    const fg = isFocus ? '#f9fafb' : '#0f172a';
+    return (
+      <div
+        className={`w-full min-h-[22px] h-full flex items-center justify-center text-[9px] font-bold truncate px-1 ${
+          isFirst ? 'rounded-l-md' : ''
+        } ${monday === end ? 'rounded-r-md' : ''}`}
+        style={{ background: bg, color: fg }}
+        title={cell.value_text}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onBandRightClick(e.clientX, e.clientY, cell);
+        }}
+      >
+        {isFirst ? cell.value_text : ''}
+      </div>
     );
   }
 
@@ -1069,68 +1384,6 @@ function CellRenderer({
       >
         {on ? 'ON' : ''}
       </button>
-    );
-  }
-
-  // ── Band row — drag to span + right-click delete — issue #2 ────────────
-  if (row.row_type === 'band') {
-    const dragActive = dragBand?.rowId === row.id;
-    const inDragRange =
-      dragActive &&
-      weekIndex >= Math.min(dragBand.startIdx, dragBand.endIdx ?? dragBand.startIdx) &&
-      weekIndex <= Math.max(dragBand.startIdx, dragBand.endIdx ?? dragBand.startIdx);
-
-    if (!cell?.value_text || !cell.cell_date) {
-      return (
-        <button
-          type="button"
-          disabled={!canEdit}
-          className={`w-full h-full min-h-[22px] rounded ${
-            inDragRange
-              ? 'bg-blue-500/30 border border-blue-400/50'
-              : 'bg-white/5 hover:bg-white/10'
-          }`}
-          onMouseDown={() =>
-            canEdit && setDragBand({ rowId: row.id, startIdx: weekIndex, endIdx: weekIndex })
-          }
-          onMouseEnter={() => {
-            if (!dragBand || dragBand.rowId !== row.id) return;
-            setDragBand((d) => (d ? { ...d, endIdx: weekIndex } : d));
-          }}
-          onMouseUp={() => {
-            if (!dragBand || dragBand.rowId !== row.id) return;
-            const a = Math.min(dragBand.startIdx, dragBand.endIdx ?? dragBand.startIdx);
-            const b = Math.max(dragBand.startIdx, dragBand.endIdx ?? dragBand.startIdx);
-            setBandPopover({
-              rowId: row.id,
-              startIso: weeks[a].monday,
-              endIso: weeks[b].monday,
-              selectedColor: BAND_PRESET_COLORS[0].value,
-            });
-            setDragBand(null);
-          }}
-        />
-      );
-    }
-
-    const start = cell.cell_date;
-    const end = cell.span_end_date || cell.cell_date;
-    const isFirst = monday === start;
-    return (
-      <div
-        className={`w-full h-5 flex items-center justify-center text-[9px] font-bold truncate px-0.5 ${
-          isFirst ? 'rounded-l' : ''
-        } ${monday === end ? 'rounded-r' : ''}`}
-        style={{ background: cell.color || '#3b82f6', color: '#0f172a' }}
-        title={cell.value_text}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onBandRightClick(e.clientX, e.clientY, cell);
-        }}
-      >
-        {isFirst ? cell.value_text : ''}
-      </div>
     );
   }
 

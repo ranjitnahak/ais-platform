@@ -167,6 +167,27 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     });
   };
 
+  /** Each entry is `{ id, row_group }` in global display order (same as sort_order indices). */
+  const reorderPlanRowsWithGroups = async (ordered) => {
+    const updates = ordered.map((r, i) =>
+      supabase
+        .from('plan_rows')
+        .update({ sort_order: i, row_group: r.row_group })
+        .eq('id', r.id)
+        .eq('org_id', user.orgId)
+    );
+    await Promise.all(updates);
+    setRows((prev) => {
+      const map = new Map(prev.map((x) => [x.id, x]));
+      return ordered
+        .map((r, i) => {
+          const base = map.get(r.id);
+          return base ? { ...base, sort_order: i, row_group: r.row_group } : null;
+        })
+        .filter(Boolean);
+    });
+  };
+
   return {
     plan,
     rows,
@@ -178,5 +199,6 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     deletePlanRow,
     updatePlanRow,
     reorderPlanRows,
+    reorderPlanRowsWithGroups,
   };
 };
