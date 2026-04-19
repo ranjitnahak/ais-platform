@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { getCurrentUser, canEditSessionLibrary } from '../../lib/auth';
 import { useSessions } from '../../hooks/useSessions';
@@ -79,7 +79,7 @@ function weekDays(weekStartIso) {
   return days;
 }
 
-function SessionCalBlock({ session: s, segFrom, onOpen, onDragStart, onDragEnd, onContextMenu }) {
+function SessionCalBlock({ session: s, segFrom, onOpen, onPointerDown, onContextMenu, isDragging }) {
   const segStartTime = `${String(segFrom).padStart(2, '0')}:00:00`;
   const top = timeToOffset(s.start_time || DEFAULT_AM_TIME) - timeToOffset(segStartTime) + 2;
   const height = durationToHeight(s.duration_planned);
@@ -99,11 +99,11 @@ function SessionCalBlock({ session: s, segFrom, onOpen, onDragStart, onDragEnd, 
 
   return (
     <div
-      className="absolute left-1 right-1 rounded cursor-pointer hover:brightness-110 hover:z-10 transition-all select-none"
+      className={`absolute left-1 right-1 rounded cursor-grab active:cursor-grabbing hover:brightness-110 hover:z-10 transition-all select-none touch-none ${
+        isDragging ? 'opacity-40' : ''
+      }`}
       style={{ top, height, background: colors.bg, color: colors.text, zIndex: 2 }}
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      onPointerDown={onPointerDown}
       onClick={onOpen}
       onContextMenu={onContextMenu}
     >
@@ -141,11 +141,14 @@ export default function PeriodisationWeekly({
   const [planNotes, setPlanNotes] = useState(plan?.notes ?? '');
 
   const [clipboard, setClipboard] = useState(null);
-  // eslint-disable-next-line no-unused-vars -- reserved for future paste column highlight
-  const [pasteTargetDay, setPasteTargetDay] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [dragSession, setDragSession] = useState(null);
   const [dragOverDay, setDragOverDay] = useState(null);
+  const [dragPos, setDragPos] = useState(null);
+  const [dragOrigin, setDragOrigin] = useState(null);
+  const dragOriginRef = useRef(null);
+  const dragMovedRef = useRef(false);
+  const suppressClickRef = useRef(false);
 
   const [expandedZones, setExpandedZones] = useState({});
 
@@ -272,14 +275,15 @@ export default function PeriodisationWeekly({
     await supabase.from('periodisation_plans').update({ notes: planNotes }).eq('id', plan.id).eq('org_id', user.orgId);
   }
 
-  async function handleDropOnDay(targetDayIso) {
-    if (!dragSession || dragSession.session_date === targetDayIso) {
+  async function handleDropOnDay(targetDayIso, sessionToMove = null) {
+    const sess = sessionToMove ?? dragSession;
+    if (!sess || sess.session_date === targetDayIso) {
       setDragSession(null);
       setDragOverDay(null);
       return;
     }
     try {
-      await upsertSession({ ...dragSession, session_date: targetDayIso });
+      await upsertSession({ ...sess, session_date: targetDayIso });
     } catch (e) {
       console.error(e);
     }
@@ -308,6 +312,47 @@ export default function PeriodisationWeekly({
       console.error(e);
     }
   }
+
+  useEffect(() => {
+    if (!dragSession) return undefined;
+    function onPointerMove(e) {
+      setDragPos({ x: e.clientX, y: e.clientY });
+      const ox = dragOriginRef.current?.x ?? e.clientX;
+      const oy = dragOriginRef.current?.y ?? e.clientY;
+      if (Math.hypot(e.clientX - ox, e.clientY - oy) > 8) {
+        dragMovedRef.current = true;
+      }
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const col = el?.closest('[data-day-iso]');
+      if (col?.dataset?.dayIso) setDragOverDay(col.dataset.dayIso);
+    }
+    function onPointerUp(e) {
+      if (dragMovedRef.current) {
+        suppressClickRef.current = true;
+      }
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const col = el?.closest('[data-day-iso]');
+      const sess = dragSession;
+      setDragPos(null);
+      setDragOrigin(null);
+      dragOriginRef.current = null;
+      dragMovedRef.current = false;
+      if (col && col.dataset.dayIso && sess && col.dataset.dayIso !== sess.session_date) {
+        setDragSession(null);
+        setDragOverDay(null);
+        void handleDropOnDay(col.dataset.dayIso, sess);
+        return;
+      }
+      setDragSession(null);
+      setDragOverDay(null);
+    }
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+  }, [dragSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-col text-[#e4e2e4]" onClick={() => setCtxMenu(null)}>
@@ -363,14 +408,10 @@ export default function PeriodisationWeekly({
               return (
                 <div
                   key={d.iso}
+                  data-day-iso={d.iso}
                   className={`text-center px-1 py-1.5 border-r border-white/10 last:border-r-0 bg-[#252528] ${
                     isToday ? 'border-b-2 border-b-[#F97316]' : ''
                   }`}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOverDay(d.iso);
-                  }}
-                  onDrop={() => handleDropOnDay(d.iso)}
                 >
                   <div className={`text-[9px] font-bold uppercase ${isToday ? 'text-[#F97316]' : 'text-gray-400'}`}>{d.label}</div>
                   <div
@@ -446,23 +487,37 @@ export default function PeriodisationWeekly({
                     return (
                       <div
                         key={d.iso}
+                        data-day-iso={d.iso}
                         className={`relative border-r border-white/10 last:border-r-0 ${dragOverDay === d.iso ? 'bg-[#F97316]/10' : ''}`}
-                        onDragOver={(e) => {
+                        onContextMenu={(e) => {
                           e.preventDefault();
-                          setDragOverDay(d.iso);
+                          e.stopPropagation();
+                          if (clipboard) {
+                            setCtxMenu({ x: e.clientX, y: e.clientY, session: null, pasteTargetDay: d.iso });
+                          }
                         }}
-                        onDrop={() => handleDropOnDay(d.iso)}
                       >
                         {daySess.map((s) => (
                           <SessionCalBlock
                             key={s.id}
                             session={s}
                             segFrom={seg.from}
-                            onOpen={() => setDrawer({ dayIso: d.iso, sessionId: s.id })}
-                            onDragStart={() => setDragSession(s)}
-                            onDragEnd={() => {
-                              setDragSession(null);
-                              setDragOverDay(null);
+                            isDragging={dragSession?.id === s.id}
+                            onOpen={() => {
+                              if (suppressClickRef.current) {
+                                suppressClickRef.current = false;
+                                return;
+                              }
+                              setDrawer({ dayIso: d.iso, sessionId: s.id });
+                            }}
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              dragOriginRef.current = { x: e.clientX, y: e.clientY };
+                              setDragOrigin({ x: e.clientX, y: e.clientY });
+                              setDragPos({ x: e.clientX, y: e.clientY });
+                              dragMovedRef.current = false;
+                              setDragSession(s);
                             }}
                             onContextMenu={(e) => {
                               e.preventDefault();
@@ -483,7 +538,7 @@ export default function PeriodisationWeekly({
           <div className="grid border-t border-white/10" style={{ gridTemplateColumns: '38px repeat(7, minmax(0,1fr))' }}>
             <div className="bg-[#1a1a1c] border-r border-white/10" />
             {days.map((d) => (
-              <div key={d.iso} className="border-r border-white/10 last:border-r-0 p-1.5 flex flex-col gap-1">
+              <div key={d.iso} className="border-r border-white/10 last:border-r-0 p-1.5">
                 <button
                   type="button"
                   onClick={() => setDrawer({ dayIso: d.iso, sessionId: null })}
@@ -491,15 +546,6 @@ export default function PeriodisationWeekly({
                 >
                   + add
                 </button>
-                {clipboard && (
-                  <button
-                    type="button"
-                    onClick={() => handlePaste(d.iso)}
-                    className="w-full text-[9px] text-[#F97316] border border-[#F97316]/40 rounded py-1 hover:bg-[#F97316]/10 transition-colors"
-                  >
-                    Paste
-                  </button>
-                )}
               </div>
             ))}
           </div>
@@ -518,10 +564,6 @@ export default function PeriodisationWeekly({
           className="mt-1 w-full bg-[#1C1C1E] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600"
         />
       </div>
-
-      <p className="mt-2 text-[9px] text-gray-500 px-1">
-        Hover a session card to drag it to another day (time unchanged). Use the context menu to copy; Paste appears when the clipboard has a session.
-      </p>
 
       {/* Summary strip */}
       <div className="mt-3 rounded-lg border border-white/10 bg-[#252528] p-3 flex flex-wrap gap-6 items-start">
@@ -574,22 +616,46 @@ export default function PeriodisationWeekly({
           style={{ top: ctxMenu.y, left: ctxMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            className="w-full text-left px-3 py-2 text-[11px] text-gray-300 hover:bg-white/10 hover:text-white"
-            onClick={() => handleCopy(ctxMenu.session)}
-          >
-            Copy session
-          </button>
-          <button
-            type="button"
-            className="w-full text-left px-3 py-2 text-[11px] text-red-400 hover:bg-white/10"
-            onClick={() => {
-              setCtxMenu(null);
-            }}
-          >
-            Delete session
-          </button>
+          {ctxMenu.session && (
+            <>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2 text-[11px] text-gray-300 hover:bg-white/10 hover:text-white"
+                onClick={() => handleCopy(ctxMenu.session)}
+              >
+                Copy session
+              </button>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2 text-[11px] text-red-400 hover:bg-white/10"
+                onClick={() => setCtxMenu(null)}
+              >
+                Delete session
+              </button>
+            </>
+          )}
+          {!ctxMenu.session && ctxMenu.pasteTargetDay && clipboard && (
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 text-[11px] text-[#F97316] hover:bg-white/10"
+              onClick={() => {
+                handlePaste(ctxMenu.pasteTargetDay);
+                setCtxMenu(null);
+              }}
+            >
+              Paste session
+            </button>
+          )}
+        </div>
+      )}
+
+      {dragSession && dragPos && dragOrigin && (
+        <div
+          className="fixed z-[250] pointer-events-none rounded border border-white/20 bg-[#2a2a2c]/95 px-2 py-1 text-[10px] font-bold text-white shadow-lg max-w-[160px] truncate"
+          style={{ left: dragPos.x, top: dragPos.y, transform: 'translate(8px, 8px)' }}
+          aria-hidden
+        >
+          {(SESSION_TYPES.find((t) => t.value === dragSession.session_type) || SESSION_TYPES[0]).label}
         </div>
       )}
 
@@ -600,6 +666,56 @@ export default function PeriodisationWeekly({
           libraryItems={libraryItems}
           onClose={() => setDrawer(null)}
           upsertSession={upsertSession}
+        />
+      )}
+    </div>
+  );
+}
+
+const TIME_SLOTS = Array.from({ length: 35 }, (_, i) => {
+  const totalMins = 5 * 60 + i * 30;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+});
+
+function TimePicker({ value, onChange }) {
+  const display = (value || '06:30:00').slice(0, 5);
+  const [custom, setCustom] = useState('');
+  const [showCustom, setShowCustom] = useState(false);
+
+  return (
+    <div className="space-y-1">
+      <select
+        value={TIME_SLOTS.includes(display) ? display : '__custom__'}
+        onChange={(e) => {
+          if (e.target.value === '__custom__') {
+            setShowCustom(true);
+          } else {
+            setShowCustom(false);
+            onChange(e.target.value + ':00');
+          }
+        }}
+        className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2"
+      >
+        {TIME_SLOTS.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+        <option value="__custom__">Custom time…</option>
+      </select>
+      {(showCustom || !TIME_SLOTS.includes(display)) && (
+        <input
+          type="text"
+          placeholder="HH:MM"
+          value={custom || display}
+          onChange={(e) => {
+            setCustom(e.target.value);
+            const match = e.target.value.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+            if (match) onChange(e.target.value + ':00');
+          }}
+          className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2"
         />
       )}
     </div>
@@ -691,12 +807,7 @@ function SessionDrawer({ drawer, sessions, libraryItems, onClose, upsertSession 
         <div className="p-4 space-y-4 flex-1">
           <div>
             <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Time</p>
-            <input
-              type="time"
-              value={(startTime || DEFAULT_AM_TIME).slice(0, 5)}
-              onChange={(e) => setStartTime(e.target.value ? e.target.value + ':00' : DEFAULT_AM_TIME)}
-              className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2"
-            />
+            <TimePicker value={startTime} onChange={(val) => setStartTime(val)} />
           </div>
 
           <div>
