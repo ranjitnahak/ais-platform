@@ -324,12 +324,6 @@ export default function Periodisation() {
           </div>
         )}
 
-        {!initialLoading && !planQueryEnabled && (
-          <div className="max-w-md mx-auto mt-16 text-center text-sm text-gray-400 border border-white/10 rounded-lg p-8 bg-[#252528]">
-            Choose <strong className="text-white">Individual Athlete</strong> and pick an athlete from the dropdown to view their plan.
-          </div>
-        )}
-
         {!initialLoading && !plan && planQueryEnabled && (
           <div className="max-w-lg mx-auto mt-16 text-center space-y-8">
             <div className="space-y-2">
@@ -365,7 +359,7 @@ export default function Periodisation() {
           </div>
         )}
 
-        {!initialLoading && plan && !selectedWeek && (
+        {!initialLoading && plan && !selectedWeek && planQueryEnabled && (
           <PeriodisationCanvas
             plan={plan}
             rows={rows}
@@ -401,6 +395,50 @@ export default function Periodisation() {
             }
             templates={templates}
           />
+        )}
+
+        {!initialLoading && !selectedWeek && viewMode === 'athlete' && !selectedAthleteId && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg border border-white/10 bg-[#252528]">
+              <select
+                value={selectedTeamId ?? ''}
+                onChange={(e) => {
+                  setSelectedTeamId(e.target.value);
+                  setSelectedAthleteId(null);
+                }}
+                className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs"
+              >
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value)}
+                className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs"
+              >
+                <option value="team">Team Plan</option>
+                <option value="athlete">Individual Athlete</option>
+              </select>
+              <select
+                value={selectedAthleteId ?? ''}
+                onChange={(e) => setSelectedAthleteId(e.target.value || null)}
+                className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs min-w-[160px]"
+              >
+                <option value="">Select athlete…</option>
+                {athletes.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="max-w-md mx-auto mt-8 text-center text-sm text-gray-400 border border-white/10 rounded-lg p-8 bg-[#252528]">
+              Select an athlete above to view their individual plan.
+            </div>
+          </div>
         )}
 
         {!initialLoading && plan && selectedWeek && (
