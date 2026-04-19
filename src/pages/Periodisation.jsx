@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 import { getCurrentUser, canEditPlan, can } from '../lib/auth';
 import Sidebar from '../components/Sidebar';
 import { MAIN_NAV_ITEMS } from '../nav/mainNavItems';
