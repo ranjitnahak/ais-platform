@@ -9,6 +9,15 @@ import PeriodisationCanvas from '../components/periodisation/PeriodisationCanvas
 import PeriodisationWeekly from '../components/periodisation/PeriodisationWeekly';
 import { addDays } from '../lib/periodisationUtils';
 
+const formatPlanDate = (iso) => {
+  if (!iso) return '';
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
 /** Fallback when `plan_templates` is empty — matches expected `rows_config` shape */
 const DEFAULT_TEMPLATE_ROWS = [
   { row_group: 'Planning', label: 'Phase', row_type: 'band', sort_order: 0 },
@@ -44,6 +53,9 @@ export default function Periodisation() {
   });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
+  const [editingDates, setEditingDates] = useState(false);
+  const [dateForm, setDateForm] = useState({ start_date: '', end_date: '' });
+  const [dateSaving, setDateSaving] = useState(false);
   const planScopeRef = useRef({ athleteId: null, viewMode: 'team', enabled: true });
 
   const athleteIdForPlan = viewMode === 'athlete' ? selectedAthleteId : null;
@@ -62,6 +74,7 @@ export default function Periodisation() {
     reorderPlanRows,
     reorderPlanRowsWithGroups,
     updateDisplayLabelForGroup,
+    updatePlanDates,
   } = usePeriodisationPlan(selectedTeamId, { athleteId: athleteIdForPlan, enabled: planQueryEnabled });
 
   useEffect(() => {
@@ -215,6 +228,71 @@ export default function Periodisation() {
             <h1 className="text-xl font-bold tracking-tight text-white uppercase leading-none">Periodisation</h1>
             {selectedTeam && (
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mt-0.5">{selectedTeam.name}</p>
+            )}
+            {plan && (
+              <>
+                {!editingDates ? (
+                  <button
+                    type="button"
+                    className="group flex items-center gap-1.5 text-sm text-gray-400 mt-1 hover:text-white transition-colors"
+                    onClick={() => {
+                      setDateForm({ start_date: plan.start_date, end_date: plan.end_date });
+                      setEditingDates(true);
+                    }}
+                  >
+                    {formatPlanDate(plan.start_date)} — {formatPlanDate(plan.end_date)}
+                    <span className="material-symbols-outlined text-[14px] opacity-0 group-hover:opacity-60 transition-opacity">
+                      edit
+                    </span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <input
+                      type="date"
+                      value={dateForm.start_date}
+                      onChange={(e) => setDateForm((f) => ({ ...f, start_date: e.target.value }))}
+                      className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1 text-sm text-white"
+                    />
+                    <span className="text-gray-500 text-sm">—</span>
+                    <input
+                      type="date"
+                      value={dateForm.end_date}
+                      onChange={(e) => setDateForm((f) => ({ ...f, end_date: e.target.value }))}
+                      className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1 text-sm text-white"
+                    />
+                    <button
+                      type="button"
+                      disabled={
+                        dateSaving ||
+                        !dateForm.start_date ||
+                        !dateForm.end_date ||
+                        dateForm.start_date >= dateForm.end_date
+                      }
+                      onClick={async () => {
+                        setDateSaving(true);
+                        try {
+                          await updatePlanDates(dateForm.start_date, dateForm.end_date);
+                          setEditingDates(false);
+                        } catch (err) {
+                          console.error(err);
+                        } finally {
+                          setDateSaving(false);
+                        }
+                      }}
+                      className="px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-[#F97316] text-[#1a0a00] disabled:opacity-40"
+                    >
+                      {dateSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingDates(false)}
+                      className="px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest border border-white/10 text-gray-400 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

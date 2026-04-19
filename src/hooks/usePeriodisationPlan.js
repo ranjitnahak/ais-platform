@@ -300,6 +300,25 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     }
   };
 
+  const updatePlanDates = async (startDate, endDate) => {
+    if (!plan?.id) return;
+    setPlan((prev) => ({ ...prev, start_date: startDate, end_date: endDate }));
+    try {
+      const { data, error } = await supabase
+        .from('periodisation_plans')
+        .update({ start_date: startDate, end_date: endDate })
+        .eq('id', plan.id)
+        .eq('org_id', user.orgId)
+        .select()
+        .single();
+      if (error) throw error;
+      setPlan(data);
+    } catch (e) {
+      await fetchPlan();
+      throw e;
+    }
+  };
+
   return {
     plan,
     rows,
@@ -314,5 +333,6 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     reorderPlanRows,
     reorderPlanRowsWithGroups,
     updateDisplayLabelForGroup,
+    updatePlanDates,
   };
 };
