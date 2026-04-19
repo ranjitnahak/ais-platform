@@ -4,8 +4,6 @@ import { getCurrentUser, canEditSessionLibrary } from '../../lib/auth';
 import { useSessions } from '../../hooks/useSessions';
 import { addDays, formatRange, rowMetricKey, weekStartsBetween, computeAcwrSeries, acwrStyle } from '../../lib/periodisationUtils';
 
-const RECOVERY_OPTIONS = ['Ice bath', 'Pool recovery', 'Massage', 'Stretching', 'Other'];
-
 const CAT_STYLES = {
   strength: { bg: '#fef9c3', text: '#713f12', label: 'Strength' },
   speed: { bg: '#dbeafe', text: '#1e40af', label: 'Speed' },
@@ -16,6 +14,43 @@ const CAT_STYLES = {
   default: { bg: '#e5e7eb', text: '#374151', label: 'Session' },
 };
 
+// ── Calendar grid constants & helpers
+const SESSION_TYPES = [
+  { label: 'Strength session', value: 'strength', venue: 'Gym' },
+  { label: 'Conditioning session', value: 'conditioning', venue: 'Ground' },
+  { label: 'Mat session', value: 'mat', venue: 'Mat hall' },
+  { label: 'Physiotherapy session', value: 'physio', venue: 'Physio room' },
+  { label: 'Match', value: 'match', venue: 'Ground' },
+  { label: 'Testing', value: 'testing', venue: 'Gym' },
+];
+
+const VENUES = ['Gym', 'Ground', 'Mat hall', 'Physio room', 'Pool', 'Other'];
+
+const DEFAULT_AM_TIME = '06:30:00';
+const DEFAULT_PM_TIME = '16:00:00';
+
+// Height in px per 30-minute slot
+const SLOT_HEIGHT = 28;
+
+// Given a start_time string like "06:30:00", return offset in px from 05:00
+function timeToOffset(timeStr) {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  const minutesFrom5 = (h - 5) * 60 + (m || 0);
+  return Math.max(0, (minutesFrom5 / 30) * SLOT_HEIGHT);
+}
+
+// Given duration_planned in minutes, return height in px (min 28px)
+function durationToHeight(mins) {
+  const slots = Math.max(1, (mins || 60) / 30);
+  return slots * SLOT_HEIGHT - 4;
+}
+
+// Get default venue for a session type value
+function defaultVenueFor(typeValue) {
+  return SESSION_TYPES.find((t) => t.value === typeValue)?.venue ?? 'Gym';
+}
+
 function normalizeCategory(raw) {
   const s = String(raw || '').toLowerCase();
   if (s.includes('strength')) return 'strength';
@@ -25,25 +60,6 @@ function normalizeCategory(raw) {
   if (s.includes('technical')) return 'technical';
   if (s.includes('recover')) return 'recovery';
   return 'default';
-}
-
-function rpeStyle(n) {
-  const v = Number(n);
-  if (v <= 3) return { bg: '#bbf7d0', text: '#14532d' };
-  if (v <= 5) return { bg: '#bbf7d0', text: '#14532d' };
-  if (v === 6) return { bg: '#fef9c3', text: '#713f12' };
-  if (v === 7) return { bg: '#fbbf24', text: '#78350f' };
-  return { bg: '#f97316', text: '#fff' };
-}
-
-function slotTimes(slot) {
-  return slot === 'am' ? '09:00:00' : '15:00:00';
-}
-
-function sessionSlot(s) {
-  if (s.session_type === 'am' || s.session_type === 'pm') return s.session_type;
-  const t = (s.start_time || '').slice(0, 2);
-  return Number(t) < 12 ? 'am' : 'pm';
 }
 
 function weekDays(weekStartIso) {
@@ -61,6 +77,48 @@ function weekDays(weekStartIso) {
     });
   }
   return days;
+}
+
+function SessionCalBlock({ session: s, segFrom, onOpen, onDragStart, onDragEnd, onContextMenu }) {
+  const segStartTime = `${String(segFrom).padStart(2, '0')}:00:00`;
+  const top = timeToOffset(s.start_time || DEFAULT_AM_TIME) - timeToOffset(segStartTime) + 2;
+  const height = durationToHeight(s.duration_planned);
+  const typeConfig = SESSION_TYPES.find((t) => t.value === s.session_type) || SESSION_TYPES[0];
+  const rpeColor =
+    s.rpe_planned == null ? '#374151' : s.rpe_planned >= 8 ? '#f97316' : s.rpe_planned >= 6 ? '#fbbf24' : '#22c55e';
+
+  const bgMap = {
+    strength: { bg: '#fef9c3', text: '#713f12' },
+    conditioning: { bg: '#dbeafe', text: '#1e40af' },
+    mat: { bg: '#e9d5ff', text: '#5b21b6' },
+    physio: { bg: '#bbf7d0', text: '#14532d' },
+    match: { bg: '#fee2e2', text: '#991b1b' },
+    testing: { bg: '#e0e7ff', text: '#3730a3' },
+  };
+  const colors = bgMap[s.session_type] || { bg: '#374151', text: '#fff' };
+
+  return (
+    <div
+      className="absolute left-1 right-1 rounded cursor-pointer hover:brightness-110 hover:z-10 transition-all select-none"
+      style={{ top, height, background: colors.bg, color: colors.text, zIndex: 2 }}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onOpen}
+      onContextMenu={onContextMenu}
+    >
+      <div className="p-1 overflow-hidden h-full flex flex-col">
+        <div className="text-[8px] opacity-70">{(s.start_time || '').slice(0, 5)}</div>
+        <div className="text-[9px] font-bold truncate">{typeConfig.label}</div>
+        {height > 36 && <div className="text-[8px] opacity-70 truncate">{s.venue}</div>}
+        {height > 48 && s.rpe_planned != null && (
+          <div className="mt-auto text-[8px] font-bold px-1 rounded self-start" style={{ background: rpeColor, color: '#fff' }}>
+            RPE {s.rpe_planned}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function PeriodisationWeekly({
@@ -82,6 +140,15 @@ export default function PeriodisationWeekly({
   const [libraryItems, setLibraryItems] = useState([]);
   const [planNotes, setPlanNotes] = useState(plan?.notes ?? '');
 
+  const [clipboard, setClipboard] = useState(null);
+  // eslint-disable-next-line no-unused-vars -- reserved for future paste column highlight
+  const [pasteTargetDay, setPasteTargetDay] = useState(null);
+  const [ctxMenu, setCtxMenu] = useState(null);
+  const [dragSession, setDragSession] = useState(null);
+  const [dragOverDay, setDragOverDay] = useState(null);
+
+  const [expandedZones, setExpandedZones] = useState({});
+
   const days = useMemo(() => weekDays(weekStartIso), [weekStartIso]);
 
   useEffect(() => {
@@ -98,6 +165,28 @@ export default function PeriodisationWeekly({
       setLibraryItems(data ?? []);
     })();
   }, [user.orgId]);
+
+  const activeHours = useMemo(() => {
+    const hours = new Set();
+    sessions.forEach((s) => {
+      const h = parseInt((s.start_time || '06:30').split(':')[0], 10);
+      for (let i = Math.max(5, h - 1); i <= Math.min(23, h + 2); i++) {
+        hours.add(i);
+      }
+    });
+    [5, 6, 15, 16, 17].forEach((h) => hours.add(h));
+    return Array.from(hours).sort((a, b) => a - b);
+  }, [sessions]);
+
+  const timeSegments = useMemo(() => {
+    const segments = [];
+    for (let i = 0; i < activeHours.length - 1; i++) {
+      const from = activeHours[i];
+      const to = activeHours[i + 1];
+      segments.push({ from, to, isDead: to - from >= 2 });
+    }
+    return segments;
+  }, [activeHours]);
 
   const phaseRow = rows.find((r) => rowMetricKey(r) === 'phase' || (r.label || '').toLowerCase().includes('phase'));
   const focusRow = rows.find((r) => rowMetricKey(r) === 'week_focus');
@@ -177,169 +266,337 @@ export default function PeriodisationWeekly({
     };
   }, [sessions]);
 
-  function getSession(dayIso, slot) {
-    const t = slotTimes(slot);
-    return sessions.find((s) => s.session_date === dayIso && (s.start_time === t || sessionSlot(s) === slot));
-  }
-
   const todayIso = new Date().toISOString().slice(0, 10);
 
   async function savePlanNotes() {
     await supabase.from('periodisation_plans').update({ notes: planNotes }).eq('id', plan.id).eq('org_id', user.orgId);
   }
 
+  async function handleDropOnDay(targetDayIso) {
+    if (!dragSession || dragSession.session_date === targetDayIso) {
+      setDragSession(null);
+      setDragOverDay(null);
+      return;
+    }
+    try {
+      await upsertSession({ ...dragSession, session_date: targetDayIso });
+    } catch (e) {
+      console.error(e);
+    }
+    setDragSession(null);
+    setDragOverDay(null);
+  }
+
+  function handleCopy(session) {
+    const rest = { ...session };
+    delete rest.id;
+    delete rest.session_date;
+    setClipboard(rest);
+    setCtxMenu(null);
+  }
+
+  async function handlePaste(targetDayIso) {
+    if (!clipboard) return;
+    try {
+      await upsertSession({
+        ...clipboard,
+        session_date: targetDayIso,
+        start_time: clipboard.start_time || DEFAULT_AM_TIME,
+        id: undefined,
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   return (
-    <div className="flex flex-col lg:flex-row gap-4 text-[#e4e2e4]">
-      <div className="flex-1 min-w-0 space-y-3">
-        {/* Breadcrumb + nav */}
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-          <div className="text-gray-400 truncate">
-            <span className="text-white font-semibold">{team?.name ?? 'Team'}</span>
-            <span className="mx-1">/</span>
-            <span>{plan.name}</span>
-            <span className="mx-1">/</span>
-            <span className="text-[#F97316] font-bold">
-              Week {weekIndex + 1} · {new Date(weekStartIso + 'T12:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={onPrev} className="text-[10px] font-bold uppercase text-gray-400 hover:text-white">
-              ← Prev
-            </button>
-            <span className="text-xs font-bold text-white px-2">{formatRange(weekStartIso, weekEndIso)}</span>
-            <button type="button" onClick={onNext} className="text-[10px] font-bold uppercase text-gray-400 hover:text-white">
-              Next →
-            </button>
-            <button
-              type="button"
-              onClick={onBack}
-              className="ml-2 px-3 py-1.5 rounded-lg border border-[#F97316] text-[10px] font-black uppercase text-[#F97316] hover:bg-[#F97316]/10"
-            >
-              Annual view ↗
-            </button>
-          </div>
+    <div className="flex flex-col text-[#e4e2e4]" onClick={() => setCtxMenu(null)}>
+      {/* Breadcrumb + nav */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] mb-3">
+        <div className="text-gray-400 truncate">
+          <span className="text-white font-semibold">{team?.name ?? 'Team'}</span>
+          <span className="mx-1">/</span>
+          <span>{plan.name}</span>
+          <span className="mx-1">/</span>
+          <span className="text-[#F97316] font-bold">
+            Week {weekIndex + 1} · {new Date(weekStartIso + 'T12:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+          </span>
         </div>
-
-        {initialLoading && (
-          <div className="flex justify-center py-12">
-            <span className="material-symbols-outlined text-[#F97316] animate-spin text-3xl">refresh</span>
-          </div>
-        )}
-
-        {!initialLoading && (
-          <div className="overflow-x-auto">
-            <div className="flex gap-1 min-w-[720px]">
-              {days.map((d) => {
-                const isToday = d.iso === todayIso;
-                return (
-                  <div
-                    key={d.iso}
-                    className={`flex-1 min-w-[96px] rounded-lg border overflow-hidden ${
-                      d.isSunday ? 'opacity-50 border-white/5' : 'border-white/10'
-                    } ${isToday ? 'ring-1 ring-[#F97316]' : ''}`}
-                  >
-                    <div className={`px-2 py-1.5 text-center border-b border-white/10 ${isToday ? 'text-[#F97316]' : 'text-gray-300'}`}>
-                      <div className="text-[10px] font-black uppercase">{d.isSunday ? 'Rest day' : d.label}</div>
-                      <div className="text-[9px] text-gray-500">
-                        {new Date(d.iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                      </div>
-                      {!d.isSunday && (
-                        <span className="inline-block mt-1 text-[8px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400">Gym</span>
-                      )}
-                    </div>
-                    {!d.isSunday && (
-                      <>
-                        <SessionBlock
-                          slot="am"
-                          dayIso={d.iso}
-                          getSession={getSession}
-                          onOpen={() => setDrawer({ dayIso: d.iso, slot: 'am' })}
-                        />
-                        <SessionBlock
-                          slot="pm"
-                          dayIso={d.iso}
-                          getSession={getSession}
-                          onOpen={() => setDrawer({ dayIso: d.iso, slot: 'pm' })}
-                        />
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="rounded-lg border border-white/10 bg-[#252528] p-3">
-          <label className="text-[10px] font-bold uppercase text-gray-500">Week notes</label>
-          <textarea
-            value={planNotes}
-            onChange={(e) => setPlanNotes(e.target.value)}
-            onBlur={savePlanNotes}
-            rows={2}
-            placeholder="Plan-level notes…"
-            className="mt-1 w-full bg-[#1C1C1E] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onPrev} className="text-[10px] font-bold uppercase text-gray-400 hover:text-white">
+            ← Prev
+          </button>
+          <span className="text-xs font-bold text-white px-2">{formatRange(weekStartIso, weekEndIso)}</span>
+          <button type="button" onClick={onNext} className="text-[10px] font-bold uppercase text-gray-400 hover:text-white">
+            Next →
+          </button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="ml-2 px-3 py-1.5 rounded-lg border border-[#F97316] text-[10px] font-black uppercase text-[#F97316] hover:bg-[#F97316]/10"
+          >
+            Annual view ↗
+          </button>
         </div>
       </div>
 
-      {/* Summary */}
-      <aside className="w-full lg:w-[190px] shrink-0 space-y-3 lg:border-l border-white/10 lg:pl-4">
+      {initialLoading && (
+        <div className="flex justify-center py-12">
+          <span className="material-symbols-outlined text-[#F97316] animate-spin text-3xl">refresh</span>
+        </div>
+      )}
+
+      {!initialLoading && (
+        <div className="rounded-lg border border-white/10 overflow-hidden">
+          {/* Day header row */}
+          <div className="grid border-b border-white/10" style={{ gridTemplateColumns: '38px repeat(7, minmax(0,1fr))' }}>
+            <div className="bg-[#252528]" />
+            {days.map((d) => {
+              const isToday = d.iso === todayIso;
+              const daySessions = sessions.filter((s) => s.session_date === d.iso);
+              const totalMins = daySessions.reduce((a, s) => a + (s.duration_planned || 0), 0);
+              const avgRpe = daySessions.length
+                ? daySessions.reduce((a, s) => a + (s.rpe_planned || 0), 0) / daySessions.length
+                : null;
+              const rpeColor =
+                avgRpe == null ? 'transparent' : avgRpe >= 8 ? '#f97316' : avgRpe >= 6 ? '#fbbf24' : '#22c55e';
+              return (
+                <div
+                  key={d.iso}
+                  className={`text-center px-1 py-1.5 border-r border-white/10 last:border-r-0 bg-[#252528] ${
+                    isToday ? 'border-b-2 border-b-[#F97316]' : ''
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverDay(d.iso);
+                  }}
+                  onDrop={() => handleDropOnDay(d.iso)}
+                >
+                  <div className={`text-[9px] font-bold uppercase ${isToday ? 'text-[#F97316]' : 'text-gray-400'}`}>{d.label}</div>
+                  <div
+                    className={`text-sm font-bold mx-auto w-6 h-6 flex items-center justify-center rounded-full ${
+                      isToday ? 'bg-[#F97316] text-black' : 'text-white'
+                    }`}
+                  >
+                    {new Date(d.iso + 'T12:00:00').getDate()}
+                  </div>
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    <div className="h-[3px] rounded-full bg-[#F97316]" style={{ width: Math.min(36, totalMins / 5) + 'px' }} />
+                    {avgRpe != null && <div className="w-2 h-2 rounded-full" style={{ background: rpeColor }} />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Time grid */}
+          <div className="relative">
+            {timeSegments.map((seg, i) => {
+              if (seg.isDead) {
+                const zoneKey = `${seg.from}-${seg.to}`;
+                const isExpanded = expandedZones[zoneKey];
+                return (
+                  <div key={zoneKey}>
+                    <div
+                      className="flex items-center gap-2 border-b border-white/10 bg-[#1a1a1c] cursor-pointer px-3 py-1.5 hover:bg-[#252528] transition-colors"
+                      onClick={() => setExpandedZones((z) => ({ ...z, [zoneKey]: !z[zoneKey] }))}
+                    >
+                      <span className="text-[9px] text-gray-500">{isExpanded ? '▾' : '▸'}</span>
+                      <span className="text-[9px] text-gray-500">
+                        {String(seg.from).padStart(2, '0')}:00 – {String(seg.to).padStart(2, '0')}:00 · no sessions · click to{' '}
+                        {isExpanded ? 'collapse' : 'expand'}
+                      </span>
+                    </div>
+                    {isExpanded &&
+                      Array.from({ length: (seg.to - seg.from) * 2 }, (_, j) => {
+                        const totalMins = seg.from * 60 + j * 30;
+                        const h = Math.floor(totalMins / 60);
+                        const label = j % 2 === 0 ? String(h).padStart(2, '0') + ':00' : '';
+                        return (
+                          <div
+                            key={j}
+                            className="grid border-b border-white/5"
+                            style={{ gridTemplateColumns: '38px repeat(7, minmax(0,1fr))', height: SLOT_HEIGHT + 'px' }}
+                          >
+                            <div className="text-[8px] text-gray-600 text-right pr-1 pt-1 bg-[#1a1a1c] border-r border-white/10">{label}</div>
+                            {days.map((d) => (
+                              <div key={d.iso} className="border-r border-white/5 last:border-r-0" />
+                            ))}
+                          </div>
+                        );
+                      })}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={i}
+                  className="grid border-b border-white/10"
+                  style={{ gridTemplateColumns: '38px repeat(7, minmax(0,1fr))', height: SLOT_HEIGHT * 2 + 'px' }}
+                >
+                  <div className="text-[8px] text-gray-600 text-right pr-1 pt-1 bg-[#1a1a1c] border-r border-white/10">
+                    {String(seg.from).padStart(2, '0')}:00
+                  </div>
+                  {days.map((d) => {
+                    const daySess = sessions.filter((s) => {
+                      const h = parseInt((s.start_time || '06:30').split(':')[0], 10);
+                      return s.session_date === d.iso && h >= seg.from && h < seg.to;
+                    });
+                    return (
+                      <div
+                        key={d.iso}
+                        className={`relative border-r border-white/10 last:border-r-0 ${dragOverDay === d.iso ? 'bg-[#F97316]/10' : ''}`}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverDay(d.iso);
+                        }}
+                        onDrop={() => handleDropOnDay(d.iso)}
+                      >
+                        {daySess.map((s) => (
+                          <SessionCalBlock
+                            key={s.id}
+                            session={s}
+                            segFrom={seg.from}
+                            onOpen={() => setDrawer({ dayIso: d.iso, sessionId: s.id })}
+                            onDragStart={() => setDragSession(s)}
+                            onDragEnd={() => {
+                              setDragSession(null);
+                              setDragOverDay(null);
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setCtxMenu({ x: e.clientX, y: e.clientY, session: s });
+                            }}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Add session row */}
+          <div className="grid border-t border-white/10" style={{ gridTemplateColumns: '38px repeat(7, minmax(0,1fr))' }}>
+            <div className="bg-[#1a1a1c] border-r border-white/10" />
+            {days.map((d) => (
+              <div key={d.iso} className="border-r border-white/10 last:border-r-0 p-1.5 flex flex-col gap-1">
+                <button
+                  type="button"
+                  onClick={() => setDrawer({ dayIso: d.iso, sessionId: null })}
+                  className="w-full text-[9px] text-gray-500 border border-dashed border-white/20 rounded py-1 hover:border-[#F97316] hover:text-[#F97316] transition-colors"
+                >
+                  + add
+                </button>
+                {clipboard && (
+                  <button
+                    type="button"
+                    onClick={() => handlePaste(d.iso)}
+                    className="w-full text-[9px] text-[#F97316] border border-[#F97316]/40 rounded py-1 hover:bg-[#F97316]/10 transition-colors"
+                  >
+                    Paste
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Week notes */}
+      <div className="mt-3 rounded-lg border border-white/10 bg-[#252528] p-3">
+        <label className="text-[10px] font-bold uppercase text-gray-500">Week notes</label>
+        <textarea
+          value={planNotes}
+          onChange={(e) => setPlanNotes(e.target.value)}
+          onBlur={savePlanNotes}
+          rows={2}
+          placeholder="Plan-level notes…"
+          className="mt-1 w-full bg-[#1C1C1E] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600"
+        />
+      </div>
+
+      <p className="mt-2 text-[9px] text-gray-500 px-1">
+        Hover a session card to drag it to another day (time unchanged). Use the context menu to copy; Paste appears when the clipboard has a session.
+      </p>
+
+      {/* Summary strip */}
+      <div className="mt-3 rounded-lg border border-white/10 bg-[#252528] p-3 flex flex-wrap gap-6 items-start">
         <div>
-          <p className="text-lg font-black text-white">Week {weekIndex + 1}</p>
-          <p className="text-[10px] text-gray-500">{formatRange(weekStartIso, weekEndIso)}</p>
-          <span className="inline-block mt-2 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-900/50 text-emerald-300 border border-emerald-700/40">
+          <p className="text-[9px] font-bold uppercase text-gray-500 mb-1">Phase</p>
+          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-900/50 text-emerald-300 border border-emerald-700/40">
             {phaseName}
           </span>
         </div>
         <div>
-          <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Week focus</p>
-          <p className="text-xs text-gray-300 leading-snug">{weekFocus}</p>
+          <p className="text-[9px] font-bold uppercase text-gray-500 mb-1">Week focus</p>
+          <p className="text-xs text-gray-300">{weekFocus}</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-[#252528] p-3 space-y-2">
-          <p className="text-[10px] font-bold uppercase text-gray-500">Total volume</p>
+        <div>
+          <p className="text-[9px] font-bold uppercase text-gray-500 mb-1">Total volume</p>
           <p className="text-sm text-white">
-            {summary.planned} planned <span className="text-gray-500">(min)</span>
+            {summary.planned} <span className="text-gray-500">planned (min)</span>
           </p>
           <p className="text-sm text-emerald-400">{summary.actual} actual</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-[#252528] p-3 space-y-1">
-          <p className="text-[10px] font-bold uppercase text-gray-500">Avg RPE</p>
+        <div>
+          <p className="text-[9px] font-bold uppercase text-gray-500 mb-1">Avg RPE</p>
           <p className="text-xs text-gray-300">Planned: {summary.avgRpePlanned}</p>
           <p className="text-xs text-gray-300">Actual: {summary.avgRpeActual}</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-[#252528] p-3 space-y-2">
-          <p className="text-[10px] font-bold uppercase text-gray-500">ACWR</p>
+        <div>
+          <p className="text-[9px] font-bold uppercase text-gray-500 mb-1">ACWR</p>
           <p className="text-lg font-black text-white">{acwrThisWeek == null ? '—' : acwrThisWeek.toFixed(2)}</p>
           <p className="text-[10px] text-gray-400 capitalize">{acwrLabel}</p>
-          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+          <div className="h-1.5 rounded-full bg-white/10 w-24 mt-1 overflow-hidden">
             <div
-              className="h-full rounded-full transition-all"
+              className="h-full rounded-full"
               style={{
-                width: `${acwrThisWeek == null ? 0 : Math.min(100, (acwrThisWeek / 1.8) * 100)}%`,
+                width: (acwrThisWeek == null ? 0 : Math.min(100, (acwrThisWeek / 1.8) * 100)) + '%',
                 background: acwrStyle(acwrThisWeek).bg,
               }}
             />
           </div>
         </div>
-        <div className="rounded-lg border border-white/10 bg-[#252528] p-3 space-y-1">
-          <p className="text-[10px] font-bold uppercase text-gray-500">Peaking index</p>
+        <div>
+          <p className="text-[9px] font-bold uppercase text-gray-500 mb-1">Peaking index</p>
           <p className="text-2xl font-black text-[#F97316]">{peakingNow ?? '—'}</p>
           <p className="text-[10px] text-gray-400">{weeksToPeak != null ? `${weeksToPeak} weeks to peak` : '—'}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => console.log('Ask AI about this week', { weekStartIso, planId: plan.id })}
-          className="w-full py-3 rounded-lg border border-[#F97316] text-[10px] font-black uppercase text-[#F97316] hover:bg-[#F97316]/10"
+      </div>
+
+      {ctxMenu && (
+        <div
+          className="fixed z-[200] bg-[#2a2a2c] border border-white/10 rounded-lg shadow-xl py-1 min-w-[140px]"
+          style={{ top: ctxMenu.y, left: ctxMenu.x }}
+          onClick={(e) => e.stopPropagation()}
         >
-          Ask AI about this week ↗
-        </button>
-      </aside>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-2 text-[11px] text-gray-300 hover:bg-white/10 hover:text-white"
+            onClick={() => handleCopy(ctxMenu.session)}
+          >
+            Copy session
+          </button>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-2 text-[11px] text-red-400 hover:bg-white/10"
+            onClick={() => {
+              setCtxMenu(null);
+            }}
+          >
+            Delete session
+          </button>
+        </div>
+      )}
 
       {drawer && (
         <SessionDrawer
           drawer={drawer}
-          getSession={getSession}
+          sessions={sessions}
           libraryItems={libraryItems}
           onClose={() => setDrawer(null)}
           upsertSession={upsertSession}
@@ -349,79 +606,25 @@ export default function PeriodisationWeekly({
   );
 }
 
-function SessionBlock({ slot, dayIso, getSession, onOpen }) {
-  const s = getSession(dayIso, slot);
-  const items = Array.isArray(s?.content_items) ? s.content_items : [];
-  const dominant = items.map((i) => normalizeCategory(i.category || i.name)).sort()[0] || 'default';
-  const cat = CAT_STYLES[dominant] || CAT_STYLES.default;
-  const header =
-    slot === 'am'
-      ? { wrap: 'bg-[#fefce8] border-t-2 border-[#fbbf24]', label: 'AM' }
-      : { wrap: 'bg-[#1e3a5f] border-t-2 border-[#3b82f6]', label: 'PM' };
-
-  return (
-    <div className={header.wrap}>
-      <div className="px-2 py-1 text-[9px] font-black uppercase text-gray-600">{header.label}</div>
-      <button type="button" onClick={onOpen} className="w-full text-left p-2 space-y-1 hover:bg-black/10 transition-colors">
-        <div className="text-[9px] text-gray-600">{slot === 'pm' ? 'Venue' : 'Venue'}</div>
-        <div className="text-[10px] text-gray-200 truncate">{s?.venue || '—'}</div>
-        {slot === 'pm' && (
-          <>
-            <div className="text-[9px] text-gray-600 pt-1">Screening</div>
-            <div className="text-[10px] text-blue-300 truncate">{s?.screening_notes || 'NA'}</div>
-          </>
-        )}
-        <div className="text-[9px] text-gray-600 pt-1">S&amp;C</div>
-        <span className="inline-block text-[8px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: cat.bg, color: cat.text }}>
-          {cat.label}
-        </span>
-        <ul className="mt-1 space-y-0.5">
-          {items.slice(0, 4).map((it, i) => (
-            <li key={i} className="text-[9px] text-gray-400 truncate">
-              · {it.name || it.label || 'Item'}
-            </li>
-          ))}
-          {!items.length && <li className="text-[9px] text-gray-600">—</li>}
-        </ul>
-        <div className="flex items-center gap-2 pt-1">
-          <span
-            className="text-[10px] font-black px-1.5 py-0.5 rounded"
-            style={{
-              background: s?.rpe_planned != null ? rpeStyle(s.rpe_planned).bg : '#374151',
-              color: s?.rpe_planned != null ? rpeStyle(s.rpe_planned).text : '#fff',
-            }}
-          >
-            {s?.rpe_planned ?? '—'}
-          </span>
-          <span className="text-[10px] text-gray-500">{s?.duration_planned != null ? `${s.duration_planned}m` : '—'}</span>
-        </div>
-        {slot === 'pm' && <div className="text-[9px] text-gray-500 pt-1 truncate">{s?.recovery_modality || '—'}</div>}
-      </button>
-    </div>
-  );
-}
-
-function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSession }) {
-  const { dayIso, slot } = drawer;
-  const existing = getSession(dayIso, slot);
-  const [category, setCategory] = useState('strength');
+function SessionDrawer({ drawer, sessions, libraryItems, onClose, upsertSession }) {
+  const existing = drawer.sessionId ? sessions.find((s) => s.id === drawer.sessionId) : null;
+  const [sessionType, setSessionType] = useState('strength');
+  const [startTime, setStartTime] = useState(DEFAULT_AM_TIME);
   const [contentItems, setContentItems] = useState([]);
   const [rpePlanned, setRpePlanned] = useState(6);
   const [rpeActual, setRpeActual] = useState('');
   const [durP, setDurP] = useState(90);
   const [durA, setDurA] = useState('');
   const [venue, setVenue] = useState('');
-  const [screening, setScreening] = useState('');
-  const [recovery, setRecovery] = useState('');
   const [notes, setNotes] = useState('');
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const s = existing;
-    setVenue(s?.venue ?? '');
-    setScreening(s?.screening_notes ?? '');
-    setRecovery(s?.recovery_modality ?? '');
+    setSessionType(s?.session_type || 'strength');
+    setStartTime(s?.start_time || DEFAULT_AM_TIME);
+    setVenue(s?.venue ?? defaultVenueFor(s?.session_type || 'strength'));
     setNotes(s?.notes ?? '');
     setRpePlanned(s?.rpe_planned ?? 6);
     setRpeActual(s?.rpe_actual != null ? String(s.rpe_actual) : '');
@@ -429,11 +632,10 @@ function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSessio
     setDurA(s?.duration_actual != null ? String(s.duration_actual) : '');
     const items = Array.isArray(s?.content_items) ? s.content_items : [];
     setContentItems(items);
-    const dom = items.map((i) => normalizeCategory(i.category || i.name)).sort()[0] || 'strength';
-    setCategory(dom);
-  }, [existing, dayIso, slot]);
+  }, [existing, drawer.dayIso, drawer.sessionId]);
 
-  const dayLabel = new Date(dayIso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  const dayLabel = new Date(drawer.dayIso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  const startLabel = (startTime || DEFAULT_AM_TIME).slice(0, 5);
 
   const filteredLib = useMemo(() => {
     const q = search.toLowerCase();
@@ -447,17 +649,15 @@ function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSessio
     try {
       await upsertSession({
         id: existing?.id,
-        session_date: dayIso,
-        start_time: slotTimes(slot),
-        session_type: slot,
+        session_date: drawer.dayIso,
+        start_time: startTime,
+        session_type: sessionType,
         venue,
-        screening_notes: screening || null,
         content_items: contentItems,
         rpe_planned: rpePlanned,
         rpe_actual: rpeActual === '' ? null : Number(rpeActual),
         duration_planned: durP,
         duration_actual: durA === '' ? null : Number(durA),
-        recovery_modality: recovery || null,
         notes: notes || null,
       });
       onClose();
@@ -469,6 +669,8 @@ function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSessio
   }
 
   const canLib = canEditSessionLibrary();
+  const typeLabel = SESSION_TYPES.find((t) => t.value === sessionType)?.label ?? 'Session';
+  const venueOptions = venue && !VENUES.includes(venue) ? [...VENUES, venue] : VENUES;
 
   return (
     <>
@@ -477,9 +679,9 @@ function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSessio
         <div className="p-4 border-b border-white/10 flex justify-between items-start gap-2">
           <div>
             <h2 className="text-lg font-bold text-white">
-              {dayLabel} · {slot.toUpperCase()}
+              {dayLabel} · {startLabel}
             </h2>
-            <p className="text-xs text-gray-500">{venue || 'Venue'}</p>
+            <p className="text-xs text-gray-500">{typeLabel}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-white/10 text-gray-400">
             <span className="material-symbols-outlined text-xl">close</span>
@@ -488,16 +690,32 @@ function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSessio
 
         <div className="p-4 space-y-4 flex-1">
           <div>
-            <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Category</p>
-            <span
-              className="inline-block text-[10px] font-bold px-2 py-1 rounded-full capitalize"
-              style={{
-                background: CAT_STYLES[category]?.bg,
-                color: CAT_STYLES[category]?.text,
+            <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Time</p>
+            <input
+              type="time"
+              value={(startTime || DEFAULT_AM_TIME).slice(0, 5)}
+              onChange={(e) => setStartTime(e.target.value ? e.target.value + ':00' : DEFAULT_AM_TIME)}
+              className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2"
+            />
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Session type</p>
+            <select
+              value={sessionType}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSessionType(v);
+                if (!existing) setVenue(defaultVenueFor(v));
               }}
+              className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2"
             >
-              {CAT_STYLES[category]?.label}
-            </span>
+              {SESSION_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -575,14 +793,14 @@ function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSessio
 
           <div>
             <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Venue</p>
-            <input value={venue} onChange={(e) => setVenue(e.target.value)} className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2" />
+            <select value={venue} onChange={(e) => setVenue(e.target.value)} className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2">
+              {venueOptions.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
           </div>
-          {slot === 'pm' && (
-            <div>
-              <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Screening</p>
-              <input value={screening} onChange={(e) => setScreening(e.target.value)} className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2" />
-            </div>
-          )}
 
           <div>
             <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">RPE (planned: {rpePlanned})</p>
@@ -619,20 +837,6 @@ function SessionDrawer({ drawer, getSession, libraryItems, onClose, upsertSessio
               <input value={durA} onChange={(e) => setDurA(e.target.value)} placeholder="—" className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2" />
             </div>
           </div>
-
-          {slot === 'pm' && (
-            <div>
-              <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Recovery modality</p>
-              <select value={recovery} onChange={(e) => setRecovery(e.target.value)} className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2">
-                <option value="">—</option>
-                {RECOVERY_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           <div>
             <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Notes</p>
