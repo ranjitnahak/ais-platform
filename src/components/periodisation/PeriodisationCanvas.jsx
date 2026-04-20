@@ -986,7 +986,7 @@ export default function PeriodisationCanvas({
                                     <div
                                       className="absolute inset-0 pointer-events-none"
                                       style={{
-                                        opacity: showTeamPlan === 'ghost' ? 0.25 : 1,
+                                        opacity: showTeamPlan === 'ghost' ? 0.5 : 1,
                                         zIndex: 1,
                                       }}
                                     >
