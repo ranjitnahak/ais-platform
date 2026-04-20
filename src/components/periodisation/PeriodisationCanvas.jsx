@@ -1620,13 +1620,7 @@ function CellRenderer({
       onBandRightClick(e.clientX, e.clientY, cell, row.row_type);
     };
 
-    const isResizingThisCell = resizingCell?.cellId === cell.id;
-    const previewStartForPill = isResizingThisCell ? resizingCell.previewStart : cell.cell_date;
-
-    if (monday === previewStartForPill || monday === cell.cell_date) {
-      // Only render pill once — if both match, previewStart takes precedence
-      if (monday !== previewStartForPill) return null;
-
+    if (monday === cell.cell_date) {
       return (
         <div
           className="relative w-full h-full min-h-[22px]"
@@ -1647,7 +1641,13 @@ function CellRenderer({
               <div
                 style={{
                   position: 'absolute',
-                  left: 2,
+                  left: (() => {
+                    const isResizing = resizingCell?.cellId === cell.id;
+                    if (!isResizing) return 2;
+                    const origStartIdx = weeks.findIndex((w) => w.monday === cell.cell_date);
+                    const previewStartIdx = weeks.findIndex((w) => w.monday === resizingCell.previewStart);
+                    return 2 + (previewStartIdx - origStartIdx) * pxPerWeek;
+                  })(),
                   top: 2,
                   width: previewPillWidth,
                   height: 'calc(100% - 4px)',
