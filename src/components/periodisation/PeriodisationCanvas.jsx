@@ -400,7 +400,7 @@ export default function PeriodisationCanvas({
         continue;
       }
       const { org_id: _o, id: _i, ...rest } = val;
-      await upsertCell({ ...rest, row_id: rowId, cell_date: monday });
+      await upsertCell({ ...rest, row_id: rowId, cell_date: rest.cell_date ?? monday });
     }
     setPatches({});
     setHistory([]);
@@ -1620,7 +1620,13 @@ function CellRenderer({
       onBandRightClick(e.clientX, e.clientY, cell, row.row_type);
     };
 
-    if (monday === cell.cell_date) {
+    const isResizingThisCell = resizingCell?.cellId === cell.id;
+    const previewStartForPill = isResizingThisCell ? resizingCell.previewStart : cell.cell_date;
+
+    if (monday === previewStartForPill || monday === cell.cell_date) {
+      // Only render pill once — if both match, previewStart takes precedence
+      if (monday !== previewStartForPill) return null;
+
       return (
         <div
           className="relative w-full h-full min-h-[22px]"
@@ -1719,7 +1725,7 @@ function CellRenderer({
           onClick={(e) => e.stopPropagation()}
           onContextMenu={bandContextMenu}
         >
-          {canEdit && (isLastWeek || isPreviewLastWeek) && (
+          {canEdit && (isResizing ? isPreviewLastWeek : isLastWeek) && (
             <div
               style={{
                 position: 'absolute',
