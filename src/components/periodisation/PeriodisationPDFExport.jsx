@@ -96,6 +96,18 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
         const container = document.createElement('div');
         container.style.cssText =
           'position:fixed;left:-9999px;top:0;visibility:hidden;z-index:-1;';
+        // Inject PDF CSS variables directly on the container so child components
+        // receive the light-theme tokens regardless of the dark canvas theme on body
+        container.style.setProperty('--pdf-bg', '#ffffff');
+        container.style.setProperty('--pdf-border', '#e5e7eb');
+        container.style.setProperty('--pdf-text', '#111827');
+        container.style.setProperty('--pdf-text-muted', '#6b7280');
+        container.style.setProperty('--pdf-group-header-bg', '#f3f4f6');
+        container.style.setProperty('--pdf-cell-empty-bg', '#f9fafb');
+        container.style.setProperty('--color-primary-container', '#f97316');
+        container.style.setProperty('--color-secondary-container', '#93c5fd');
+        container.style.setProperty('--color-tertiary-container', '#22c55e');
+        container.style.setProperty('--color-on-tertiary-container', '#ffffff');
         document.body.appendChild(container);
 
         const root = createRoot(container);
