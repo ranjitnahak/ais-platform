@@ -184,6 +184,10 @@ export default function PeriodisationCanvas({
   const [spanPopover, setSpanPopover] = useState(null); // inline create/edit for span rows
   const spanDragRef = useRef(null);
   const justFinishedDragRef = useRef(false);
+  const resizeDragRef = useRef(null);
+  // resizeDragRef shape: { cell, rowId, edge: 'left'|'right', startX, origStart, origEnd }
+  const [resizingCell, setResizingCell] = useState(null);
+  // resizingCell: { cellId, previewStart, previewEnd } — drives live preview
   const [addRowModal, setAddRowModal] = useState(null); // { group, rowType?, name?, insertCtx? }
   const [editingGroupHeader, setEditingGroupHeader] = useState(null); // { groupKey, value }
   const [numPopover, setNumPopover] = useState(null); // number picker: { rowId, monday, current, x, y }
@@ -512,6 +516,108 @@ export default function PeriodisationCanvas({
     d.endIdx = weekIndex;
     setSpanSelection({ rowId, startIdx: d.startIdx, endIdx: weekIndex });
   }, []);
+
+  const onResizeMouseDown = useCallback((e, cell, edge) => {
+    if (!canEdit) return;
+    e.stopPropagation();
+    e.preventDefault();
+    resizeDragRef.current = {
+      cell,
+      rowId: cell.row_id,
+      edge,
+      startX: e.clientX,
+      origStart: cell.cell_date,
+      origEnd: cell.span_end_date || cell.cell_date,
+    };
+    setResizingCell({
+      cellId: cell.id,
+      previewStart: cell.cell_date,
+      previewEnd: cell.span_end_date || cell.cell_date,
+    });
+
+    function onMouseMove(ev) {
+      const d = resizeDragRef.current;
+      if (!d) return;
+      const deltaX = ev.clientX - d.startX;
+      const deltaWeeks = Math.round(deltaX / pxPerWeek);
+      if (deltaWeeks === 0) return;
+
+      const origStartIdx = weeks.findIndex((w) => w.monday === d.origStart);
+      const origEndIdx = weeks.findIndex((w) => w.monday === d.origEnd);
+      if (origStartIdx === -1 || origEndIdx === -1) return;
+
+      let newStartIdx = origStartIdx;
+      let newEndIdx = origEndIdx;
+
+      if (d.edge === 'right') {
+        newEndIdx = Math.max(origStartIdx, origEndIdx + deltaWeeks);
+        newEndIdx = Math.min(newEndIdx, weeks.length - 1);
+      } else {
+        newStartIdx = Math.min(origEndIdx, origStartIdx + deltaWeeks);
+        newStartIdx = Math.max(0, newStartIdx);
+      }
+
+      if (newEndIdx - newStartIdx < 0) {
+        if (d.edge === 'right') newEndIdx = newStartIdx;
+        else newStartIdx = newEndIdx;
+      }
+
+      setResizingCell({
+        cellId: d.cell.id,
+        previewStart: weeks[newStartIdx].monday,
+        previewEnd: weeks[newEndIdx].monday,
+      });
+    }
+
+    async function onMouseUp(ev) {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      const d = resizeDragRef.current;
+      resizeDragRef.current = null;
+      if (!d) { setResizingCell(null); return; }
+
+      const deltaX = ev.clientX - d.startX;
+      const deltaWeeks = Math.round(deltaX / pxPerWeek);
+      if (deltaWeeks === 0) { setResizingCell(null); return; }
+
+      const origStartIdx = weeks.findIndex((w) => w.monday === d.origStart);
+      const origEndIdx = weeks.findIndex((w) => w.monday === d.origEnd);
+      if (origStartIdx === -1 || origEndIdx === -1) {
+        setResizingCell(null);
+        return;
+      }
+
+      let newStartIdx = origStartIdx;
+      let newEndIdx = origEndIdx;
+
+      if (d.edge === 'right') {
+        newEndIdx = Math.max(origStartIdx, origEndIdx + deltaWeeks);
+        newEndIdx = Math.min(newEndIdx, weeks.length - 1);
+      } else {
+        newStartIdx = Math.min(origEndIdx, origStartIdx + deltaWeeks);
+        newStartIdx = Math.max(0, newStartIdx);
+      }
+
+      if (newEndIdx - newStartIdx < 0) {
+        if (d.edge === 'right') newEndIdx = newStartIdx;
+        else newStartIdx = newEndIdx;
+      }
+
+      const newStart = weeks[newStartIdx].monday;
+      const newEnd = weeks[newEndIdx].monday;
+
+      setResizingCell(null);
+
+      patchCell(d.cell.row_id, d.origStart, {
+        ...d.cell,
+        cell_date: newStart,
+        span_end_date: newEnd,
+      });
+    }
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [canEdit, pxPerWeek, weeks, patchCell]);
 
   useEffect(() => {
     const onWinMouseMove = (e) => {
@@ -1031,6 +1137,8 @@ export default function PeriodisationCanvas({
                                         onSpanPointerEnter={() => {}}
                                         setNumPopover={() => {}}
                                         onBandRightClick={() => {}}
+                                        onResizeMouseDown={() => {}}
+                                        resizingCell={resizingCell}
                                       />
                                     </div>
                                   );
@@ -1054,6 +1162,8 @@ export default function PeriodisationCanvas({
                                     onBandRightClick={(x, y, cell, rowType) =>
                                       setBandCtxMenu({ x, y, cell, rowId: row.id, mode: rowType })
                                     }
+                                    onResizeMouseDown={onResizeMouseDown}
+                                    resizingCell={resizingCell}
                                   />
                                 </div>
                               </div>
@@ -1407,6 +1517,8 @@ function CellRenderer({
   onSpanPointerEnter,
   setNumPopover,
   onBandRightClick,
+  onResizeMouseDown,
+  resizingCell,
 }) {
   const cell = rowUsesSpanInteraction(row)
     ? findSpanningCell(row.id, monday, cells, patches)
@@ -1515,31 +1627,94 @@ function CellRenderer({
           onClick={(e) => e.stopPropagation()}
           onContextMenu={bandContextMenu}
         >
-          <div
-            style={{
-              position: 'absolute',
-              left: 2,
-              top: 2,
-              width: pillWidth,
-              height: 'calc(100% - 4px)',
-              background: bg,
-              borderRadius: 4,
-              zIndex: 5,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 10,
-              fontWeight: 600,
-              color: fg,
-              overflow: 'hidden',
-              whiteSpace: 'nowrap',
-              paddingLeft: 8,
-              paddingRight: 8,
-            }}
-            title={cell.value_text}
-          >
-            {cell.value_text}
-          </div>
+          {(() => {
+            const isResizing = resizingCell?.cellId === cell.id;
+            const previewStart = isResizing ? resizingCell.previewStart : cell.cell_date;
+            const previewEnd = isResizing ? resizingCell.previewEnd : (cell.span_end_date || cell.cell_date);
+            const previewSpanWeeks = weeks.filter(
+              (w) => w.monday >= previewStart && w.monday <= previewEnd
+            ).length;
+            const previewPillWidth = previewSpanWeeks * pxPerWeek - 4;
+
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 2,
+                  top: 2,
+                  width: previewPillWidth,
+                  height: 'calc(100% - 4px)',
+                  background: bg,
+                  borderRadius: 4,
+                  zIndex: 5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: fg,
+                  overflow: 'visible',
+                  whiteSpace: 'nowrap',
+                  paddingLeft: 8,
+                  paddingRight: 8,
+                  userSelect: 'none',
+                }}
+                title={cell.value_text}
+              >
+                {canEdit && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 8,
+                      cursor: 'ew-resize',
+                      borderRadius: '4px 0 0 4px',
+                      background: 'rgba(0,0,0,0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    onMouseDown={(e) => onResizeMouseDown(e, cell, 'left')}
+                  >
+                    <div style={{
+                      width: 2, height: 10,
+                      background: 'rgba(255,255,255,0.5)',
+                      borderRadius: 1,
+                    }} />
+                  </div>
+                )}
+                <span style={{ paddingLeft: 6, paddingRight: 6 }}>
+                  {cell.value_text}
+                </span>
+                {canEdit && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 8,
+                      cursor: 'ew-resize',
+                      borderRadius: '0 4px 4px 0',
+                      background: 'rgba(0,0,0,0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    onMouseDown={(e) => onResizeMouseDown(e, cell, 'right')}
+                  >
+                    <div style={{
+                      width: 2, height: 10,
+                      background: 'rgba(255,255,255,0.5)',
+                      borderRadius: 1,
+                    }} />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       );
     }
