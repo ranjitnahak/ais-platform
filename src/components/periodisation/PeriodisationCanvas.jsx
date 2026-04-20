@@ -207,16 +207,32 @@ export default function PeriodisationCanvas({
   const gridWidth = weeks.length * pxPerWeek;
   const totalWidth = LEFT_COL + gridWidth;
 
+  const effectiveRows = useMemo(() => {
+    if (rows.length > 0) return rows;
+    if (viewMode === 'athlete' && showTeamPlan && ghostRows.length > 0) {
+      return ghostRows;
+    }
+    return rows;
+  }, [rows, ghostRows, viewMode, showTeamPlan]);
+
+  const effectiveCells = useMemo(() => {
+    if (rows.length > 0) return cells;
+    if (viewMode === 'athlete' && showTeamPlan && ghostRows.length > 0) {
+      return ghostCells;
+    }
+    return cells;
+  }, [rows, cells, ghostCells, ghostRows, viewMode, showTeamPlan]);
+
   const rowsByGroup = useMemo(() => {
     const m = {};
     for (const g of ROW_GROUPS) m[g] = [];
-    for (const r of rows) {
+    for (const r of effectiveRows) {
       const g = ROW_GROUPS.includes(r.row_group) ? r.row_group : 'Planning';
       if (!m[g]) m[g] = [];
       m[g].push(r);
     }
     return m;
-  }, [rows]);
+  }, [effectiveRows]);
 
   const ghostCellMap = useMemo(() => {
     if (!showTeamPlan || !ghostCells.length) return {};
@@ -239,26 +255,26 @@ export default function PeriodisationCanvas({
     return map;
   }, [ghostRows]);
 
-  const volumeRow = rows.find((r) => rowMetricKey(r) === 'volume');
-  const intensityRow = rows.find((r) => rowMetricKey(r) === 'intensity');
+  const volumeRow = effectiveRows.find((r) => rowMetricKey(r) === 'volume');
+  const intensityRow = effectiveRows.find((r) => rowMetricKey(r) === 'intensity');
 
   const weeklyLoads = useMemo(() => {
     return weeks.map((w) => {
-      const v = volumeRow ? getCellForWeek(volumeRow.id, w.monday, cells, patches)?.value_number : null;
-      const i = intensityRow ? getCellForWeek(intensityRow.id, w.monday, cells, patches)?.value_number : null;
+      const v = volumeRow ? getCellForWeek(volumeRow.id, w.monday, effectiveCells, patches)?.value_number : null;
+      const i = intensityRow ? getCellForWeek(intensityRow.id, w.monday, effectiveCells, patches)?.value_number : null;
       if (v == null && i == null) return null;
       return ((Number(v) || 0) + (Number(i) || 0)) / 2;
     });
-  }, [weeks, volumeRow, intensityRow, cells, patches]);
+  }, [weeks, volumeRow, intensityRow, effectiveCells, patches]);
 
   const acwrSeries = useMemo(() => computeAcwrSeries(weeklyLoads), [weeklyLoads]);
 
   const chartData = useMemo(() => {
     const vol = weeks.map((w) =>
-      volumeRow ? getCellForWeek(volumeRow.id, w.monday, cells, patches)?.value_number ?? null : null
+      volumeRow ? getCellForWeek(volumeRow.id, w.monday, effectiveCells, patches)?.value_number ?? null : null
     );
     const ints = weeks.map((w) =>
-      intensityRow ? getCellForWeek(intensityRow.id, w.monday, cells, patches)?.value_number ?? null : null
+      intensityRow ? getCellForWeek(intensityRow.id, w.monday, effectiveCells, patches)?.value_number ?? null : null
     );
     const ac = acwrSeries.map((r) => (r == null ? null : Math.min(10, Number(r) * 4)));
     return {
@@ -293,7 +309,7 @@ export default function PeriodisationCanvas({
         },
       ],
     };
-  }, [weeks, volumeRow, intensityRow, cells, patches, acwrSeries]);
+  }, [weeks, volumeRow, intensityRow, effectiveCells, patches, acwrSeries]);
 
   const chartOptions = useMemo(
     () => ({
@@ -986,7 +1002,7 @@ export default function PeriodisationCanvas({
                                     weekIndex={wi}
                                     weeks={weeks}
                                     pxPerWeek={pxPerWeek}
-                                    cells={cells}
+                                    cells={effectiveCells}
                                     patches={patches}
                                     acwrSeries={acwrSeries}
                                     canEdit={canEdit}
