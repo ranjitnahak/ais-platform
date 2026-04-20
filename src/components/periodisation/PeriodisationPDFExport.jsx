@@ -116,6 +116,7 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
               secondaryLogoUrl={secondaryLogoUrl}
               showLoadWave={isLast}
               loadWaveData={pageLoadWave}
+              chartLoadWaveData={isLast ? loadWaveData : undefined}
               isLastPage={isLast}
             />,
           );
@@ -124,8 +125,8 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
             const el = container.firstElementChild;
             if (el && el.offsetHeight > 0) {
               clearInterval(poll);
-              // Extra wait for Chart.js on the last page
-              setTimeout(resolve, isLast ? 600 : 0);
+              // Extra wait for Chart.js on the last page (increased from 600 → 1200ms)
+              setTimeout(resolve, isLast ? 1200 : 0);
             }
           }, 20);
           // Safety timeout — bail after 5 seconds
@@ -167,7 +168,7 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
           }
           // #endregion
           canvas = await html2canvas(el, {
-            scale: 2,
+            scale: 3,
             useCORS: true,
             allowTaint: true,
             logging: false,

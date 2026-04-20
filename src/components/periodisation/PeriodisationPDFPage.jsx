@@ -24,7 +24,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 const PAGE_W = 1122;
 const PAGE_H = 794;
-const LABEL_COL = 140;
+const LABEL_COL = 160;   // widened from 140 to prevent label clipping
 const HEADER_H = 56;
 const CHART_H = 130;
 const ROW_H = 22;
@@ -76,7 +76,7 @@ function BandRow({ row, weeks, cells, cw }) {
         const clampedEnd = endIdx === -1 ? weeks.length - 1 : endIdx - 1;
         const spanWeeks = clampedEnd - clampedStart + 1;
         if (spanWeeks <= 0) return null;
-        const bg = cell.value_color || cell.color || 'var(--color-secondary-container)';
+        const bg = cell.value_color || cell.color || '#3b82f6';
         const showLabel = spanWeeks > 2;
         return (
           <div
@@ -118,6 +118,9 @@ function BandRow({ row, weeks, cells, cw }) {
 }
 
 function NumberCell({ value, style: st }) {
+  if (value == null || value === '') {
+    return <div style={{ width: '100%', height: ROW_H - 2 }} />;
+  }
   const s = st || numberCellStyle(value);
   return (
     <div
@@ -134,14 +137,14 @@ function NumberCell({ value, style: st }) {
         borderRadius: 2,
       }}
     >
-      {value ?? ''}
+      {value}
     </div>
   );
 }
 
 function MarkerCell({ cell }) {
   if (!cell) return <div style={{ width: '100%', height: ROW_H - 2 }} />;
-  const color = cell.value_color || cell.color || 'var(--color-primary-container)';
+  const color = cell.value_color || cell.color || '#f97316';
   return (
     <div style={{ width: '100%', height: ROW_H - 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
@@ -160,8 +163,8 @@ function ToggleCell({ cell }) {
           fontWeight: 700,
           padding: '1px 5px',
           borderRadius: 99,
-          background: 'var(--color-tertiary-container)',
-          color: 'var(--color-on-tertiary-container)',
+          background: '#22c55e',
+          color: '#ffffff',
           textTransform: 'uppercase',
           letterSpacing: '0.04em',
         }}
@@ -185,6 +188,7 @@ export default function PeriodisationPDFPage({
   secondaryLogoUrl,
   showLoadWave,
   loadWaveData,
+  chartLoadWaveData,   // full plan-level wave data for the chart (not sliced to page weeks)
   isLastPage,
 }) {
   const cw = colWidth(weeks.length);
@@ -198,6 +202,7 @@ export default function PeriodisationPDFPage({
     responsive: true,
     maintainAspectRatio: false,
     animation: false,
+    spanGaps: true,   // connect lines across null/empty weeks so sparse data draws as a wave
     plugins: {
       legend: { position: 'top', labels: { color: '#374151', font: { size: 9 } } },
       tooltip: { enabled: false },
@@ -216,14 +221,16 @@ export default function PeriodisationPDFPage({
     },
   };
 
-  // loadWaveData is already pre-sliced to this page's week range by PeriodisationPDFExport
-  const pageChartData = loadWaveData
+  // Use full plan-level wave data for the chart so all data points are visible,
+  // even when this is the last page and most data is on earlier pages.
+  const chartSrc = chartLoadWaveData || loadWaveData;
+  const pageChartData = chartSrc
     ? {
-        labels: loadWaveData.labels ?? weeks.map((_, i) => `W${i + 1}`),
+        labels: chartSrc.labels ?? weeks.map((_, i) => `W${i + 1}`),
         datasets: [
           {
             label: 'Volume',
-            data: loadWaveData.volume ?? [],
+            data: (chartSrc.volume ?? []).map((v) => v ?? null),
             borderColor: '#3b82f6',
             backgroundColor: 'rgba(59,130,246,0.08)',
             fill: true,
@@ -232,8 +239,8 @@ export default function PeriodisationPDFPage({
           },
           {
             label: 'Intensity',
-            data: loadWaveData.intensity ?? [],
-            borderColor: 'var(--color-primary-container)',
+            data: (chartSrc.intensity ?? []).map((v) => v ?? null),
+            borderColor: '#f97316',
             backgroundColor: 'rgba(249,115,22,0.06)',
             fill: true,
             tension: 0.25,
@@ -241,7 +248,7 @@ export default function PeriodisationPDFPage({
           },
           {
             label: 'ACWR',
-            data: (loadWaveData.acwr ?? []).map((v) => (v == null ? null : Math.min(10, v * 4))),
+            data: (chartSrc.acwr ?? []).map((v) => (v == null ? null : Math.min(10, v * 4))),
             borderColor: '#22c55e',
             borderDash: [5, 4],
             fill: false,
@@ -348,10 +355,10 @@ export default function PeriodisationPDFPage({
                       fontSize: 9,
                       color: 'var(--pdf-text)',
                       fontWeight: 500,
-                      whiteSpace: 'nowrap',
+                      whiteSpace: 'normal',
+                      lineHeight: 1.2,
                       overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      maxWidth: LABEL_COL - 12,
+                      maxWidth: LABEL_COL - 8,
                     }}
                   >
                     {row.label}
@@ -484,6 +491,16 @@ export default function PeriodisationPDFPage({
             Load Wave
           </div>
           <div style={{ height: CHART_H - 20 }}>
+            {/* #region agent log */}
+            {console.log('[PDFExport] chart data before Line render:', {
+              usingFullData: !!chartLoadWaveData,
+              totalLabels: pageChartData?.labels?.length,
+              volumePoints: pageChartData?.datasets[0]?.data?.filter((v) => v != null).length,
+              intensityPoints: pageChartData?.datasets[1]?.data?.filter((v) => v != null).length,
+              acwrPoints: pageChartData?.datasets[2]?.data?.filter((v) => v != null).length,
+              volumeSample: pageChartData?.datasets[0]?.data?.filter((v) => v != null).slice(0, 5),
+            })}
+            {/* #endregion */}
             <Line data={pageChartData} options={chartOptions} />
           </div>
         </div>
