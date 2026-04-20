@@ -399,7 +399,7 @@ export default function PeriodisationCanvas({
         if (existing?.id) await deletePlanCellById(existing.id);
         continue;
       }
-      const { org_id: _o, id: _i, ...rest } = val;
+      const { org_id: _o, ...rest } = val;
       await upsertCell({ ...rest, row_id: rowId, cell_date: rest.cell_date ?? monday });
     }
     setPatches({});
@@ -500,6 +500,7 @@ export default function PeriodisationCanvas({
 
   const onSpanPointerDown = useCallback(
     (row, weekIndex, e) => {
+      if (resizeDragRef.current) return;
       if (!canEdit || !rowUsesSpanInteraction(row)) return;
       e.preventDefault();
       e.stopPropagation();
