@@ -6,6 +6,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
   const [plan, setPlan] = useState(null);
   const [rows, setRows] = useState([]);
   const [cells, setCells] = useState([]);
+  const [ghostPlan, setGhostPlan] = useState(null);
   const [ghostRows, setGhostRows] = useState([]);
   const [ghostCells, setGhostCells] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -25,6 +26,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
+      setGhostPlan(null);
       setGhostRows([]);
       setGhostCells([]);
       setInitialLoading(false);
@@ -35,6 +37,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
+      setGhostPlan(null);
       setGhostRows([]);
       setGhostCells([]);
       setInitialLoading(false);
@@ -59,6 +62,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
+      setGhostPlan(null);
       setGhostRows([]);
       setGhostCells([]);
       setInitialLoading(false);
@@ -66,11 +70,55 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     }
 
     if (!planData) {
+      // No athlete-specific plan yet — still fetch ghost (team) plan so canvas
+      // can show date bounds and ghost cells
+      if (athleteIdNow) {
+        const { data: ghostPlanData } = await supabase
+          .from('periodisation_plans')
+          .select('*')
+          .eq('org_id', u.orgId)
+          .eq('team_id', teamId)
+          .is('athlete_id', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        setGhostPlan(ghostPlanData ?? null);
+
+        if (ghostPlanData) {
+          const { data: ghostRowData } = await supabase
+            .from('plan_rows')
+            .select('*')
+            .eq('plan_id', ghostPlanData.id)
+            .eq('org_id', u.orgId)
+            .order('sort_order');
+
+          setGhostRows(ghostRowData || []);
+
+          if (ghostRowData?.length) {
+            const ghostRowIds = ghostRowData.map((r) => r.id);
+            const { data: ghostCellData } = await supabase
+              .from('plan_cells')
+              .select('*')
+              .eq('org_id', u.orgId)
+              .in('row_id', ghostRowIds);
+            setGhostCells(ghostCellData || []);
+          } else {
+            setGhostCells([]);
+          }
+        } else {
+          setGhostRows([]);
+          setGhostCells([]);
+        }
+      } else {
+        setGhostPlan(null);
+        setGhostRows([]);
+        setGhostCells([]);
+      }
+
       setPlan(null);
       setRows([]);
       setCells([]);
-      setGhostRows([]);
-      setGhostCells([]);
       setInitialLoading(false);
       return;
     }
@@ -88,6 +136,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       console.error(rowErr);
       setRows([]);
       setCells([]);
+      setGhostPlan(null);
       setGhostRows([]);
       setGhostCells([]);
       setInitialLoading(false);
@@ -122,6 +171,8 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
         .maybeSingle();
 
       if (ghostPlanData) {
+        setGhostPlan(ghostPlanData);
+
         const { data: ghostRowData } = await supabase
           .from('plan_rows')
           .select('*')
@@ -143,10 +194,12 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
           setGhostCells([]);
         }
       } else {
+        setGhostPlan(null);
         setGhostRows([]);
         setGhostCells([]);
       }
     } else {
+      setGhostPlan(null);
       setGhostRows([]);
       setGhostCells([]);
     }
@@ -399,6 +452,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     plan,
     rows,
     cells,
+    ghostPlan,
     ghostRows,
     ghostCells,
     initialLoading,

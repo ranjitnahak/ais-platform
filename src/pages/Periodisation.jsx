@@ -74,6 +74,7 @@ export default function Periodisation() {
     plan,
     rows,
     cells,
+    ghostPlan,
     ghostRows,
     ghostCells,
     initialLoading,
@@ -173,6 +174,18 @@ export default function Periodisation() {
   }, [viewMode, selectedTeamId, user.orgId]);
 
   const selectedTeam = useMemo(() => teams.find((t) => t.id === selectedTeamId), [teams, selectedTeamId]);
+
+  const effectivePlan = useMemo(() => {
+    if (plan) return plan;
+    if (viewMode === 'athlete' && selectedAthleteId && ghostPlan) {
+      return {
+        ...ghostPlan,
+        id: null,
+        athlete_id: selectedAthleteId,
+      };
+    }
+    return null;
+  }, [plan, viewMode, selectedAthleteId, ghostPlan]);
 
   const canEdit = plan ? canEditPlan(plan) : can('periodisation', 'edit');
 
@@ -321,7 +334,7 @@ export default function Periodisation() {
           </div>
         )}
 
-        {!initialLoading && !plan && !(viewMode === 'athlete' && !selectedAthleteId) && (
+        {!initialLoading && !plan && viewMode === 'team' && (
           <div className="max-w-lg mx-auto mt-16 text-center space-y-8">
             <div className="space-y-2">
               <span className="text-4xl font-black tracking-tighter text-white uppercase">AIS</span>
@@ -356,9 +369,10 @@ export default function Periodisation() {
           </div>
         )}
 
-        {!initialLoading && plan && !selectedWeek && (
+        {!initialLoading && !selectedWeek &&
+         (plan || (viewMode === 'athlete' && selectedAthleteId)) && (
           <PeriodisationCanvas
-            plan={plan}
+            plan={effectivePlan}
             rows={rows}
             cells={cells}
             ghostRows={ghostRows}
@@ -398,10 +412,10 @@ export default function Periodisation() {
           />
         )}
 
-        {!initialLoading && plan && selectedWeek && (
+        {!initialLoading && effectivePlan && selectedWeek && (
           <PeriodisationWeekly
             team={selectedTeam}
-            plan={plan}
+            plan={effectivePlan}
             weekStartIso={selectedWeek.weekStartIso}
             weekIndex={selectedWeek.weekIndex}
             weekEndIso={selectedWeek.weekEndIso}
