@@ -144,6 +144,31 @@ export default function Periodisation() {
     })();
   }, [user.orgId]);
 
+  useEffect(() => {
+    if (viewMode !== 'athlete' || !selectedTeamId) {
+      setAthletes([]);
+      return;
+    }
+    (async () => {
+      const { data: links } = await supabase
+        .from('athlete_teams')
+        .select('athlete_id')
+        .eq('team_id', selectedTeamId);
+      const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
+      if (!ids.length) {
+        setAthletes([]);
+        return;
+      }
+      const { data: ath } = await supabase
+        .from('athletes')
+        .select('id, full_name')
+        .eq('org_id', user.orgId)
+        .in('id', ids)
+        .order('full_name');
+      setAthletes(ath ?? []);
+    })();
+  }, [viewMode, selectedTeamId, user.orgId]);
+
   const selectedTeam = useMemo(() => teams.find((t) => t.id === selectedTeamId), [teams, selectedTeamId]);
 
   const canEdit = plan ? canEditPlan(plan) : can('periodisation', 'edit');
@@ -198,23 +223,6 @@ export default function Periodisation() {
     } finally {
       setCreating(false);
     }
-  }
-
-  async function fetchAthletesForTeam(teamId) {
-    if (!teamId) { setAthletes([]); return; }
-    const { data: links } = await supabase
-      .from('athlete_teams')
-      .select('athlete_id')
-      .eq('team_id', teamId);
-    const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
-    if (!ids.length) { setAthletes([]); return; }
-    const { data: ath } = await supabase
-      .from('athletes')
-      .select('id, full_name')
-      .eq('org_id', user.orgId)
-      .in('id', ids)
-      .order('full_name');
-    setAthletes(ath ?? []);
   }
 
   return (
@@ -357,11 +365,7 @@ export default function Periodisation() {
               setSelectedAthleteId(null);
             }}
             viewMode={viewMode}
-            setViewMode={(mode) => {
-              setViewMode(mode);
-              if (mode === 'athlete') fetchAthletesForTeam(selectedTeamId);
-              else setAthletes([]);
-            }}
+            setViewMode={setViewMode}
             athletes={athletes}
             selectedAthleteId={selectedAthleteId}
             setSelectedAthleteId={setSelectedAthleteId}
@@ -406,12 +410,7 @@ export default function Periodisation() {
               </select>
               <select
                 value={viewMode}
-                onChange={(e) => {
-                  const mode = e.target.value;
-                  setViewMode(mode);
-                  if (mode === 'athlete') fetchAthletesForTeam(selectedTeamId);
-                  else setAthletes([]);
-                }}
+                onChange={(e) => setViewMode(e.target.value)}
                 className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs"
               >
                 <option value="team">Team Plan</option>
