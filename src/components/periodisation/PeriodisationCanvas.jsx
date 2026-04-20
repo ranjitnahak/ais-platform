@@ -229,6 +229,13 @@ export default function PeriodisationCanvas({
     return cells;
   }, [rows, cells, ghostCells, ghostRows, viewMode, showTeamPlan]);
 
+  const ghostOpacity = useMemo(() => {
+    if (viewMode !== 'athlete') return 1;
+    if (rows.length > 0) return 1; // athlete has own plan — opacity handled by overlay
+    if (showTeamPlan === 'ghost') return 0.5;
+    return 1;
+  }, [viewMode, rows.length, showTeamPlan]);
+
   const rowsByGroup = useMemo(() => {
     const m = {};
     for (const g of ROW_GROUPS) m[g] = [];
@@ -992,7 +999,8 @@ export default function PeriodisationCanvas({
                                 rowUsesSpanInteraction(row) ? (e) => e.stopPropagation() : undefined
                               }
                             >
-                              <div className="relative w-full h-full">
+                              <div className="relative w-full h-full"
+                                   style={{ opacity: ghostOpacity }}>
                                 {showTeamPlan !== 'off' && viewMode === 'athlete' && rows.length > 0 && (() => {
                                   const ghostRowMatch = ghostRowByKey[row.row_key || row.label];
                                   if (!ghostRowMatch) return null;
