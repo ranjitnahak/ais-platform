@@ -107,5 +107,5 @@ export default function useResizeDrag({ canEdit, pxPerWeek, weeks, patchCell }) 
     window.addEventListener('mouseup', onMouseUp);
   }, [canEdit, pxPerWeek, weeks, patchCell]);
 
-  return { resizingCell, onResizeMouseDown };
+  return { resizeDragRef, resizingCell, onResizeMouseDown };
 }
