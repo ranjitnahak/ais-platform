@@ -976,7 +976,7 @@ export default function PeriodisationCanvas({
                               }
                             >
                               <div className="relative w-full h-full">
-                                {showTeamPlan !== 'off' && viewMode === 'athlete' && (() => {
+                                {showTeamPlan !== 'off' && viewMode === 'athlete' && rows.length > 0 && (() => {
                                   const ghostRowMatch = ghostRowByKey[row.row_key || row.label];
                                   if (!ghostRowMatch) return null;
                                   const ghostKey = `${ghostRowMatch.id}|${w.monday}`;
