@@ -119,8 +119,17 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
               isLastPage={isLast}
             />,
           );
-          // Give Chart.js an extra tick to render on the last page
-          setTimeout(resolve, isLast ? 500 : 80);
+          // Poll until the container has actual content in the DOM
+          const poll = setInterval(() => {
+            const el = container.firstElementChild;
+            if (el && el.offsetHeight > 0) {
+              clearInterval(poll);
+              // Extra wait for Chart.js on the last page
+              setTimeout(resolve, isLast ? 600 : 0);
+            }
+          }, 20);
+          // Safety timeout — bail after 5 seconds
+          setTimeout(() => { clearInterval(poll); resolve(); }, 5000);
         });
 
         let canvas;
