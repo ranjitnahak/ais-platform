@@ -1,0 +1,20 @@
+Before writing any code, read:
+- docs/AIS_Architecture_Guidelines.md
+- docs/AIS_Architecture_Context.md
+
+# Non-negotiables:
+- Every Supabase query: .eq('org_id', user.orgId)
+- Every team query: .in('team_id', user.teamIds)
+- Identity only from src/lib/auth.js — never hardcode IDs
+- Colours via CSS variables only — no hardcoded hex
+- scoring.js is frozen — never modify it
+- Every new table needs org_id non-nullable
+- Every await inside try/catch
+- No component over 400 lines without a split plan
+- Name the exact file to modify in every prompt
+
+# Current V-stage: V1.5
+Do not implement V2 or V3 features.
+
+# When uncertain:
+Ask: does this work for one org AND ten orgs each with twenty teams?
