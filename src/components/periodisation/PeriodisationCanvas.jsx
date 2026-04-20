@@ -138,6 +138,10 @@ export default function PeriodisationCanvas({
   plan,
   rows,
   cells,
+  ghostRows = [],
+  ghostCells = [],
+  showTeamPlan = true,
+  setShowTeamPlan,
   teams,
   selectedTeamId,
   setSelectedTeamId,
@@ -173,7 +177,7 @@ export default function PeriodisationCanvas({
   // Menus / popovers
   const [ctxMenu, setCtxMenu] = useState(null);       // row label right-click
   const [bandCtxMenu, setBandCtxMenu] = useState(null); // band / focus-span right-click
-  /** dragStart–dragEnd in week indices; kept after mouseup until Create / cancel / Escape */
+  /** dragStart–dragEnd in week indices; kept after    until Create / cancel / Escape */
   const [spanSelection, setSpanSelection] = useState(null);
   const [spanPopover, setSpanPopover] = useState(null); // inline create/edit for span rows
   const spanDragRef = useRef(null);
@@ -213,6 +217,27 @@ export default function PeriodisationCanvas({
     }
     return m;
   }, [rows]);
+
+  const ghostCellMap = useMemo(() => {
+    if (!showTeamPlan || !ghostCells.length) return {};
+    const map = {};
+    for (const c of ghostCells) {
+      const key = `${c.row_id}|${c.cell_date}`;
+      map[key] = c;
+    }
+    return map;
+  }, [ghostCells, showTeamPlan]);
+
+  // Map ghost rows by their row_key or label for matching with
+  // current plan rows
+  const ghostRowByKey = useMemo(() => {
+    const map = {};
+    for (const r of ghostRows) {
+      const k = r.row_key || r.label;
+      if (k) map[k] = r;
+    }
+    return map;
+  }, [ghostRows]);
 
   const volumeRow = rows.find((r) => rowMetricKey(r) === 'volume');
   const intensityRow = rows.find((r) => rowMetricKey(r) === 'intensity');
@@ -649,6 +674,24 @@ export default function PeriodisationCanvas({
             ))}
           </select>
         )}
+        {viewMode === 'athlete' && (
+          <button
+            type="button"
+            onClick={() => setShowTeamPlan?.((v) => !v)}
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded
+        text-[10px] font-bold uppercase border transition-colors
+        ${
+          showTeamPlan
+            ? 'border-[#F97316] text-[#F97316] bg-[#F97316]/10'
+            : 'border-white/10 text-gray-500 hover:text-white'
+        }`}
+          >
+            <span className="material-symbols-outlined text-[12px]">
+              {showTeamPlan ? 'visibility' : 'visibility_off'}
+            </span>
+            Team plan
+          </button>
+        )}
         <div className="flex rounded-lg overflow-hidden border border-white/10">
           {ZOOMS.map((z) => (
             <button
@@ -904,25 +947,60 @@ export default function PeriodisationCanvas({
                                 rowUsesSpanInteraction(row) ? (e) => e.stopPropagation() : undefined
                               }
                             >
-                              <CellRenderer
-                                row={row}
-                                monday={w.monday}
-                                weekIndex={wi}
-                                weeks={weeks}
-                                pxPerWeek={pxPerWeek}
-                                cells={cells}
-                                patches={patches}
-                                acwrSeries={acwrSeries}
-                                canEdit={canEdit}
-                                patchCell={patchCell}
-                                spanSelection={spanSelection}
-                                onSpanPointerDown={onSpanPointerDown}
-                                onSpanPointerEnter={onSpanPointerEnter}
-                                setNumPopover={setNumPopover}
-                                onBandRightClick={(x, y, cell, rowType) =>
-                                  setBandCtxMenu({ x, y, cell, rowId: row.id, mode: rowType })
-                                }
-                              />
+                              <div className="relative w-full h-full">
+                                {showTeamPlan && viewMode === 'athlete' && (() => {
+                                  const ghostRowMatch = ghostRowByKey[row.row_key || row.label];
+                                  if (!ghostRowMatch) return null;
+                                  const ghostKey = `${ghostRowMatch.id}|${w.monday}`;
+                                  const ghostCell = ghostCellMap[ghostKey];
+                                  if (!ghostCell) return null;
+                                  return (
+                                    <div
+                                      className="absolute inset-0 pointer-events-none"
+                                      style={{ opacity: 0.25, zIndex: 1 }}
+                                    >
+                                      <CellRenderer
+                                        row={{ ...ghostRowMatch, id: ghostRowMatch.id }}
+                                        monday={w.monday}
+                                        weekIndex={wi}
+                                        weeks={weeks}
+                                        pxPerWeek={pxPerWeek}
+                                        cells={ghostCells}
+                                        patches={{}}
+                                        acwrSeries={acwrSeries}
+                                        canEdit={false}
+                                        patchCell={() => {}}
+                                        spanSelection={null}
+                                        onSpanPointerDown={() => {}}
+                                        onSpanPointerEnter={() => {}}
+                                        setNumPopover={() => {}}
+                                        onBandRightClick={() => {}}
+                                      />
+                                    </div>
+                                  );
+                                })()}
+                                <div className="relative" style={{ zIndex: 2 }}>
+                                  <CellRenderer
+                                    row={row}
+                                    monday={w.monday}
+                                    weekIndex={wi}
+                                    weeks={weeks}
+                                    pxPerWeek={pxPerWeek}
+                                    cells={cells}
+                                    patches={patches}
+                                    acwrSeries={acwrSeries}
+                                    canEdit={canEdit}
+                                    patchCell={patchCell}
+                                    spanSelection={spanSelection}
+                                    onSpanPointerDown={onSpanPointerDown}
+                                    onSpanPointerEnter={onSpanPointerEnter}
+                                    setNumPopover={setNumPopover}
+                                    onBandRightClick={(x, y, cell, rowType) =>
+                                      setBandCtxMenu({ x, y, cell, rowId: row.id, mode: rowType })
+                                    }
+                                  />
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>
