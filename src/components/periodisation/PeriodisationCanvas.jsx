@@ -164,6 +164,8 @@ export default function PeriodisationCanvas({
   onWeekSelect,
   templates = [],
 }) {
+  const hasIndividualPlan = viewMode === 'athlete' && plan?.id != null;
+
   const scrollRef = useRef(null);
   const patchesRef = useRef({});
 
@@ -693,6 +695,21 @@ export default function PeriodisationCanvas({
               </option>
             ))}
           </select>
+        )}
+        {viewMode === 'athlete' && selectedAthleteId && (
+          <div
+            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full
+        text-[9px] font-bold border ${
+              hasIndividualPlan
+                ? 'bg-emerald-900/30 border-emerald-700/40 text-emerald-300'
+                : 'bg-red-900/20 border-red-700/30 text-red-300'
+            }`}
+          >
+            <div className={`w-1.5 h-1.5 rounded-full ${
+              hasIndividualPlan ? 'bg-emerald-400' : 'bg-red-400'
+            }`} />
+            {hasIndividualPlan ? 'Individual plan active' : 'No individual plan'}
+          </div>
         )}
         {viewMode === 'athlete' && (
           <button
