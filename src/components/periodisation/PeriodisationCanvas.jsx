@@ -610,6 +610,7 @@ export default function PeriodisationCanvas({
 
       patchCell(d.cell.row_id, d.origStart, {
         ...d.cell,
+        id: d.cell.id,
         cell_date: newStart,
         span_end_date: newEnd,
       });
@@ -1640,7 +1641,14 @@ function CellRenderer({
               <div
                 style={{
                   position: 'absolute',
-                  left: 2,
+                  left: (() => {
+                    const isResizing = resizingCell?.cellId === cell.id;
+                    if (!isResizing || !resizingCell.previewStart) return 2;
+                    const origStartIdx = weeks.findIndex((w) => w.monday === cell.cell_date);
+                    const previewStartIdx = weeks.findIndex((w) => w.monday === resizingCell.previewStart);
+                    const weekShift = previewStartIdx - origStartIdx;
+                    return 2 + weekShift * pxPerWeek;
+                  })(),
                   top: 2,
                   width: previewPillWidth,
                   height: 'calc(100% - 4px)',
@@ -1688,30 +1696,6 @@ function CellRenderer({
                 <span style={{ paddingLeft: 6, paddingRight: 6 }}>
                   {cell.value_text}
                 </span>
-                {canEdit && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: 8,
-                      cursor: 'ew-resize',
-                      borderRadius: '0 4px 4px 0',
-                      background: 'rgba(0,0,0,0.15)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    onMouseDown={(e) => onResizeMouseDown(e, cell, 'right')}
-                  >
-                    <div style={{
-                      width: 2, height: 10,
-                      background: 'rgba(255,255,255,0.5)',
-                      borderRadius: 1,
-                    }} />
-                  </div>
-                )}
               </div>
             );
           })()}
@@ -1720,14 +1704,47 @@ function CellRenderer({
     }
 
     if (monday > cell.cell_date && monday <= end) {
+      const isLastWeek = monday === end;
+      const isResizing = resizingCell?.cellId === cell.id;
+      const previewEnd = isResizing
+        ? resizingCell.previewEnd
+        : (cell.span_end_date || cell.cell_date);
+      const isPreviewLastWeek = monday === previewEnd;
+
       return (
         <div
-          className="w-full h-full min-h-[22px]"
+          className="w-full h-full min-h-[22px] relative"
           data-span-cell={`${row.id}::${weekIndex}`}
           style={{ background: 'transparent' }}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={bandContextMenu}
-        />
+        >
+          {canEdit && (isLastWeek || isPreviewLastWeek) && (
+            <div
+              style={{
+                position: 'absolute',
+                right: 2,
+                top: 2,
+                bottom: 2,
+                width: 8,
+                cursor: 'ew-resize',
+                borderRadius: '0 4px 4px 0',
+                background: 'rgba(0,0,0,0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10,
+              }}
+              onMouseDown={(e) => onResizeMouseDown(e, cell, 'right')}
+            >
+              <div style={{
+                width: 2, height: 10,
+                background: 'rgba(255,255,255,0.6)',
+                borderRadius: 1,
+              }} />
+            </div>
+          )}
+        </div>
       );
     }
 
