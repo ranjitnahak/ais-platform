@@ -95,7 +95,7 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
         // Create a temporary off-screen container
         const container = document.createElement('div');
         container.style.cssText =
-          'position:fixed;left:-9999px;top:0;visibility:hidden;z-index:-1;';
+          'position:fixed;left:-9999px;top:0;pointer-events:none;z-index:-1;';
         document.body.appendChild(container);
 
         const root = createRoot(container);
@@ -157,6 +157,15 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
             elOffsetWidth: el?.offsetWidth,
             elInnerHTML: el?.innerHTML?.slice(0, 200),
           });
+          // #region agent log
+          {
+            const cs = window.getComputedStyle(el);
+            const containerCs = window.getComputedStyle(container);
+            const logA = {location:'pre-capture',elVisibility:cs.visibility,elBackgroundColor:cs.backgroundColor,elDisplay:cs.display,elOpacity:cs.opacity,pdfBgCustomProp:cs.getPropertyValue('--pdf-bg'),containerVisibility:containerCs.visibility,pi,isLast};
+            console.warn('[PDFExport H-A/B/C pre-capture]', logA);
+            fetch('http://127.0.0.1:7635/ingest/40fc33b0-f254-44d8-83f0-6952e3c01d11',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'be1a92'},body:JSON.stringify({sessionId:'be1a92',location:'PeriodisationPDFExport.jsx:pre-capture',message:'computed styles before html2canvas',hypothesisId:'H-A,H-B,H-C',data:logA,timestamp:Date.now()})}).catch(()=>{});
+          }
+          // #endregion
           canvas = await html2canvas(el, {
             scale: 2,
             useCORS: true,
@@ -164,6 +173,18 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
             logging: false,
             backgroundColor: '#ffffff',
           });
+          // #region agent log
+          {
+            const ctx = canvas.getContext('2d');
+            const cx = Math.floor(canvas.width / 2);
+            const cy = Math.floor(canvas.height / 2);
+            const centerPx = ctx ? Array.from(ctx.getImageData(cx, cy, 1, 1).data) : null;
+            const topLeftPx = ctx ? Array.from(ctx.getImageData(0, 0, 1, 1).data) : null;
+            const logB = {location:'post-capture',canvasWidth:canvas.width,canvasHeight:canvas.height,centerPixelRGBA:centerPx,topLeftPixelRGBA:topLeftPx,pi,isLast};
+            console.warn('[PDFExport H-A/B/C/D post-capture]', logB);
+            fetch('http://127.0.0.1:7635/ingest/40fc33b0-f254-44d8-83f0-6952e3c01d11',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'be1a92'},body:JSON.stringify({sessionId:'be1a92',location:'PeriodisationPDFExport.jsx:post-capture',message:'canvas pixel sample after html2canvas',hypothesisId:'H-A,H-B,H-C,H-D',data:logB,timestamp:Date.now()})}).catch(()=>{});
+          }
+          // #endregion
         } catch (err) {
           console.error('PDFExport: html2canvas failed on page', pi + 1, err);
           throw err;
