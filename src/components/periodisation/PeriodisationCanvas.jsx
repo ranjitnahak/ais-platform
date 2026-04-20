@@ -1139,7 +1139,7 @@ export default function PeriodisationCanvas({
                                         setNumPopover={() => {}}
                                         onBandRightClick={() => {}}
                                         onResizeMouseDown={() => {}}
-                                        resizingCell={resizingCell}
+                                        resizingCell={null}
                                       />
                                     </div>
                                   );
@@ -1647,14 +1647,7 @@ function CellRenderer({
               <div
                 style={{
                   position: 'absolute',
-                  left: (() => {
-                    const isResizing = resizingCell?.cellId === cell.id;
-                    if (!isResizing || !resizingCell.previewStart) return 2;
-                    const origStartIdx = weeks.findIndex((w) => w.monday === cell.cell_date);
-                    const previewStartIdx = weeks.findIndex((w) => w.monday === resizingCell.previewStart);
-                    const weekShift = previewStartIdx - origStartIdx;
-                    return 2 + weekShift * pxPerWeek;
-                  })(),
+                  left: 2,
                   top: 2,
                   width: previewPillWidth,
                   height: 'calc(100% - 4px)',
