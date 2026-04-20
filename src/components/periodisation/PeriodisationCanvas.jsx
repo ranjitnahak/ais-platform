@@ -140,7 +140,7 @@ export default function PeriodisationCanvas({
   cells,
   ghostRows = [],
   ghostCells = [],
-  showTeamPlan = true,
+  showTeamPlan = 'on',
   setShowTeamPlan,
   teams,
   selectedTeamId,
@@ -209,16 +209,20 @@ export default function PeriodisationCanvas({
 
   const effectiveRows = useMemo(() => {
     if (rows.length > 0) return rows;
-    if (viewMode === 'athlete' && showTeamPlan && ghostRows.length > 0) {
+    // When athlete has no individual plan, always show ghost rows
+    // as the row structure regardless of toggle state
+    if (viewMode === 'athlete' && ghostRows.length > 0) {
       return ghostRows;
     }
     return rows;
-  }, [rows, ghostRows, viewMode, showTeamPlan]);
+  }, [rows, ghostRows, viewMode]);
 
   const effectiveCells = useMemo(() => {
     if (rows.length > 0) return cells;
-    if (viewMode === 'athlete' && showTeamPlan && ghostRows.length > 0) {
-      return ghostCells;
+    // When athlete has no individual plan, show ghost cells
+    // only when toggle is on or ghost — hide when off
+    if (viewMode === 'athlete' && ghostRows.length > 0) {
+      return showTeamPlan !== 'off' ? ghostCells : [];
     }
     return cells;
   }, [rows, cells, ghostCells, ghostRows, viewMode, showTeamPlan]);
@@ -235,7 +239,7 @@ export default function PeriodisationCanvas({
   }, [effectiveRows]);
 
   const ghostCellMap = useMemo(() => {
-    if (!showTeamPlan || !ghostCells.length) return {};
+    if (showTeamPlan === 'off' || !ghostCells.length) return {};
     const map = {};
     for (const c of ghostCells) {
       const key = `${c.row_id}|${c.cell_date}`;
@@ -693,19 +697,27 @@ export default function PeriodisationCanvas({
         {viewMode === 'athlete' && (
           <button
             type="button"
-            onClick={() => setShowTeamPlan?.((v) => !v)}
+            onClick={() => setShowTeamPlan?.((v) => {
+              if (v === 'on') return 'ghost';
+              if (v === 'ghost') return 'off';
+              return 'on';
+            })}
             className={`flex items-center gap-1.5 px-2 py-1.5 rounded
         text-[10px] font-bold uppercase border transition-colors
         ${
-          showTeamPlan
+          showTeamPlan === 'on'
             ? 'border-[#F97316] text-[#F97316] bg-[#F97316]/10'
+            : showTeamPlan === 'ghost'
+            ? 'border-[#F97316]/40 text-[#F97316]/60 bg-[#F97316]/5'
             : 'border-white/10 text-gray-500 hover:text-white'
         }`}
           >
             <span className="material-symbols-outlined text-[12px]">
-              {showTeamPlan ? 'visibility' : 'visibility_off'}
+              {showTeamPlan === 'on' ? 'visibility'
+                : showTeamPlan === 'ghost' ? 'visibility'
+                : 'visibility_off'}
             </span>
-            Team plan
+            Team plan{showTeamPlan === 'ghost' ? ' ·' : ''}
           </button>
         )}
         <div className="flex rounded-lg overflow-hidden border border-white/10">
@@ -964,7 +976,7 @@ export default function PeriodisationCanvas({
                               }
                             >
                               <div className="relative w-full h-full">
-                                {showTeamPlan && viewMode === 'athlete' && (() => {
+                                {showTeamPlan !== 'off' && viewMode === 'athlete' && (() => {
                                   const ghostRowMatch = ghostRowByKey[row.row_key || row.label];
                                   if (!ghostRowMatch) return null;
                                   const ghostKey = `${ghostRowMatch.id}|${w.monday}`;
@@ -973,7 +985,10 @@ export default function PeriodisationCanvas({
                                   return (
                                     <div
                                       className="absolute inset-0 pointer-events-none"
-                                      style={{ opacity: 0.25, zIndex: 1 }}
+                                      style={{
+                                        opacity: showTeamPlan === 'ghost' ? 0.25 : 1,
+                                        zIndex: 1,
+                                      }}
                                     >
                                       <CellRenderer
                                         row={{ ...ghostRowMatch, id: ghostRowMatch.id }}

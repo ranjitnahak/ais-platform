@@ -65,7 +65,7 @@ export default function Periodisation() {
   const [editingDates, setEditingDates] = useState(false);
   const [dateForm, setDateForm] = useState({ start_date: '', end_date: '' });
   const [dateSaving, setDateSaving] = useState(false);
-  const [showTeamPlan, setShowTeamPlan] = useState(true);
+  const [showTeamPlan, setShowTeamPlan] = useState('on');
   const planScopeRef = useRef({ athleteId: null, viewMode: 'team', enabled: true });
 
   const athleteIdForPlan = viewMode === 'athlete' ? selectedAthleteId : null;
