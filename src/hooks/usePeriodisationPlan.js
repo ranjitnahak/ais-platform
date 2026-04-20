@@ -6,6 +6,8 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
   const [plan, setPlan] = useState(null);
   const [rows, setRows] = useState([]);
   const [cells, setCells] = useState([]);
+  const [ghostRows, setGhostRows] = useState([]);
+  const [ghostCells, setGhostCells] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const user = getCurrentUser();
 
@@ -23,6 +25,8 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
+      setGhostRows([]);
+      setGhostCells([]);
       setInitialLoading(false);
       return;
     }
@@ -31,6 +35,8 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
+      setGhostRows([]);
+      setGhostCells([]);
       setInitialLoading(false);
       return;
     }
@@ -53,6 +59,8 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
+      setGhostRows([]);
+      setGhostCells([]);
       setInitialLoading(false);
       return;
     }
@@ -61,6 +69,8 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setPlan(null);
       setRows([]);
       setCells([]);
+      setGhostRows([]);
+      setGhostCells([]);
       setInitialLoading(false);
       return;
     }
@@ -78,6 +88,8 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       console.error(rowErr);
       setRows([]);
       setCells([]);
+      setGhostRows([]);
+      setGhostCells([]);
       setInitialLoading(false);
       return;
     }
@@ -97,6 +109,48 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       setCells([]);
     }
 
+    // If this is an athlete plan, also fetch the team plan as ghost layer
+    if (athleteIdNow) {
+      const { data: ghostPlanData } = await supabase
+        .from('periodisation_plans')
+        .select('*')
+        .eq('org_id', u.orgId)
+        .eq('team_id', teamId)
+        .is('athlete_id', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (ghostPlanData) {
+        const { data: ghostRowData } = await supabase
+          .from('plan_rows')
+          .select('*')
+          .eq('plan_id', ghostPlanData.id)
+          .eq('org_id', u.orgId)
+          .order('sort_order');
+
+        setGhostRows(ghostRowData || []);
+
+        if (ghostRowData?.length) {
+          const ghostRowIds = ghostRowData.map((r) => r.id);
+          const { data: ghostCellData } = await supabase
+            .from('plan_cells')
+            .select('*')
+            .eq('org_id', u.orgId)
+            .in('row_id', ghostRowIds);
+          setGhostCells(ghostCellData || []);
+        } else {
+          setGhostCells([]);
+        }
+      } else {
+        setGhostRows([]);
+        setGhostCells([]);
+      }
+    } else {
+      setGhostRows([]);
+      setGhostCells([]);
+    }
+
     setInitialLoading(false);
   }, [teamId]);
 
@@ -106,6 +160,28 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
   }, [teamId]);
 
   const upsertCell = async (cellData) => {
+    // Auto-create athlete plan if it doesn't exist yet
+    if (!plan?.id && athleteIdRef.current) {
+      const u = getCurrentUser();
+      const { data: newPlan, error: planErr } = await supabase
+        .from('periodisation_plans')
+        .insert({
+          org_id: u.orgId,
+          team_id: teamId,
+          athlete_id: athleteIdRef.current,
+          name: 'Individual Plan',
+          start_date: cellData.cell_date,
+          end_date: cellData.cell_date,
+        })
+        .select()
+        .single();
+      if (planErr) throw planErr;
+      setPlan(newPlan);
+      // Refetch to get full plan state then retry upsert
+      await fetchPlan();
+      return;
+    }
+
     const tempId = cellData.id ? null : `temp-cell-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const payload = { ...cellData, org_id: user.orgId };
 
@@ -323,6 +399,8 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     plan,
     rows,
     cells,
+    ghostRows,
+    ghostCells,
     initialLoading,
     fetchPlan,
     upsertCell,
