@@ -24,7 +24,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 const PAGE_W = 1122;
 const PAGE_H = 794;
-const LABEL_COL = 160;   // widened from 140 to prevent label clipping
+const LABEL_COL = 190;
 const HEADER_H = 56;
 const CHART_H = 130;
 const ROW_H = 22;
@@ -226,7 +226,10 @@ export default function PeriodisationPDFPage({
   const chartSrc = chartLoadWaveData || loadWaveData;
   const pageChartData = chartSrc
     ? {
-        labels: chartSrc.labels ?? weeks.map((_, i) => `W${i + 1}`),
+        labels: Array.from(
+          { length: (chartSrc.volume ?? chartSrc.intensity ?? []).length },
+          (_, i) => `W${i + 1}`,
+        ),
         datasets: [
           {
             label: 'Volume',
@@ -352,13 +355,14 @@ export default function PeriodisationPDFPage({
                 >
                   <span
                     style={{
-                      fontSize: 9,
-                      color: 'var(--pdf-text)',
+                      display: 'block',
+                      fontSize: 7,
+                      color: '#111827',
                       fontWeight: 500,
-                      whiteSpace: 'normal',
-                      lineHeight: 1.2,
+                      whiteSpace: 'nowrap',
                       overflow: 'hidden',
-                      maxWidth: LABEL_COL - 8,
+                      textOverflow: 'ellipsis',
+                      width: LABEL_COL - 16,
                     }}
                   >
                     {row.label}
@@ -491,16 +495,6 @@ export default function PeriodisationPDFPage({
             Load Wave
           </div>
           <div style={{ height: CHART_H - 20 }}>
-            {/* #region agent log */}
-            {console.log('[PDFExport] chart data before Line render:', {
-              usingFullData: !!chartLoadWaveData,
-              totalLabels: pageChartData?.labels?.length,
-              volumePoints: pageChartData?.datasets[0]?.data?.filter((v) => v != null).length,
-              intensityPoints: pageChartData?.datasets[1]?.data?.filter((v) => v != null).length,
-              acwrPoints: pageChartData?.datasets[2]?.data?.filter((v) => v != null).length,
-              volumeSample: pageChartData?.datasets[0]?.data?.filter((v) => v != null).slice(0, 5),
-            })}
-            {/* #endregion */}
             <Line data={pageChartData} options={chartOptions} />
           </div>
         </div>
