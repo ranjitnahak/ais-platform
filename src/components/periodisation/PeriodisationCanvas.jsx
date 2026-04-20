@@ -173,6 +173,7 @@ export default function PeriodisationCanvas({
   const [collapsed, setCollapsed] = useState({});
   const [chartOpen, setChartOpen] = useState(true);
   const [patches, setPatches] = useState({});
+  const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'unsaved' | 'saving'
   const [, setHistory] = useState([]);
   const [, setFuture] = useState([]);
 
@@ -406,6 +407,20 @@ export default function PeriodisationCanvas({
     setHistory([]);
     setFuture([]);
   };
+
+  useEffect(() => {
+    if (!Object.keys(patches).length) return;
+    setSaveStatus('unsaved');
+    const timer = setTimeout(async () => {
+      setSaveStatus('saving');
+      await flushSave();
+      setSaveStatus('saved');
+    }, 1500);
+    return () => clearTimeout(timer);
+  // flushSave is a plain function recreated each render — it always closes over
+  // the current patches, so we don't need it in the dep array.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patches]);
 
   const monthSpans = useMemo(() => {
     const spans = [];
@@ -897,14 +912,20 @@ export default function PeriodisationCanvas({
             ))}
           </div>
         </div>
-        <button
-          type="button"
-          disabled={!canEdit || !Object.keys(patches).length}
-          onClick={() => flushSave()}
-          className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-[#F97316] text-black disabled:opacity-40"
-        >
-          Save
-        </button>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-bold">
+          {saveStatus === 'saving' && (
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+          )}
+          {saveStatus === 'saved' && (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          )}
+          {saveStatus === 'unsaved' && (
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+          )}
+          <span className="text-gray-400">
+            {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'unsaved' ? 'Unsaved' : 'Saved'}
+          </span>
+        </div>
       </div>
 
       <div ref={scrollRef} className="overflow-x-auto border border-white/10 rounded-lg bg-[#252528]">
@@ -1119,7 +1140,7 @@ export default function PeriodisationCanvas({
                                     <div
                                       className="absolute inset-0 pointer-events-none"
                                       style={{
-                                        opacity: showTeamPlan === 'ghost' ? 0.1 : 1,
+                                        opacity: showTeamPlan === 'ghost' ? 0.1 : 0.25,
                                         zIndex: 1,
                                       }}
                                     >
