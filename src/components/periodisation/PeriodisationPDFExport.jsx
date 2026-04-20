@@ -147,6 +147,13 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
         let canvas;
         try {
           const el = container.firstElementChild;
+          console.log('PDFExport debug:', {
+            containerChildren: container.children.length,
+            elExists: !!el,
+            elOffsetHeight: el?.offsetHeight,
+            elOffsetWidth: el?.offsetWidth,
+            elInnerHTML: el?.innerHTML?.slice(0, 200),
+          });
           canvas = await html2canvas(el, {
             scale: 2,
             useCORS: true,
