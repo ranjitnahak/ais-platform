@@ -65,14 +65,17 @@ export default function Periodisation() {
   const [editingDates, setEditingDates] = useState(false);
   const [dateForm, setDateForm] = useState({ start_date: '', end_date: '' });
   const [dateSaving, setDateSaving] = useState(false);
+  const [showTeamPlan, setShowTeamPlan] = useState(true);
   const planScopeRef = useRef({ athleteId: null, viewMode: 'team', enabled: true });
 
   const athleteIdForPlan = viewMode === 'athlete' ? selectedAthleteId : null;
-  const planQueryEnabled = !(viewMode === 'athlete' && !selectedAthleteId);
+  const planQueryEnabled = true;
   const {
     plan,
     rows,
     cells,
+    ghostRows,
+    ghostCells,
     initialLoading,
     fetchPlan,
     upsertCell,
@@ -318,7 +321,7 @@ export default function Periodisation() {
           </div>
         )}
 
-        {!initialLoading && !plan && planQueryEnabled && (
+        {!initialLoading && !plan && !(viewMode === 'athlete' && !selectedAthleteId) && (
           <div className="max-w-lg mx-auto mt-16 text-center space-y-8">
             <div className="space-y-2">
               <span className="text-4xl font-black tracking-tighter text-white uppercase">AIS</span>
@@ -353,11 +356,13 @@ export default function Periodisation() {
           </div>
         )}
 
-        {!initialLoading && plan && !selectedWeek && planQueryEnabled && (
+        {!initialLoading && plan && !selectedWeek && (
           <PeriodisationCanvas
             plan={plan}
             rows={rows}
             cells={cells}
+            ghostRows={ghostRows}
+            ghostCells={ghostCells}
             teams={teams}
             selectedTeamId={selectedTeamId}
             setSelectedTeamId={(id) => {
@@ -366,6 +371,8 @@ export default function Periodisation() {
             }}
             viewMode={viewMode}
             setViewMode={setViewMode}
+            showTeamPlan={showTeamPlan}
+            setShowTeamPlan={setShowTeamPlan}
             athletes={athletes}
             selectedAthleteId={selectedAthleteId}
             setSelectedAthleteId={setSelectedAthleteId}
@@ -389,50 +396,6 @@ export default function Periodisation() {
             }
             templates={templates}
           />
-        )}
-
-        {!initialLoading && !selectedWeek && viewMode === 'athlete' && !selectedAthleteId && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg border border-white/10 bg-[#252528]">
-              <select
-                value={selectedTeamId ?? ''}
-                onChange={(e) => {
-                  setSelectedTeamId(e.target.value);
-                  setSelectedAthleteId(null);
-                }}
-                className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs"
-              >
-                {teams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={viewMode}
-                onChange={(e) => setViewMode(e.target.value)}
-                className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs"
-              >
-                <option value="team">Team Plan</option>
-                <option value="athlete">Individual Athlete</option>
-              </select>
-              <select
-                value={selectedAthleteId ?? ''}
-                onChange={(e) => setSelectedAthleteId(e.target.value || null)}
-                className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs min-w-[160px]"
-              >
-                <option value="">Select athlete…</option>
-                {athletes.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.full_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="max-w-md mx-auto mt-8 text-center text-sm text-gray-400 border border-white/10 rounded-lg p-8 bg-[#252528]">
-              Select an athlete above to view their individual plan.
-            </div>
-          </div>
         )}
 
         {!initialLoading && plan && selectedWeek && (
