@@ -216,6 +216,9 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     // Auto-create athlete plan if it doesn't exist yet
     if (!plan?.id && athleteIdRef.current) {
       const u = getCurrentUser();
+
+      // 1. Create the individual plan using ghost plan dates
+      const ghostPlanNow = ghostPlan;
       const { data: newPlan, error: planErr } = await supabase
         .from('periodisation_plans')
         .insert({
@@ -223,16 +226,60 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
           team_id: teamId,
           athlete_id: athleteIdRef.current,
           name: 'Individual Plan',
-          start_date: cellData.cell_date,
-          end_date: cellData.cell_date,
+          start_date: ghostPlanNow?.start_date ?? cellData.cell_date,
+          end_date: ghostPlanNow?.end_date ?? cellData.cell_date,
         })
         .select()
         .single();
       if (planErr) throw planErr;
-      setPlan(newPlan);
-      // Refetch to get full plan state then retry upsert
+
+      // 2. Copy ghost rows into the new athlete plan
+      // Build a map of ghostRowId -> newRowId for cell remapping
+      const ghostRowIdMap = {};
+      if (ghostRows.length > 0) {
+        const rowInserts = ghostRows.map((r) => ({
+          org_id: u.orgId,
+          plan_id: newPlan.id,
+          row_group: r.row_group,
+          label: r.label,
+          row_type: r.row_type,
+          sort_order: r.sort_order,
+          row_key: r.row_key ?? null,
+          display_label: r.display_label ?? null,
+        }));
+        const { data: newRows, error: rowErr } = await supabase
+          .from('plan_rows')
+          .insert(rowInserts)
+          .select();
+        if (rowErr) throw rowErr;
+
+        // Map old ghost row id -> new athlete row id by label+row_group
+        ghostRows.forEach((ghostRow) => {
+          const match = newRows.find(
+            (nr) => nr.label === ghostRow.label && nr.row_group === ghostRow.row_group
+          );
+          if (match) ghostRowIdMap[ghostRow.id] = match.id;
+        });
+      }
+
+      // 3. Remap cellData.row_id from ghost row to new athlete row
+      const remappedRowId = ghostRowIdMap[cellData.row_id] ?? cellData.row_id;
+
+      // 4. Refetch to load the new plan state
       await fetchPlan();
-      return;
+
+      // 5. Retry the upsert with the remapped row_id
+      const remappedCellData = { ...cellData, row_id: remappedRowId };
+      const payload = { ...remappedCellData, org_id: u.orgId };
+      const { data, error } = await supabase
+        .from('plan_cells')
+        .upsert(payload)
+        .select();
+      if (error) throw error;
+      if (data?.[0]) {
+        setCells((prev) => [...prev, data[0]]);
+      }
+      return data?.[0] ?? null;
     }
 
     const tempId = cellData.id ? null : `temp-cell-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
