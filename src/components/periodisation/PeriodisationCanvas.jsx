@@ -3,6 +3,7 @@ import useResizeDrag from '../../hooks/useResizeDrag';
 import useSpanDrag from '../../hooks/useSpanDrag';
 import PeriodisationToolbar from './PeriodisationToolbar';
 import PeriodisationGrid from './PeriodisationGrid';
+import PeriodisationPDFExport from './PeriodisationPDFExport';
 import { compositeKey, getCellForWeek } from './cellUtils';
 import {
   weekStartsBetween,
@@ -14,6 +15,8 @@ import {
   ZOOM_PX,
 } from '../../lib/periodisationUtils';
 import ColorPicker from '../ui/ColorPicker';
+import { supabase } from '../../lib/supabaseClient';
+import { getCurrentUser } from '../../lib/auth';
 
 const LEFT_COL = 140;
 
@@ -87,6 +90,7 @@ export default function PeriodisationCanvas({
   const hasIndividualPlan = viewMode === 'athlete' && plan?.id != null;
 
   const patchesRef = useRef({});
+  const pdfExportRef = useRef(null);
 
   // Grid state
   const [collapsed, setCollapsed] = useState({});
@@ -95,6 +99,11 @@ export default function PeriodisationCanvas({
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'unsaved' | 'saving'
   const [, setHistory] = useState([]);
   const [, setFuture] = useState([]);
+
+  // PDF export state
+  const [isExporting, setIsExporting] = useState(false);
+  const [orgLogoUrl, setOrgLogoUrl] = useState(null);
+  const [secondaryLogoUrl, setSecondaryLogoUrl] = useState(null);
 
   // Menus / popovers
   const [ctxMenu, setCtxMenu] = useState(null);       // row label right-click
@@ -114,6 +123,30 @@ export default function PeriodisationCanvas({
   useEffect(() => {
     patchesRef.current = patches;
   }, [patches]);
+
+  // Fetch org logos for PDF header
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (!user?.orgId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('organisations')
+          .select('logo_url, secondary_logo_url')
+          .eq('id', user.orgId)
+          .maybeSingle();
+        if (error) console.error('PDFExport: org logo fetch failed', error);
+        if (!cancelled && data) {
+          setOrgLogoUrl(data.logo_url ?? null);
+          setSecondaryLogoUrl(data.secondary_logo_url ?? null);
+        }
+      } catch (err) {
+        console.error('PDFExport: ', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const weeks = useMemo(
     () => weekStartsBetween(plan.start_date, plan.end_date),
@@ -236,6 +269,27 @@ export default function PeriodisationCanvas({
           pointRadius: 3,
         },
       ],
+    };
+  }, [weeks, volumeRow, intensityRow, effectiveCells, patches, acwrSeries]);
+
+  // Derived values for PDF export
+  const teamName = useMemo(
+    () => teams.find((t) => t.id === selectedTeamId)?.name ?? '',
+    [teams, selectedTeamId],
+  );
+
+  const loadWaveData = useMemo(() => {
+    const vol = weeks.map((w) =>
+      volumeRow ? getCellForWeek(volumeRow.id, w.monday, effectiveCells, patches)?.value_number ?? null : null,
+    );
+    const ints = weeks.map((w) =>
+      intensityRow ? getCellForWeek(intensityRow.id, w.monday, effectiveCells, patches)?.value_number ?? null : null,
+    );
+    return {
+      labels: weeks.map((_, i) => `W${i + 1}`),
+      volume: vol,
+      intensity: ints,
+      acwr: acwrSeries,
     };
   }, [weeks, volumeRow, intensityRow, effectiveCells, patches, acwrSeries]);
 
@@ -487,6 +541,22 @@ export default function PeriodisationCanvas({
         <p className="text-[12px] text-gray-500 leading-none">{planDateRange}</p>
       )}
 
+      {/* PDF export orchestrator — renders nothing visible */}
+      <PeriodisationPDFExport
+        ref={pdfExportRef}
+        plan={plan}
+        rows={rows}
+        cells={cells}
+        weeks={weeks}
+        teamName={teamName}
+        orgLogoUrl={orgLogoUrl}
+        secondaryLogoUrl={secondaryLogoUrl}
+        loadWaveData={loadWaveData}
+        onExportStart={() => setIsExporting(true)}
+        onExportComplete={() => setIsExporting(false)}
+        onExportError={(err) => { setIsExporting(false); console.error('PDFExport: ', err); }}
+      />
+
       {/* Top bar */}
       <PeriodisationToolbar
         teams={teams}
@@ -508,6 +578,8 @@ export default function PeriodisationCanvas({
         templates={templates}
         saveStatus={saveStatus}
         flushSave={flushSave}
+        onExportPDF={() => pdfExportRef.current?.exportToPDF()}
+        isExporting={isExporting}
       />
 
       <PeriodisationGrid

@@ -55,6 +55,14 @@
   --font-body: "Inter", sans-serif;
   --font-label: "Inter", sans-serif;
 
+  /* ── PDF export design tokens (light-theme, A4 pages) ── */
+  --pdf-bg: #ffffff;
+  --pdf-text: #111827;
+  --pdf-text-muted: #6b7280;
+  --pdf-border: #e5e7eb;
+  --pdf-cell-empty-bg: #f9fafb;
+  --pdf-group-header-bg: #f3f4f6;
+
   /* ── Border radius ── */
   --radius: 0.125rem;
   --radius-lg: 0.5rem;

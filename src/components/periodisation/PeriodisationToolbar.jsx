@@ -20,6 +20,8 @@ export default function PeriodisationToolbar({
   templates,
   saveStatus,
   flushSave,
+  onExportPDF,
+  isExporting,
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 border border-white/10 rounded-lg bg-[#252528] p-3">
@@ -142,6 +144,26 @@ export default function PeriodisationToolbar({
           ))}
         </div>
       </div>
+      {/* Export PDF button — left of save indicator */}
+      <button
+        type="button"
+        disabled={isExporting}
+        onClick={() => onExportPDF?.()}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/15 text-[10px] font-bold uppercase text-gray-300 hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {isExporting ? (
+          <>
+            <span className="w-2 h-2 rounded-full border-2 border-gray-400 border-t-transparent animate-spin" />
+            Exporting…
+          </>
+        ) : (
+          <>
+            <span className="material-symbols-outlined text-[13px]">picture_as_pdf</span>
+            Export PDF
+          </>
+        )}
+      </button>
+
       <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-bold">
         {saveStatus === 'saving' && (
           <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
