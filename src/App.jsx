@@ -4,6 +4,7 @@ import Reports from './pages/Reports';
 import Athletes from './pages/Athletes';
 import AthleteProfile from './pages/AthleteProfile';
 import Periodisation from './pages/Periodisation';
+import Settings from './pages/Settings';
 
 function Placeholder({ title }) {
   return (
@@ -27,7 +28,7 @@ export default function App() {
         <Route path="/athletes/:id"    element={<AthleteProfile />} />
         <Route path="/periodisation"  element={<Periodisation />} />
         <Route path="/assess"          element={<Placeholder title="Assessment" />} />
-        <Route path="/settings"        element={<Placeholder title="Settings" />} />
+        <Route path="/settings"        element={<Settings />} />
       </Routes>
     </BrowserRouter>
   );

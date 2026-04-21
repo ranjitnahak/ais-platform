@@ -496,3 +496,9 @@ Before writing any code involving async operations, confirm:
 □ Every await is inside a try/catch
 □ Failures surface visibly to the user or at minimum to the console with context
 □ Autosave failure restores manual save capability
+
+DUPLICATION CHECK
+□ Does a screen or component already exist that shows this data?
+□ If yes — extend it, don't recreate it.
+□ New pages/tabs must serve a distinct purpose not covered by any existing page.
+□ Settings is for configuration. Operational views (rosters, reports) stay in their own pages.

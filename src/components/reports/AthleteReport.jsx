@@ -174,7 +174,7 @@ function ordinal(n) {
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
-export default function AthleteReport({ athlete, session, results = [], benchmarks = [], orgLogoUrl, signatoryName, signatoryTitle }) {
+export default function AthleteReport({ athlete, session, results = [], benchmarks = [], orgLogoUrl, teamLogoUrl, signatoryName, signatoryTitle }) {
   const reportRef = useRef(null);
 
   // ── Compute per-test classification + percentile ───────────────────────────
@@ -427,6 +427,22 @@ export default function AthleteReport({ athlete, session, results = [], benchmar
                 alt="Secondary logo"
                 crossOrigin="anonymous"
                 style={{ maxHeight: '50px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginLeft: 'auto', marginBottom: '10px' }}
+              />
+            )}
+            {teamLogoUrl && (
+              <img
+                src={teamLogoUrl}
+                alt="Team"
+                crossOrigin="anonymous"
+                style={{
+                  maxHeight: '36px',
+                  maxWidth: '120px',
+                  objectFit: 'contain',
+                  display: 'block',
+                  marginLeft: 'auto',
+                  marginBottom: '8px',
+                  opacity: 0.85,
+                }}
               />
             )}
             <div style={{ fontSize: '9px', fontWeight: 700, color: C.outline, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>

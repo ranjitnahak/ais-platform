@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { getCurrentUser } from '../../lib/auth';
 import ImageCropModal from './ImageCropModal';
 
 const ORG_ID = 'a1000000-0000-0000-0000-000000000001';
@@ -49,7 +50,22 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
   const [photoPreview, setPhotoPreview] = useState(null);   // object URL for avatar preview
   const [saving, setSaving]             = useState(false);
   const [error, setError]               = useState(null);
+  const [teams, setTeams]               = useState([]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState([]);
   const fileInputRef                    = useRef(null);
+
+  useEffect(() => {
+    async function loadTeams() {
+      const user = getCurrentUser()
+      const { data } = await supabase
+        .from('teams')
+        .select('id, name, sport, gender')
+        .eq('org_id', user.orgId)
+        .order('name')
+      if (data) setTeams(data)
+    }
+    loadTeams()
+  }, [])
 
   function handlePhotoChange(e) {
     const file = e.target.files?.[0];
@@ -107,9 +123,23 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
       ...(photo_url ? { photo_url } : {}),
     };
 
-    const { error: err } = await supabase.from('athletes').insert(payload);
+    const { data: athleteData, error: err } = await supabase.from('athletes').insert(payload).select('id').single();
     setSaving(false);
     if (err) { setError(err.message); return; }
+    const newAthleteId = athleteData.id;
+
+    if (selectedTeamIds.length > 0) {
+      const teamRows = selectedTeamIds.map(teamId => ({
+        athlete_id: newAthleteId,
+        team_id: teamId,
+      }))
+      const { error: teamErr } = await supabase
+        .from('athlete_teams')
+        .insert(teamRows)
+      if (teamErr) console.error('[AddAthleteModal] team assignment failed:', teamErr)
+      // Do not block success — athlete was created even if assignment fails
+    }
+
     onSuccess();
   }
 
@@ -277,6 +307,46 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
               placeholder="+91 98765 43210"
             />
           </div>
+
+          {/* Team Assignment */}
+          {teams.length > 0 && (
+            <div>
+              <div style={FIELD.label()}>Assign to teams</div>
+              <div className="mt-2 rounded-lg overflow-hidden divide-y divide-white/5"
+                style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+                {teams.map(team => {
+                  const isSelected = selectedTeamIds.includes(team.id)
+                  return (
+                    <button
+                      key={team.id}
+                      type="button"
+                      onClick={() => setSelectedTeamIds(prev =>
+                        isSelected ? prev.filter(id => id !== team.id) : [...prev, team.id]
+                      )}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 bg-[#2a2a2c] hover:bg-[#39393b] transition-colors text-left"
+                    >
+                      <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
+                        isSelected
+                          ? 'bg-[#F97316]/15 border-[#F97316]'
+                          : 'border-white/20 bg-transparent'
+                      }`}>
+                        {isSelected && (
+                          <span className="text-[#F97316] text-[10px] font-black leading-none">✓</span>
+                        )}
+                      </div>
+                      <span className="text-white text-sm flex-1">{team.name}</span>
+                      <span className="text-[10px] text-gray-500">
+                        {[team.sport, team.gender].filter(Boolean).join(' · ')}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-[10px] text-gray-600 mt-1.5">
+                Athletes can belong to multiple teams simultaneously
+              </p>
+            </div>
+          )}
 
           {/* Error */}
           {error && (
