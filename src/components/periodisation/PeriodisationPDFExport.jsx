@@ -34,11 +34,16 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 /** Convert a remote URL to a base64 data URL. Returns null on any error. */
 async function urlToBase64(url) {
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      mode: 'cors',
+      cache: 'no-cache',
+    });
+    if (!res.ok) return null;
     const blob = await res.blob();
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
       reader.readAsDataURL(blob);
     });
   } catch {
@@ -181,6 +186,13 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
         secondaryLogoUrl ? urlToBase64(secondaryLogoUrl) : Promise.resolve(null),
         athletePhotoUrl ? urlToBase64(athletePhotoUrl) : Promise.resolve(null),
       ]);
+
+      console.log('PDFExport photos:', {
+        hasOrgLogo: !!orgLogoBase64,
+        hasSecondaryLogo: !!secondaryLogoBase64,
+        hasAthletePhoto: !!athletePhotoBase64,
+        athletePhotoSlice: athletePhotoBase64?.slice(0, 80) ?? null,
+      });
 
       // Detect natural dimensions for contain-fit sizing in the header
       const [orgLogoDims, secondaryLogoDims] = await Promise.all([
