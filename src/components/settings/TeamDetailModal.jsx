@@ -106,9 +106,9 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
 
       if (logoFile) {
         const path = `logos/teams/${orgId}/${Date.now()}-${logoFile.name}`;
-        const { error: upErr } = await supabase.storage.from('logos').upload(path, logoFile);
+        const { error: upErr } = await supabase.storage.from('Logos').upload(path, logoFile);
         if (upErr) throw upErr;
-        const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path);
+        const { data: urlData } = supabase.storage.from('Logos').getPublicUrl(path);
         finalLogoUrl = urlData.publicUrl;
       }
 
