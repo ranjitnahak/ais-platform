@@ -272,7 +272,7 @@ export default function PeriodisationGrid({
                           >
                             <div className="relative w-full h-full"
                                  style={{ opacity: ghostOpacity }}>
-                              {showTeamPlan !== 'off' && viewMode === 'athlete' && rows.length > 0 && (() => {
+                              {showTeamPlan !== 'off' && viewMode === 'individual' && rows.length > 0 && (() => {
                                 const ghostRowMatch = ghostRowByKey[row.row_key || row.label];
                                 if (!ghostRowMatch) return null;
                                 const ghostKey = `${ghostRowMatch.id}|${w.monday}`;

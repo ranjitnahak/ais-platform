@@ -42,9 +42,9 @@ export default function PeriodisationToolbar({
         className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs"
       >
         <option value="team">Team Plan</option>
-        <option value="athlete">Individual Athlete</option>
+        <option value="individual">Individual Athlete</option>
       </select>
-      {viewMode === 'athlete' && (
+      {viewMode === 'individual' && (
         <select
           value={selectedAthleteId ?? ''}
           onChange={(e) => setSelectedAthleteId(e.target.value || null)}
@@ -58,7 +58,7 @@ export default function PeriodisationToolbar({
           ))}
         </select>
       )}
-      {viewMode === 'athlete' && selectedAthleteId && (
+      {viewMode === 'individual' && selectedAthleteId && (
         <div
           className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full
         text-[9px] font-bold border ${
@@ -73,7 +73,7 @@ export default function PeriodisationToolbar({
           {hasIndividualPlan ? 'Individual plan active' : 'No individual plan'}
         </div>
       )}
-      {viewMode === 'athlete' && (
+      {viewMode === 'individual' && (
         <button
           type="button"
           onClick={() => setShowTeamPlan?.((v) => {

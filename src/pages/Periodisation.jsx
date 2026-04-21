@@ -68,7 +68,7 @@ export default function Periodisation() {
   const [showTeamPlan, setShowTeamPlan] = useState('on');
   const planScopeRef = useRef({ athleteId: null, viewMode: 'team', enabled: true });
 
-  const athleteIdForPlan = viewMode === 'athlete' ? selectedAthleteId : null;
+  const athleteIdForPlan = viewMode === 'individual' ? selectedAthleteId : null;
   const planQueryEnabled = true;
   const {
     plan,
@@ -149,7 +149,7 @@ export default function Periodisation() {
   }, [user.orgId]);
 
   useEffect(() => {
-    if (viewMode !== 'athlete' || !selectedTeamId) {
+    if (viewMode !== 'individual' || !selectedTeamId) {
       setAthletes([]);
       return;
     }
@@ -165,7 +165,7 @@ export default function Periodisation() {
       }
       const { data: ath } = await supabase
         .from('athletes')
-        .select('id, full_name')
+        .select('id, full_name, photo_url, position')
         .eq('org_id', user.orgId)
         .in('id', ids)
         .order('full_name');
@@ -177,7 +177,7 @@ export default function Periodisation() {
 
   const effectivePlan = useMemo(() => {
     if (plan) return plan;
-    if (viewMode === 'athlete' && selectedAthleteId && ghostPlan) {
+    if (viewMode === 'individual' && selectedAthleteId && ghostPlan) {
       return {
         ...ghostPlan,
         id: null,
@@ -370,7 +370,7 @@ export default function Periodisation() {
         )}
 
         {!initialLoading && !selectedWeek &&
-         (plan || (viewMode === 'athlete' && selectedAthleteId)) && (
+         (plan || (viewMode === 'individual' && selectedAthleteId)) && (
           <PeriodisationCanvas
             plan={effectivePlan}
             rows={rows}

@@ -51,6 +51,34 @@ async function urlToBase64(url) {
   }
 }
 
+/** Crop a base64 image into a circle and return a PNG base64. Falls back to original on error. */
+async function cropToCircle(base64) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        const size = Math.min(img.width, img.height);
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        const offsetX = (img.width - size) / 2;
+        const offsetY = (img.height - size) / 2;
+        ctx.drawImage(img, -offsetX, -offsetY);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(base64);
+      img.src = base64;
+    } catch {
+      resolve(base64);
+    }
+  });
+}
+
 /** Return the natural pixel dimensions of a base64 image. Returns null on error. */
 async function getBase64Dims(base64) {
   return new Promise((resolve) => {
@@ -181,11 +209,16 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
     onExportStart?.();
     try {
       // Load logos and athlete photo concurrently
-      const [orgLogoBase64, secondaryLogoBase64, athletePhotoBase64] = await Promise.all([
+      const [orgLogoBase64, secondaryLogoBase64, rawAthletePhotoBase64] = await Promise.all([
         orgLogoUrl ? urlToBase64(orgLogoUrl) : Promise.resolve(null),
         secondaryLogoUrl ? urlToBase64(secondaryLogoUrl) : Promise.resolve(null),
         athletePhotoUrl ? urlToBase64(athletePhotoUrl) : Promise.resolve(null),
       ]);
+
+      let athletePhotoBase64 = rawAthletePhotoBase64;
+      if (athletePhotoBase64) {
+        athletePhotoBase64 = await cropToCircle(athletePhotoBase64);
+      }
 
       console.log('PDFExport photos:', {
         hasOrgLogo: !!orgLogoBase64,

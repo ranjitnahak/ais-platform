@@ -87,7 +87,7 @@ export default function PeriodisationCanvas({
   onWeekSelect,
   templates = [],
 }) {
-  const hasIndividualPlan = viewMode === 'athlete' && plan?.id != null;
+  const hasIndividualPlan = viewMode === 'individual' && plan?.id != null;
 
   const patchesRef = useRef({});
   const pdfExportRef = useRef(null);
@@ -161,7 +161,7 @@ export default function PeriodisationCanvas({
     if (rows.length > 0) return rows;
     // When athlete has no individual plan, always show ghost rows
     // as the row structure regardless of toggle state
-    if (viewMode === 'athlete' && ghostRows.length > 0) {
+    if (viewMode === 'individual' && ghostRows.length > 0) {
       return ghostRows;
     }
     return rows;
@@ -171,7 +171,7 @@ export default function PeriodisationCanvas({
     if (rows.length > 0) return cells;
     // When athlete has no individual plan, show ghost cells
     // only when toggle is on or ghost — hide when off
-    if (viewMode === 'athlete' && ghostRows.length > 0) {
+    if (viewMode === 'individual' && ghostRows.length > 0) {
       return showTeamPlan !== 'off' ? ghostCells : [];
     }
     return cells;
@@ -553,17 +553,17 @@ export default function PeriodisationCanvas({
         secondaryLogoUrl={secondaryLogoUrl}
         loadWaveData={loadWaveData}
         athleteName={
-          viewMode === 'athlete' && selectedAthleteId
+          viewMode === 'individual' && selectedAthleteId
             ? (athletes.find((a) => a.id === selectedAthleteId)?.full_name ?? null)
             : null
         }
         athletePhotoUrl={
-          viewMode === 'athlete' && selectedAthleteId
+          viewMode === 'individual' && selectedAthleteId
             ? (athletes.find((a) => a.id === selectedAthleteId)?.photo_url ?? null)
             : null
         }
         athletePosition={
-          viewMode === 'athlete' && selectedAthleteId
+          viewMode === 'individual' && selectedAthleteId
             ? (athletes.find((a) => a.id === selectedAthleteId)?.position ?? null)
             : null
         }
