@@ -1,36 +1,153 @@
 /**
  * PeriodisationPDFExport
- * Orchestrates multi-page A4 landscape PDF export of the periodisation plan.
- * Renders each page chunk into a hidden off-screen div, captures with html2canvas,
- * assembles in jsPDF, then triggers download.
+ * Orchestrates jsPDF-native periodisation plan export.
+ *
+ * Responsibilities:
+ *   1. Logo loading — convert URLs to base64 and detect natural dimensions
+ *   2. Load-wave chart capture — Chart.js rendered onto a raw off-screen canvas
+ *      (the ONLY place html2canvas / DOM manipulation occurs in this flow)
+ *   3. PDF assembly — delegates all drawing to buildPeriodisationPDF()
+ *   4. File save
  *
  * Usage: attach a ref and call ref.current.exportToPDF()
  */
 import { forwardRef, useImperativeHandle } from 'react';
-import { createRoot } from 'react-dom/client';
-import html2canvas from 'html2canvas';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
 import jsPDF from 'jspdf';
 import { getCurrentUser } from '../../lib/auth';
-import PeriodisationPDFPage from './PeriodisationPDFPage';
+import { buildPeriodisationPDF } from '../../lib/buildPeriodisationPDF';
 
-const WEEKS_PER_PAGE = 17;
-const PAGE_WIDTH_MM = 297;   // A4 landscape
-const PAGE_HEIGHT_MM = 210;
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
-/** Format a plan date as "MmmYYYY" for the filename */
+// ── Logo helpers ──────────────────────────────────────────────────────────────
+
+/** Convert a remote URL to a base64 data URL. Returns null on any error. */
+async function urlToBase64(url) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Return the natural pixel dimensions of a base64 image. Returns null on error. */
+async function getBase64Dims(base64) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve(null);
+    img.src = base64;
+  });
+}
+
+// ── Chart capture ─────────────────────────────────────────────────────────────
+
+/**
+ * Render the load-wave line chart onto a hidden canvas and return a PNG base64.
+ * Chart.js is used directly (no React). Returns null if loadWaveData is absent.
+ */
+async function captureLoadWaveChart(loadWaveData) {
+  if (!loadWaveData) return null;
+
+  const chartCanvas = document.createElement('canvas');
+  chartCanvas.width = 1200;
+  chartCanvas.height = 200;
+  chartCanvas.style.cssText = 'position:fixed;left:-9999px;top:0;pointer-events:none;';
+  document.body.appendChild(chartCanvas);
+
+  const n = (loadWaveData.volume ?? loadWaveData.intensity ?? []).length;
+  const labels = Array.from({ length: n }, (_, i) => `W${i + 1}`);
+
+  const chart = new ChartJS(chartCanvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Volume',
+          data: (loadWaveData.volume ?? []).map((v) => v ?? null),
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.08)',
+          fill: true,
+          tension: 0.25,
+          pointRadius: 2,
+        },
+        {
+          label: 'Intensity',
+          data: (loadWaveData.intensity ?? []).map((v) => v ?? null),
+          borderColor: '#f97316',
+          backgroundColor: 'rgba(249,115,22,0.06)',
+          fill: true,
+          tension: 0.25,
+          pointRadius: 2,
+        },
+        {
+          label: 'ACWR',
+          data: (loadWaveData.acwr ?? []).map((v) => (v == null ? null : Math.min(10, v * 4))),
+          borderColor: '#22c55e',
+          borderDash: [5, 4],
+          fill: false,
+          tension: 0.25,
+          pointRadius: 2,
+        },
+      ],
+    },
+    options: {
+      animation: false,
+      spanGaps: true,
+      responsive: false,
+      plugins: {
+        legend: { position: 'top', labels: { color: '#374151', font: { size: 9 } } },
+        tooltip: { enabled: false },
+      },
+      scales: {
+        x: {
+          ticks: { color: '#6b7280', maxRotation: 0, font: { size: 8 } },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+        y: {
+          min: 0,
+          max: 10,
+          ticks: { color: '#6b7280', font: { size: 8 } },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+      },
+    },
+  });
+
+  await new Promise((r) => setTimeout(r, 800));
+  const imgBase64 = chartCanvas.toDataURL('image/png');
+  chart.destroy();
+  document.body.removeChild(chartCanvas);
+  return imgBase64;
+}
+
+// ── Filename helpers ──────────────────────────────────────────────────────────
+
 function fileDateLabel(iso) {
   if (!iso) return 'Unknown';
-  return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }).replace(/\s/, '');
+  return new Date(iso + 'T12:00:00')
+    .toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+    .replace(/\s/, '');
 }
 
-/** Format a plan date range as human-readable string */
-function formatDateRange(startIso, endIso) {
-  if (!startIso) return '';
-  const opts = { day: 'numeric', month: 'short', year: 'numeric' };
-  const a = new Date(startIso + 'T12:00:00').toLocaleDateString('en-GB', opts);
-  const b = endIso ? new Date(endIso + 'T12:00:00').toLocaleDateString('en-GB', opts) : '';
-  return b ? `${a} — ${b}` : a;
-}
+// ── Component ─────────────────────────────────────────────────────────────────
 
 const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
   {
@@ -50,138 +167,48 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
 ) {
   useImperativeHandle(ref, () => ({ exportToPDF }));
 
-  // eslint-disable-next-line no-unused-vars
-  const _user = getCurrentUser(); // ensures org context is always read from auth
+  getCurrentUser(); // ensures org context is always read from auth
 
   async function exportToPDF() {
     onExportStart?.();
-
-    // Visible rows only
-    const visibleRows = rows.filter((r) => r.is_visible !== false);
-
-    // Split weeks into page-sized chunks
-    const chunks = [];
-    for (let i = 0; i < weeks.length; i += WEEKS_PER_PAGE) {
-      chunks.push(weeks.slice(i, i + WEEKS_PER_PAGE));
-    }
-
-    if (!chunks.length) {
-      onExportComplete?.();
-      return;
-    }
-
-    const planName = plan?.name ?? 'Periodisation Plan';
-    const dateRange = formatDateRange(plan?.start_date, plan?.end_date);
-    const totalPages = chunks.length;
-
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
     try {
-      for (let pi = 0; pi < chunks.length; pi++) {
-        const chunk = chunks[pi];
-        const isLast = pi === chunks.length - 1;
+      // Load logos concurrently
+      const [orgLogoBase64, secondaryLogoBase64] = await Promise.all([
+        orgLogoUrl ? urlToBase64(orgLogoUrl) : Promise.resolve(null),
+        secondaryLogoUrl ? urlToBase64(secondaryLogoUrl) : Promise.resolve(null),
+      ]);
 
-        // Build loadWaveData slice for this page's weeks
-        const pageStart = pi * WEEKS_PER_PAGE;
-        const pageLoadWave = loadWaveData
-          ? {
-              labels: loadWaveData.labels?.slice(pageStart, pageStart + chunk.length) ?? [],
-              volume: loadWaveData.volume?.slice(pageStart, pageStart + chunk.length) ?? [],
-              intensity: loadWaveData.intensity?.slice(pageStart, pageStart + chunk.length) ?? [],
-              acwr: loadWaveData.acwr?.slice(pageStart, pageStart + chunk.length) ?? [],
-            }
-          : null;
+      // Detect natural dimensions for contain-fit sizing in the header
+      const [orgLogoDims, secondaryLogoDims] = await Promise.all([
+        orgLogoBase64 ? getBase64Dims(orgLogoBase64) : Promise.resolve(null),
+        secondaryLogoBase64 ? getBase64Dims(secondaryLogoBase64) : Promise.resolve(null),
+      ]);
 
-        // Create a temporary off-screen container
-        const container = document.createElement('div');
-        container.style.cssText =
-          'position:fixed;left:-9999px;top:0;pointer-events:none;z-index:-1;';
-        document.body.appendChild(container);
-
-        const root = createRoot(container);
-
-        // Render the page into the container and wait for paint
-        await new Promise((resolve) => {
-          root.render(
-            <PeriodisationPDFPage
-              weeks={chunk}
-              rows={visibleRows}
-              cells={cells}
-              planName={planName}
-              teamName={teamName ?? ''}
-              dateRange={dateRange}
-              pageNumber={pi + 1}
-              totalPages={totalPages}
-              orgLogoUrl={orgLogoUrl}
-              secondaryLogoUrl={secondaryLogoUrl}
-              showLoadWave={isLast}
-              loadWaveData={pageLoadWave}
-              chartLoadWaveData={isLast ? loadWaveData : undefined}
-              isLastPage={isLast}
-            />,
-          );
-          // Poll until the container has actual content in the DOM
-          const poll = setInterval(() => {
-            const el = container.firstElementChild;
-            if (el && el.offsetHeight > 0) {
-              clearInterval(poll);
-              // Extra wait for Chart.js on the last page (increased from 600 → 1200ms)
-              setTimeout(resolve, isLast ? 1200 : 0);
-            }
-          }, 20);
-          // Safety timeout — bail after 5 seconds
-          setTimeout(() => { clearInterval(poll); resolve(); }, 5000);
-        });
-
-        let canvas;
-        try {
-          const el = container.firstElementChild;
-          // Set PDF CSS variables directly on the rendered element so they
-          // cascade correctly to all children
-          const pdfVars = {
-            '--pdf-bg': '#ffffff',
-            '--pdf-border': '#e5e7eb',
-            '--pdf-text': '#111827',
-            '--pdf-text-muted': '#6b7280',
-            '--pdf-group-header-bg': '#f3f4f6',
-            '--pdf-cell-empty-bg': '#f9fafb',
-            '--color-primary-container': '#f97316',
-            '--color-secondary-container': '#93c5fd',
-            '--color-tertiary-container': '#22c55e',
-            '--color-on-tertiary-container': '#ffffff',
-          };
-          Object.entries(pdfVars).forEach(([k, v]) => el.style.setProperty(k, v));
-          canvas = await html2canvas(el, {
-            scale: 3,
-            useCORS: true,
-            allowTaint: true,
-            logging: false,
-            backgroundColor: '#ffffff',
-            onclone: (clonedDoc) => {
-              // Force Inter font and ensure label spans render at correct width
-              const style = clonedDoc.createElement('style');
-              style.textContent = `
-                * { font-family: Inter, Arial, sans-serif !important; }
-                span { display: block !important; }
-              `;
-              clonedDoc.head.appendChild(style);
-            },
-          });
-        } catch (err) {
-          console.error('PDFExport: html2canvas failed on page', pi + 1, err);
-          throw err;
-        }
-
-        if (pi > 0) pdf.addPage();
-        const imgData = canvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', 0, 0, PAGE_WIDTH_MM, PAGE_HEIGHT_MM);
-
-        // Clean up the temporary container
-        root.unmount();
-        document.body.removeChild(container);
+      // Capture load-wave chart from the full plan-level data
+      let loadWaveImgBase64 = null;
+      try {
+        loadWaveImgBase64 = await captureLoadWaveChart(loadWaveData);
+      } catch (err) {
+        console.error('PDFExport: chart capture failed', err);
       }
 
-      // Build filename: "{TeamName}_Periodisation_{StartDate}_{EndDate}.pdf"
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+      await buildPeriodisationPDF({
+        pdf,
+        plan,
+        rows,
+        cells,
+        weeks,
+        teamName,
+        orgLogoBase64,
+        orgLogoDims,
+        secondaryLogoBase64,
+        secondaryLogoDims,
+        loadWaveImgBase64,
+        loadWaveData,
+      });
+
       const safeTeam = (teamName ?? 'Team').replace(/\s+/g, '');
       const startLabel = fileDateLabel(plan?.start_date);
       const endLabel = fileDateLabel(plan?.end_date);
@@ -194,7 +221,6 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
     }
   }
 
-  // This component renders nothing visible
   return null;
 });
 
