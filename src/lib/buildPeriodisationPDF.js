@@ -81,9 +81,11 @@ function drawHeader(pdf, {
   planName, teamName, dateRange, pageNum, totalPages,
   orgLogoBase64, orgLogoDims,
   secondaryLogoBase64, secondaryLogoDims,
+  athleteName, athletePhotoBase64, athletePosition,
 }) {
   fillRect(pdf, 0, 0, PAGE_W, HEADER_H, '#ffffff');
 
+  // Left: org logos (same for both team and individual)
   const logoH = 10;
   const logoY = (HEADER_H - logoH) / 2;
   let logoX = MARGIN;
@@ -103,19 +105,65 @@ function drawHeader(pdf, {
     txt(pdf, 'AIS', MARGIN, HEADER_H / 2, 9, '#111827', 'bold');
   }
 
-  // Centre: plan name + team name
-  const cx = PAGE_W / 2;
-  txt(pdf, (planName || 'Periodisation Plan').toUpperCase(), cx, HEADER_H / 2 - 2, 9, '#111827', 'bold', { align: 'center' });
-  if (teamName) {
-    txt(pdf, teamName, cx, HEADER_H / 2 + 2.5, 6, '#6b7280', 'normal', { align: 'center' });
-  }
-
-  // Right: date range + page number
+  // Right: date range + page number (same for both)
   const rx = PAGE_W - MARGIN;
   if (dateRange) {
     txt(pdf, dateRange, rx, HEADER_H / 2 - 2, 6, '#6b7280', 'normal', { align: 'right' });
   }
   txt(pdf, `Page ${pageNum} of ${totalPages}`, rx, HEADER_H / 2 + 2.5, 6, '#111827', 'bold', { align: 'right' });
+
+  const cx = PAGE_W / 2;
+
+  if (athleteName) {
+    // ── Individual athlete plan centre block ──────────────────────────────────
+    const photoSize = 12;  // mm square
+    const photoX = cx - photoSize / 2 - 10; // shift photo left to leave room for text
+    const photoY = (HEADER_H - photoSize) / 2;
+    const photoCx = photoX + photoSize / 2;
+    const photoCy = photoY + photoSize / 2;
+    const circleR = photoSize / 2 + 0.5; // slight overflow for border
+
+    if (athletePhotoBase64) {
+      try {
+        pdf.addImage(athletePhotoBase64, 'JPEG', photoX, photoY, photoSize, photoSize);
+      } catch {
+        try {
+          pdf.addImage(athletePhotoBase64, 'PNG', photoX, photoY, photoSize, photoSize);
+        } catch {}
+      }
+    } else {
+      // Fallback: filled circle with initials
+      const parts = athleteName.trim().split(/\s+/);
+      const initials = (
+        (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
+      ).toUpperCase();
+      pdf.setFillColor('#e0e7ff');
+      pdf.circle(photoCx, photoCy, circleR - 0.5, 'F');
+      txt(pdf, initials, photoCx, photoCy, 7, '#3730a3', 'bold', { align: 'center' });
+    }
+
+    // Orange circular border around photo
+    pdf.setDrawColor('#f97316');
+    pdf.setLineWidth(0.5);
+    pdf.circle(photoCx, photoCy, circleR, 'S');
+
+    // Athlete name + subtitle to the right of photo
+    const textX = photoX + photoSize + 3;
+    txt(pdf, athleteName.toUpperCase(), textX, HEADER_H / 2 - 2, 9, '#111827', 'bold');
+
+    const subtitle = teamName && athletePosition
+      ? `${teamName} · ${athletePosition}`
+      : (teamName || athletePosition || '');
+    if (subtitle) {
+      txt(pdf, subtitle, textX, HEADER_H / 2 + 2.5, 6, '#6b7280', 'normal');
+    }
+  } else {
+    // ── Team plan centre block ────────────────────────────────────────────────
+    txt(pdf, (planName || 'Periodisation Plan').toUpperCase(), cx, HEADER_H / 2 - 2, 9, '#111827', 'bold', { align: 'center' });
+    if (teamName) {
+      txt(pdf, teamName, cx, HEADER_H / 2 + 2.5, 6, '#6b7280', 'normal', { align: 'center' });
+    }
+  }
 
   // Orange rule immediately below header
   fillRect(pdf, 0, HEADER_H, PAGE_W, ORANGE_RULE_H, '#f97316');
@@ -315,6 +363,9 @@ function drawLoadWaveChart(pdf, loadWaveImgBase64) {
  * @param {{ w: number, h: number } | null} [p.secondaryLogoDims]
  * @param {string} [p.loadWaveImgBase64]
  * @param {object} [p.loadWaveData]
+ * @param {string|null} [p.athleteName]
+ * @param {string|null} [p.athletePhotoBase64]
+ * @param {string|null} [p.athletePosition]
  * @returns {Promise<import('jspdf').jsPDF>}
  */
 export async function buildPeriodisationPDF({
@@ -330,6 +381,9 @@ export async function buildPeriodisationPDF({
   secondaryLogoDims,
   loadWaveImgBase64,
   loadWaveData,
+  athleteName,
+  athletePhotoBase64,
+  athletePosition,
 }) {
   const dateRange = formatDateRange(plan?.start_date, plan?.end_date);
 
@@ -364,6 +418,9 @@ export async function buildPeriodisationPDF({
         orgLogoDims,
         secondaryLogoBase64,
         secondaryLogoDims,
+        athleteName: athleteName ?? null,
+        athletePhotoBase64: athletePhotoBase64 ?? null,
+        athletePosition: athletePosition ?? null,
       });
     } catch (err) {
       console.error('PDFExport: drawHeader failed on page', pi + 1, err);

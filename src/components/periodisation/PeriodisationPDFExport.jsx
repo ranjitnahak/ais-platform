@@ -159,6 +159,9 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
     orgLogoUrl,
     secondaryLogoUrl,
     loadWaveData,
+    athleteName,
+    athletePhotoUrl,
+    athletePosition,
     onExportStart,
     onExportComplete,
     onExportError,
@@ -172,10 +175,11 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
   async function exportToPDF() {
     onExportStart?.();
     try {
-      // Load logos concurrently
-      const [orgLogoBase64, secondaryLogoBase64] = await Promise.all([
+      // Load logos and athlete photo concurrently
+      const [orgLogoBase64, secondaryLogoBase64, athletePhotoBase64] = await Promise.all([
         orgLogoUrl ? urlToBase64(orgLogoUrl) : Promise.resolve(null),
         secondaryLogoUrl ? urlToBase64(secondaryLogoUrl) : Promise.resolve(null),
+        athletePhotoUrl ? urlToBase64(athletePhotoUrl) : Promise.resolve(null),
       ]);
 
       // Detect natural dimensions for contain-fit sizing in the header
@@ -207,12 +211,19 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
         secondaryLogoDims,
         loadWaveImgBase64,
         loadWaveData,
+        athleteName,
+        athletePhotoBase64,
+        athletePosition,
       });
 
       const safeTeam = (teamName ?? 'Team').replace(/\s+/g, '');
+      const safeAthlete = athleteName ? athleteName.replace(/\s+/g, '') : null;
       const startLabel = fileDateLabel(plan?.start_date);
       const endLabel = fileDateLabel(plan?.end_date);
-      pdf.save(`${safeTeam}_Periodisation_${startLabel}_${endLabel}.pdf`);
+      const filename = safeAthlete
+        ? `${safeTeam}_${safeAthlete}_Periodisation_${startLabel}_${endLabel}.pdf`
+        : `${safeTeam}_Periodisation_${startLabel}_${endLabel}.pdf`;
+      pdf.save(filename);
 
       onExportComplete?.();
     } catch (err) {

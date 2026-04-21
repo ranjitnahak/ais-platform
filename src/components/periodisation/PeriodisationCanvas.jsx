@@ -552,6 +552,21 @@ export default function PeriodisationCanvas({
         orgLogoUrl={orgLogoUrl}
         secondaryLogoUrl={secondaryLogoUrl}
         loadWaveData={loadWaveData}
+        athleteName={
+          viewMode === 'athlete' && selectedAthleteId
+            ? (athletes.find((a) => a.id === selectedAthleteId)?.full_name ?? null)
+            : null
+        }
+        athletePhotoUrl={
+          viewMode === 'athlete' && selectedAthleteId
+            ? (athletes.find((a) => a.id === selectedAthleteId)?.photo_url ?? null)
+            : null
+        }
+        athletePosition={
+          viewMode === 'athlete' && selectedAthleteId
+            ? (athletes.find((a) => a.id === selectedAthleteId)?.position ?? null)
+            : null
+        }
         onExportStart={() => setIsExporting(true)}
         onExportComplete={() => setIsExporting(false)}
         onExportError={(err) => { setIsExporting(false); console.error('PDFExport: ', err); }}
