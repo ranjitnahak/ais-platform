@@ -189,8 +189,7 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
     cells,
     weeks,
     teamName,
-    orgLogoUrl,
-    secondaryLogoUrl,
+    teamLogoUrl,
     loadWaveData,
     athleteName,
     athletePhotoUrl,
@@ -209,9 +208,8 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
     onExportStart?.();
     try {
       // Load logos and athlete photo concurrently
-      const [orgLogoBase64, secondaryLogoBase64, rawAthletePhotoBase64] = await Promise.all([
-        orgLogoUrl ? urlToBase64(orgLogoUrl) : Promise.resolve(null),
-        secondaryLogoUrl ? urlToBase64(secondaryLogoUrl) : Promise.resolve(null),
+      const [teamLogoBase64Raw, rawAthletePhotoBase64] = await Promise.all([
+        teamLogoUrl ? urlToBase64(teamLogoUrl) : Promise.resolve(null),
         athletePhotoUrl ? urlToBase64(athletePhotoUrl) : Promise.resolve(null),
       ]);
 
@@ -220,18 +218,15 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
         athletePhotoBase64 = await cropToCircle(athletePhotoBase64);
       }
 
-      console.log('PDFExport photos:', {
-        hasOrgLogo: !!orgLogoBase64,
-        hasSecondaryLogo: !!secondaryLogoBase64,
+      console.log('PDFExport:', {
+        hasTeamLogo: !!teamLogoBase64Raw,
         hasAthletePhoto: !!athletePhotoBase64,
-        athletePhotoSlice: athletePhotoBase64?.slice(0, 80) ?? null,
       });
 
       // Detect natural dimensions for contain-fit sizing in the header
-      const [orgLogoDims, secondaryLogoDims] = await Promise.all([
-        orgLogoBase64 ? getBase64Dims(orgLogoBase64) : Promise.resolve(null),
-        secondaryLogoBase64 ? getBase64Dims(secondaryLogoBase64) : Promise.resolve(null),
-      ]);
+      const teamLogoDims = teamLogoBase64Raw
+        ? await getBase64Dims(teamLogoBase64Raw)
+        : null;
 
       // Capture load-wave chart from the full plan-level data
       let loadWaveImgBase64 = null;
@@ -250,10 +245,8 @@ const PeriodisationPDFExport = forwardRef(function PeriodisationPDFExport(
         cells,
         weeks,
         teamName,
-        orgLogoBase64,
-        orgLogoDims,
-        secondaryLogoBase64,
-        secondaryLogoDims,
+        teamLogoBase64: teamLogoBase64Raw,
+        teamLogoDims,
         loadWaveImgBase64,
         loadWaveData,
         athleteName,

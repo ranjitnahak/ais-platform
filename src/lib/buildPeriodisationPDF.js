@@ -79,29 +79,18 @@ function formatDateRange(startIso, endIso) {
 
 function drawHeader(pdf, {
   planName, teamName, dateRange, pageNum, totalPages,
-  orgLogoBase64, orgLogoDims,
-  secondaryLogoBase64, secondaryLogoDims,
+  teamLogoBase64, teamLogoDims,
   athleteName, athletePhotoBase64, athletePosition,
 }) {
   fillRect(pdf, 0, 0, PAGE_W, HEADER_H, '#ffffff');
 
-  // Left: org logos (same for both team and individual)
   const logoH = 10;
   const logoY = (HEADER_H - logoH) / 2;
-  let logoX = MARGIN;
 
-  if (orgLogoBase64 && orgLogoDims?.w > 0 && orgLogoDims?.h > 0) {
-    const lw = Math.min((orgLogoDims.w / orgLogoDims.h) * logoH, 30);
-    try { pdf.addImage(orgLogoBase64, 'PNG', logoX, logoY, lw, logoH); } catch {}
-    logoX += lw + 3;
-  }
-
-  if (secondaryLogoBase64 && secondaryLogoDims?.w > 0 && secondaryLogoDims?.h > 0) {
-    const lw = Math.min((secondaryLogoDims.w / secondaryLogoDims.h) * logoH, 30);
-    try { pdf.addImage(secondaryLogoBase64, 'PNG', logoX, logoY, lw, logoH); } catch {}
-  }
-
-  if (!orgLogoBase64 && !secondaryLogoBase64) {
+  if (teamLogoBase64 && teamLogoDims?.w > 0 && teamLogoDims?.h > 0) {
+    const lw = Math.min((teamLogoDims.w / teamLogoDims.h) * logoH, 36);
+    try { pdf.addImage(teamLogoBase64, 'PNG', MARGIN, logoY, lw, logoH); } catch {}
+  } else {
     txt(pdf, 'AIS', MARGIN, HEADER_H / 2, 9, '#111827', 'bold');
   }
 
@@ -357,10 +346,8 @@ function drawLoadWaveChart(pdf, loadWaveImgBase64) {
  * @param {Array}  p.cells
  * @param {Array}  p.weeks
  * @param {string} [p.teamName]
- * @param {string} [p.orgLogoBase64]
- * @param {{ w: number, h: number } | null} [p.orgLogoDims]
- * @param {string} [p.secondaryLogoBase64]
- * @param {{ w: number, h: number } | null} [p.secondaryLogoDims]
+ * @param {string} [p.teamLogoBase64]
+ * @param {{ w: number, h: number } | null} [p.teamLogoDims]
  * @param {string} [p.loadWaveImgBase64]
  * @param {object} [p.loadWaveData]
  * @param {string|null} [p.athleteName]
@@ -375,10 +362,8 @@ export async function buildPeriodisationPDF({
   cells,
   weeks,
   teamName,
-  orgLogoBase64,
-  orgLogoDims,
-  secondaryLogoBase64,
-  secondaryLogoDims,
+  teamLogoBase64,
+  teamLogoDims,
   loadWaveImgBase64,
   loadWaveData,
   athleteName,
@@ -414,10 +399,8 @@ export async function buildPeriodisationPDF({
         dateRange,
         pageNum: pi + 1,
         totalPages: chunks.length,
-        orgLogoBase64,
-        orgLogoDims,
-        secondaryLogoBase64,
-        secondaryLogoDims,
+        teamLogoBase64,
+        teamLogoDims,
         athleteName: athleteName ?? null,
         athletePhotoBase64: athletePhotoBase64 ?? null,
         athletePosition: athletePosition ?? null,

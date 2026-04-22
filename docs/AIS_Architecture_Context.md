@@ -5,6 +5,19 @@
 
 ---
 
+## Document Map
+
+| File | Purpose | Update frequency |
+|---|---|---|
+| `AIS_Architecture_Guidelines.md` | **How** to build — rules, Three Rules, RBAC, anti-patterns, coding standards | Rarely — architecture decisions only |
+| `AIS_Architecture_Context.md` (this file) | **What** is built — current state, tech stack, schema, active data, feature design | Per thread — reflects current build state |
+| `AIS_Pending_Items.md` | **What** needs doing — bugs, backlog, tech debt, V-stage tracking | Every thread |
+| `AIS_Settings_Backlog.md` | Settings feature design brief — implementation brief for V2 Settings module | When new settings items are identified |
+
+> `Three_rules` standalone file is superseded — Section 3 of `AIS_Architecture_Guidelines.md` is the authoritative source.
+
+---
+
 ## 1. Project Overview
 
 AIS (Athlete Intelligence System) is a globally ambitious, sport-agnostic Athlete Management System designed to compete with and surpass Smartabase/Teamworks. It is being built in parallel with active coaching work.
@@ -103,21 +116,15 @@ Code changes target `AthleteReport.jsx` only — replacing `overallFromQualities
 ### 3.9 Supabase Storage
 - Two public buckets: "Logos" (IIS + JSW Sports logos) and "Athletes" (athlete photos)
 
-### 3.10 Outstanding Issues (as of last session)
-1. `Send Report` mailto not pre-filling athlete email (`athlete.email` not reaching `AthleteReport` component — debug with `console.log(athlete)`)
-2. Flexibility axis still collapsed on radar for some athletes — case-insensitive fix applied to `getTierScore` but needs verification
-3. ~14 athletes still without profiles (Narender, Rahul, Parvesh, etc.) — data pending
-4. Overall classification logic fix (median percentile) designed but not yet implemented in `AthleteReport.jsx`
-
-### 3.11 Data Correction Workflow
+### 3.10 Data Correction Workflow
 SQL-first: Diagnostic query → DELETE incorrect rows → INSERT correct values using `test_id` (not `test_definition_id`).  
 Note: `assessment_results` table uses `test_id` (not `test_definition_id`).
 
 ---
 
-## 4. Periodisation Feature — Fully Designed (Not Yet Built)
+## 4. Periodisation Feature — In Progress (V1.5)
 
-This is the next major feature. Extensive design work completed. Ready for implementation.
+Design is complete. Core canvas, refactoring, and several features are built. See `AIS_Pending_Items.md` for outstanding items.
 
 ### 4.1 Design Philosophy
 A purpose-built planning canvas — not a calendar app, not a form builder. Feels like a spreadsheet but is backed by a structured database. Three things merged: Gantt chart structure + spreadsheet flexibility + sports platform intelligence.

@@ -15,8 +15,6 @@ import {
   ZOOM_PX,
 } from '../../lib/periodisationUtils';
 import ColorPicker from '../ui/ColorPicker';
-import { supabase } from '../../lib/supabaseClient';
-import { getCurrentUser } from '../../lib/auth';
 
 const LEFT_COL = 140;
 
@@ -102,8 +100,6 @@ export default function PeriodisationCanvas({
 
   // PDF export state
   const [isExporting, setIsExporting] = useState(false);
-  const [orgLogoUrl, setOrgLogoUrl] = useState(null);
-  const [secondaryLogoUrl, setSecondaryLogoUrl] = useState(null);
 
   // Menus / popovers
   const [ctxMenu, setCtxMenu] = useState(null);       // row label right-click
@@ -123,30 +119,6 @@ export default function PeriodisationCanvas({
   useEffect(() => {
     patchesRef.current = patches;
   }, [patches]);
-
-  // Fetch org logos for PDF header
-  useEffect(() => {
-    const user = getCurrentUser();
-    if (!user?.orgId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('organisations')
-          .select('logo_url, secondary_logo_url')
-          .eq('id', user.orgId)
-          .maybeSingle();
-        if (error) console.error('PDFExport: org logo fetch failed', error);
-        if (!cancelled && data) {
-          setOrgLogoUrl(data.logo_url ?? null);
-          setSecondaryLogoUrl(data.secondary_logo_url ?? null);
-        }
-      } catch (err) {
-        console.error('PDFExport: ', err);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   const weeks = useMemo(
     () => weekStartsBetween(plan.start_date, plan.end_date),
@@ -275,6 +247,10 @@ export default function PeriodisationCanvas({
   // Derived values for PDF export
   const teamName = useMemo(
     () => teams.find((t) => t.id === selectedTeamId)?.name ?? '',
+    [teams, selectedTeamId],
+  );
+  const selectedTeam = useMemo(
+    () => teams.find((t) => t.id === selectedTeamId) ?? null,
     [teams, selectedTeamId],
   );
 
@@ -549,8 +525,7 @@ export default function PeriodisationCanvas({
         cells={cells}
         weeks={weeks}
         teamName={teamName}
-        orgLogoUrl={orgLogoUrl}
-        secondaryLogoUrl={secondaryLogoUrl}
+        teamLogoUrl={selectedTeam?.logo_url ?? null}
         loadWaveData={loadWaveData}
         athleteName={
           viewMode === 'individual' && selectedAthleteId

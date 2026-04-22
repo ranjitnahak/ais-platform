@@ -62,6 +62,24 @@ Should be cleared before any new V1.5 features are added.
 | P-09 | Peaking index display | Per-week countdown 7→1, color-coded red to green |
 | P-10 | Week notes persistence verification | Tiptap editor built. Verify per-week storage is working correctly after refactor. |
 
+| P-11 | Individual plan row structure is architecturally wrong
+Individual plans currently own their own plan_rows, causing drift 
+when team plan rows change or when athletes move between teams.
+Correct design: rows always owned by team plan. Individual plan 
+stores only plan_cells (override layer). Row rendering in individual 
+athlete view must always query team plan rows, not individual plan rows.
+Affects: usePeriodisationPlan.js, PeriodisationCanvas.jsx
+Fix before: adding more rows to team plans or building athlete transfer workflow.
+
+| P-12 | Individual plan row structure is architecturally wrong
+Individual plans currently own their own plan_rows, causing drift 
+when team plan rows change or when athletes move between teams.
+Correct design: rows always owned by team plan. Individual plan 
+stores only plan_cells (override layer). Row rendering in individual 
+athlete view must always query team plan rows, not individual plan rows.
+Affects: usePeriodisationPlan.js, PeriodisationCanvas.jsx
+Fix before: adding more rows to team plans or building athlete transfer workflow.
+
 ---
 
 ## V2 — Planned Features
@@ -132,6 +150,9 @@ The following additions to `AIS_Architecture_Guidelines.md` were designed this t
 - Women's team: `b2000000-0000-0000-0000-000000000002`
 - Assessment session: `f1000000-0000-0000-0000-000000000001`
 - Canonical team plan (Men): `1572ca68-f3bb-4102-8c25-6064dc60edd3`
+
+
+
 
 ---
 

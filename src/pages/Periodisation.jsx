@@ -114,7 +114,7 @@ export default function Periodisation() {
       }
       const { data: teamList, error } = await supabase
         .from('teams')
-        .select('id, name')
+        .select('id, name, logo_url')
         .eq('org_id', user.orgId)
         .order('name');
       if (cancelled) return;
