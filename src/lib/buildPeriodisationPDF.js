@@ -187,10 +187,11 @@ function drawBandRow(pdf, { row, weeks, cells, curY, colW }) {
 
     fillRect(pdf, bx, by, bw, bh, bg);
 
-    if (spanCount > 2 && cell.value_text) {
-      txt(pdf, cell.value_text, bx + bw / 2, by + bh / 2, 5, '#ffffff', 'bold', {
+    if (cell.value_text) {
+      const fontSize = spanCount >= 3 ? 6 : spanCount === 2 ? 5 : 4;
+      txt(pdf, cell.value_text, bx + bw / 2, by + bh / 2, fontSize, '#ffffff', 'bold', {
         align: 'center',
-        maxWidth: bw - 2,
+        maxWidth: bw - 1,
       });
     }
   }
