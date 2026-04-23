@@ -254,6 +254,18 @@ export default function PeriodisationCanvas({
     [teams, selectedTeamId],
   );
 
+  /** Same cell resolution as the grid (persisted rows + in-flight patches) for PDF export. */
+  const cellsSnapshotForPdf = useMemo(() => {
+    const map = new Map(
+      cells.map((c) => [compositeKey(c.row_id, c.cell_date), { ...c }]),
+    );
+    for (const [k, v] of Object.entries(patches)) {
+      if (v === null) map.delete(k);
+      else map.set(k, { ...(map.get(k) ?? {}), ...v });
+    }
+    return [...map.values()];
+  }, [cells, patches]);
+
   const loadWaveData = useMemo(() => {
     const vol = weeks.map((w) =>
       volumeRow ? getCellForWeek(volumeRow.id, w.monday, effectiveCells, patches)?.value_number ?? null : null,
@@ -522,7 +534,7 @@ export default function PeriodisationCanvas({
         ref={pdfExportRef}
         plan={plan}
         rows={rows}
-        cells={cells}
+        cells={cellsSnapshotForPdf}
         weeks={weeks}
         teamName={teamName}
         teamLogoUrl={selectedTeam?.logo_url ?? null}

@@ -67,6 +67,15 @@ function findCell(rowId, monday, cells) {
   return cells.find((c) => c.row_id === rowId && c.cell_date === monday) ?? null;
 }
 
+/** Match Periodisation CellRenderer toggle “on” semantics (incl. value_text casing). */
+function toggleCellIsOn(cell) {
+  if (!cell) return false;
+  const n = cell.value_number;
+  if (n === 1 || n === '1' || Number(n) === 1) return true;
+  const t = cell.value_text;
+  return typeof t === 'string' && t.trim().toLowerCase() === 'on';
+}
+
 function formatDateRange(startIso, endIso) {
   if (!startIso) return '';
   const opts = { day: 'numeric', month: 'short', year: 'numeric' };
@@ -249,7 +258,7 @@ function drawDataCell(pdf, { row, week, wi, cells, loadWaveData, x, curY, colW }
 
   if (row.row_type === 'toggle') {
     const cell = findCell(row.id, week.monday, cells);
-    if (cell?.value_text === 'ON') {
+    if (toggleCellIsOn(cell)) {
       fillRect(pdf, x + 2, curY + 1, colW - 4, ROW_H - 2, '#22c55e');
       txt(pdf, 'ON', x + colW / 2, curY + ROW_H / 2, 5, '#ffffff', 'bold', { align: 'center' });
     }
