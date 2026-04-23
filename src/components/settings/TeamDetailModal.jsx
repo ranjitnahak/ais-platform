@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUser } from '../../lib/auth';
+import { athleteDisplayName, athleteInitialsFromAthlete } from '../../lib/athleteName';
 
-function AthleteInitials({ name, size = 28 }) {
-  const initials = name?.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase() ?? '?';
+function AthleteInitials({ athlete, size = 28 }) {
+  const initials = athleteInitialsFromAthlete(athlete);
   return (
     <div
       style={{
@@ -51,7 +52,7 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
 
       const { data: athRows, error: athErr } = await supabase
         .from('athletes')
-        .select('id, full_name, gender, position, photo_url')
+        .select('id, first_name, last_name, full_name, gender, position, photo_url')
         .eq('org_id', orgId)
         .eq('is_active', true)
         .order('full_name');
@@ -165,7 +166,7 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
   const displayLogo = logoPreview || existingLogoUrl;
 
   const filteredAthletes = athletes.filter((a) =>
-    a.full_name?.toLowerCase().includes(athleteSearch.toLowerCase())
+    athleteDisplayName(a).toLowerCase().includes(athleteSearch.toLowerCase())
   );
 
   return (
@@ -340,17 +341,17 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
                         {athlete.photo_url ? (
                           <img
                             src={athlete.photo_url}
-                            alt={athlete.full_name}
+                            alt={athleteDisplayName(athlete)}
                             className="rounded-full object-cover flex-shrink-0"
                             style={{ width: 28, height: 28 }}
                           />
                         ) : (
-                          <AthleteInitials name={athlete.full_name} size={28} />
+                          <AthleteInitials athlete={athlete} size={28} />
                         )}
 
                         {/* Name */}
                         <span className="text-white text-sm flex-1 truncate">
-                          {athlete.full_name}
+                          {athleteDisplayName(athlete)}
                         </span>
 
                         {/* Position badge */}

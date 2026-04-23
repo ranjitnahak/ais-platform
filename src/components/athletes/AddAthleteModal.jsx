@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUser } from '../../lib/auth';
+import { canonicalFullName } from '../../lib/athleteName';
+import { BLOOD_GROUP_OPTIONS, normalizeGenderForDb, normalizePositionForDb } from '../../lib/athleteProfileFields';
 import ImageCropModal from './ImageCropModal';
 
 const ORG_ID = 'a1000000-0000-0000-0000-000000000001';
@@ -36,13 +38,17 @@ const FIELD = {
 
 export default function AddAthleteModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({
-    full_name: '',
+    first_name: '',
+    last_name: '',
     date_of_birth: '',
     gender: '',
     position: '',
     jersey_number: '',
     email: '',
     phone: '',
+    emergency_contact_phone: '',
+    blood_group: '',
+    address: '',
   });
   const [pendingFile, setPendingFile]   = useState(null);   // raw file → triggers crop modal
   const [photoBlob, setPhotoBlob]       = useState(null);   // cropped JPEG blob to upload
@@ -92,7 +98,7 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.full_name.trim()) { setError('Full name is required.'); return; }
+    if (!form.first_name.trim()) { setError('First name is required.'); return; }
     if (!form.gender)           { setError('Gender is required.'); return; }
     if (!form.position)         { setError('Position is required.'); return; }
 
@@ -110,14 +116,23 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
       photo_url = urlData?.publicUrl ?? null;
     }
 
+    const first_name = form.first_name.trim();
+    const last_name = form.last_name.trim();
+    const full_name = canonicalFullName(first_name, last_name);
+
     const payload = {
-      full_name:      form.full_name.trim(),
+      first_name,
+      last_name: last_name || null,
+      full_name,
       date_of_birth:  form.date_of_birth || null,
-      gender:         form.gender.toLowerCase(),
-      position:       form.position.toLowerCase().replace('-', '_'),
+      gender:         normalizeGenderForDb(form.gender),
+      position:       normalizePositionForDb(form.position),
       jersey_number:  form.jersey_number ? Number(form.jersey_number) : null,
       email:          form.email.trim() || null,
       phone:          form.phone.trim() || null,
+      emergency_contact_phone: form.emergency_contact_phone?.trim() || null,
+      blood_group:             form.blood_group?.trim() || null,
+      address:                 form.address?.trim() || null,
       org_id:         ORG_ID,
       is_active:      true,
       ...(photo_url ? { photo_url } : {}),
@@ -227,15 +242,26 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
             />
           </div>
 
-          {/* Full Name */}
-          <div>
-            <div style={FIELD.label()}>Full Name *</div>
-            <input
-              style={FIELD.input}
-              value={form.full_name}
-              onChange={(e) => set('full_name', e.target.value)}
-              placeholder="e.g. Arjun Sharma"
-            />
+          {/* First + Last name */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <div style={FIELD.label()}>First Name *</div>
+              <input
+                style={FIELD.input}
+                value={form.first_name}
+                onChange={(e) => set('first_name', e.target.value)}
+                placeholder="e.g. Arjun"
+              />
+            </div>
+            <div>
+              <div style={FIELD.label()}>Last Name</div>
+              <input
+                style={FIELD.input}
+                value={form.last_name}
+                onChange={(e) => set('last_name', e.target.value)}
+                placeholder="e.g. Sharma"
+              />
+            </div>
           </div>
 
           {/* Date of Birth */}
@@ -255,17 +281,17 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
               <div style={FIELD.label()}>Gender *</div>
               <select style={FIELD.select} value={form.gender} onChange={(e) => set('gender', e.target.value)}>
                 <option value="">Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
               </select>
             </div>
             <div>
               <div style={FIELD.label()}>Position *</div>
               <select style={FIELD.select} value={form.position} onChange={(e) => set('position', e.target.value)}>
                 <option value="">Select</option>
-                <option value="Raider">Raider</option>
-                <option value="Defender">Defender</option>
-                <option value="All-Rounder">All-Rounder</option>
+                <option value="raider">Raider</option>
+                <option value="defender">Defender</option>
+                <option value="all_rounder">All-Rounder</option>
               </select>
             </div>
           </div>
@@ -305,6 +331,39 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
               value={form.phone}
               onChange={(e) => set('phone', e.target.value)}
               placeholder="+91 98765 43210"
+            />
+          </div>
+
+          <div>
+            <div style={FIELD.label()}>Emergency contact number</div>
+            <input
+              type="tel"
+              style={FIELD.input}
+              value={form.emergency_contact_phone}
+              onChange={(e) => set('emergency_contact_phone', e.target.value)}
+              placeholder="Next of kin / doctor"
+            />
+          </div>
+
+          <div>
+            <div style={FIELD.label()}>Blood group</div>
+            <select style={FIELD.select} value={form.blood_group} onChange={(e) => set('blood_group', e.target.value)}>
+              {BLOOD_GROUP_OPTIONS.map((o) => (
+                <option key={o.value || 'none'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <div style={FIELD.label()}>Address</div>
+            <textarea
+              style={{ ...FIELD.input, minHeight: '88px', resize: 'vertical' }}
+              value={form.address}
+              onChange={(e) => set('address', e.target.value)}
+              placeholder="Street, city, postal code…"
+              rows={3}
             />
           </div>
 

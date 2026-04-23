@@ -2,16 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import AthleteReport from '../components/reports/AthleteReport';
+import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 
-function AthleteInitials({ name }) {
-  const initials =
-    name
-      ?.split(' ')
-      .map((w) => w[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase() ?? '?';
+function AthleteInitials({ athlete }) {
+  const initials = athleteInitialsFromAthlete(athlete);
   return (
     <div className="w-12 h-12 rounded-full bg-[#353437] flex items-center justify-center text-sm font-black text-white shrink-0" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
       {initials}
@@ -42,7 +37,7 @@ export default function Reports() {
     setLoading(true);
     const { data, error: err } = await supabase
       .from('athletes')
-      .select('id, full_name, date_of_birth, gender, position, photo_url, email, is_active, org_id, organisations(name, sport, logo_url, secondary_logo_url, report_signatory_name, report_signatory_title)')
+      .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, email, is_active, org_id, organisations(name, sport, logo_url, secondary_logo_url, report_signatory_name, report_signatory_title)')
       .eq('is_active', true)
       .order('full_name');
     if (err) { setError(err.message); setLoading(false); return; }
@@ -187,7 +182,7 @@ export default function Reports() {
             arrow_back
           </button>
           <h1 className="font-['Inter'] text-xl font-bold tracking-tight text-white uppercase">
-            {selectedAthlete && reportData ? selectedAthlete.full_name : 'Reports'}
+            {selectedAthlete && reportData ? athleteDisplayName(selectedAthlete) : 'Reports'}
           </h1>
           {selectedAthlete && reportData && (
             <button
@@ -295,14 +290,14 @@ export default function Reports() {
                         {athlete.photo_url ? (
                           <img
                             src={athlete.photo_url}
-                            alt={athlete.full_name}
+                            alt={athleteDisplayName(athlete)}
                             className="w-12 h-12 rounded-full object-cover shrink-0"
                           />
                         ) : (
-                          <AthleteInitials name={athlete.full_name} />
+                          <AthleteInitials athlete={athlete} />
                         )}
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-white text-sm truncate">{athlete.full_name}</h4>
+                          <h4 className="font-bold text-white text-sm truncate">{athleteDisplayName(athlete)}</h4>
                           <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tight truncate">
                             {[athlete.position, athlete.organisations?.sport, age ? `Age ${age}` : null].filter(Boolean).join(' · ')}
                           </p>

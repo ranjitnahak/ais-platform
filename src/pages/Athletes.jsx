@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import AddAthleteModal from '../components/athletes/AddAthleteModal';
+import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 
 const ORG_ID = 'a1000000-0000-0000-0000-000000000001';
@@ -16,8 +17,8 @@ function computeAge(dob) {
   return age;
 }
 
-function AthleteInitials({ name, size = 56 }) {
-  const initials = name?.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase() ?? '?';
+function AthleteInitials({ athlete, size = 56 }) {
+  const initials = athleteInitialsFromAthlete(athlete);
   return (
     <div
       style={{
@@ -73,7 +74,7 @@ export default function Athletes() {
       // ── Athletes ──────────────────────────────────────────────────────────
       const { data: rows, error: athErr } = await supabase
         .from('athletes')
-        .select('id, full_name, date_of_birth, gender, position, photo_url, is_active, org_id, organisations(name, sport, logo_url)')
+        .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, is_active, org_id, organisations(name, sport, logo_url)')
         .eq('is_active', true)
         .order('full_name');
       if (athErr) throw athErr;
@@ -164,7 +165,7 @@ export default function Athletes() {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return athletes.filter((a) => {
-      if (q && !a.full_name.toLowerCase().includes(q)) return false;
+      if (q && !athleteDisplayName(a).toLowerCase().includes(q)) return false;
       if (genderFilter !== 'All' && a.gender?.toLowerCase() !== genderFilter.toLowerCase()) return false;
       if (posFilter !== 'All' && a.position?.toLowerCase() !== posFilter.toLowerCase()) return false;
       if (teamFilter !== 'All') {
@@ -344,12 +345,12 @@ export default function Athletes() {
                         {athlete.photo_url ? (
                           <img
                             src={athlete.photo_url}
-                            alt={athlete.full_name}
+                            alt={athleteDisplayName(athlete)}
                             className="rounded-full object-cover"
                             style={{ width: 56, height: 56, border: '2px solid #F97316' }}
                           />
                         ) : (
-                          <AthleteInitials name={athlete.full_name} size={56} />
+                          <AthleteInitials athlete={athlete} size={56} />
                         )}
                         {tier && badgeClass && (
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${badgeClass}`}>
@@ -360,7 +361,7 @@ export default function Athletes() {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-white text-sm truncate">{athlete.full_name}</h4>
+                        <h4 className="font-bold text-white text-sm truncate">{athleteDisplayName(athlete)}</h4>
                         <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tight mt-0.5 truncate">
                           {[athlete.position, athlete.gender, age ? `Age ${age}` : null]
                             .filter(Boolean)

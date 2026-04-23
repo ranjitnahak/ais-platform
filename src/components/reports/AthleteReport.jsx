@@ -11,6 +11,7 @@ import { Radar } from 'react-chartjs-2';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { classifyScore } from '../../lib/scoring';
+import { athleteDisplayName, athleteInitialsFromAthlete } from '../../lib/athleteName';
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip);
 
@@ -330,7 +331,7 @@ export default function AthleteReport({ athlete, session, results = [], benchmar
         // Fits on a single page — set page height to content height exactly.
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfW, pdfH] });
         pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
-        const safeName = (athlete?.full_name ?? 'athlete').replace(/\s+/g, '_');
+        const safeName = (athleteDisplayName(athlete) || 'athlete').replace(/\s+/g, '_');
         const safeDate = session?.assessed_on?.slice(0, 10) ?? 'unknown';
         pdf.save(`${safeName}_assessment_${safeDate}.pdf`);
       } else {
@@ -343,7 +344,7 @@ export default function AthleteReport({ athlete, session, results = [], benchmar
           pdf.addImage(imgData, 'PNG', 0, -offset, pdfW, pdfH);
           offset += pageH;
         }
-        const safeName = (athlete?.full_name ?? 'athlete').replace(/\s+/g, '_');
+        const safeName = (athleteDisplayName(athlete) || 'athlete').replace(/\s+/g, '_');
         const safeDate = session?.assessed_on?.slice(0, 10) ?? 'unknown';
         pdf.save(`${safeName}_assessment_${safeDate}.pdf`);
       }
@@ -392,7 +393,7 @@ export default function AthleteReport({ athlete, session, results = [], benchmar
             {athlete?.photo_url ? (
               <img
                 src={athlete.photo_url}
-                alt={athlete.full_name}
+                alt={athleteDisplayName(athlete)}
                 crossOrigin="anonymous"
                 style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${C.orange}` }}
               />
@@ -404,12 +405,12 @@ export default function AthleteReport({ athlete, session, results = [], benchmar
                 fontSize: '40px', fontWeight: 900, color: C.onSurface,
                 border: `2px solid ${C.border}`,
               }}>
-                {athlete?.full_name?.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
+                {athleteInitialsFromAthlete(athlete)}
               </div>
             )}
             <div>
               <div style={{ fontSize: '26px', fontWeight: 900, letterSpacing: '-0.04em', color: '#ffffff', margin: 0, textTransform: 'uppercase', lineHeight: 1 }}>
-                {athlete?.full_name}
+                {athleteDisplayName(athlete)}
               </div>
               <div style={{ fontSize: '10px', color: C.outline, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: '6px' }}>
                 {[athlete?.gender, age ? `Age ${age}` : null, athlete?.position, athlete?.organisations?.sport]
@@ -777,7 +778,7 @@ export default function AthleteReport({ athlete, session, results = [], benchmar
               onClick={() => {
                 console.log('athlete object:', JSON.stringify(athlete));
                 const subject = encodeURIComponent(`Performance Assessment Report — S&C Camp 28 Mar 2026`);
-                const body    = encodeURIComponent(`Hi ${athlete?.full_name ?? ''},\n\nPlease find your performance assessment report attached.\n\nRegards,\nRanjit Nahak\nStrength and Conditioning Coach`);
+                const body    = encodeURIComponent(`Hi ${athleteDisplayName(athlete) || ''},\n\nPlease find your performance assessment report attached.\n\nRegards,\nRanjit Nahak\nStrength and Conditioning Coach`);
                 window.location.href = `mailto:${athlete?.email ?? ''}?subject=${subject}&body=${body}`;
               }}
               style={{

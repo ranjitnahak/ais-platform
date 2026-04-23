@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { athleteDisplayName } from '../../lib/athleteName';
 
 const ZOOMS = ['4Y', '1Y', '6M', '1M', '1W'];
 
@@ -77,7 +78,7 @@ export default function PeriodisationToolbar({
           <option value="">Select athlete…</option>
           {athletes.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.full_name}
+              {athleteDisplayName(a)}
             </option>
           ))}
         </select>

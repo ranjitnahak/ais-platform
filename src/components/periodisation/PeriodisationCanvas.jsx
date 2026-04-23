@@ -15,6 +15,7 @@ import {
   ZOOM_PX,
 } from '../../lib/periodisationUtils';
 import ColorPicker from '../ui/ColorPicker';
+import { athleteDisplayName } from '../../lib/athleteName';
 
 const LEFT_COL = 140;
 
@@ -559,7 +560,12 @@ export default function PeriodisationCanvas({
         loadWaveData={loadWaveData}
         athleteName={
           viewMode === 'individual' && selectedAthleteId
-            ? (athletes.find((a) => a.id === selectedAthleteId)?.full_name ?? null)
+            ? (() => {
+                const a = athletes.find((x) => x.id === selectedAthleteId);
+                if (!a) return null;
+                const n = athleteDisplayName(a);
+                return n || null;
+              })()
             : null
         }
         athletePhotoUrl={

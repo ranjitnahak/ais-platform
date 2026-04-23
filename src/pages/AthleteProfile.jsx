@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { athleteDisplayName, athleteInitialsFromAthlete, canonicalFullName } from '../lib/athleteName';
+import { BLOOD_GROUP_OPTIONS, normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
 import ImageCropModal from '../components/athletes/ImageCropModal';
 import Sidebar from '../components/Sidebar';
 
@@ -55,20 +57,24 @@ export default function AthleteProfile() {
     setLoading(true);
     const { data, error } = await supabase
       .from('athletes')
-      .select('id, full_name, date_of_birth, gender, position, photo_url, org_id, is_active, jersey_number, email, phone, organisations(name, sport, logo_url)')
+      .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, org_id, is_active, jersey_number, email, phone, emergency_contact_phone, blood_group, address, organisations(name, sport, logo_url)')
       .eq('id', id)
       .single();
 
     if (!error && data) {
       setAthlete(data);
       setForm({
-        full_name:     data.full_name ?? '',
-        date_of_birth: data.date_of_birth ?? '',
-        gender:        data.gender ?? '',
-        position:      data.position ?? '',
-        jersey_number: data.jersey_number ?? '',
-        email:         data.email ?? '',
-        phone:         data.phone ?? '',
+        first_name:               data.first_name ?? '',
+        last_name:                data.last_name ?? '',
+        date_of_birth:            data.date_of_birth ?? '',
+        gender:                   data.gender ? normalizeGenderForDb(data.gender) : '',
+        position:                 data.position ? normalizePositionForDb(data.position) : '',
+        jersey_number:            data.jersey_number ?? '',
+        email:                    data.email ?? '',
+        phone:                    data.phone ?? '',
+        emergency_contact_phone:  data.emergency_contact_phone ?? '',
+        blood_group:              data.blood_group ?? '',
+        address:                  data.address ?? '',
       });
       await loadLatestScores(data.id, data.gender);
     }
@@ -120,18 +126,31 @@ export default function AthleteProfile() {
   }
 
   async function handleSave() {
+    if (!form.first_name.trim()) {
+      setSaveMsg({ type: 'error', text: 'First name is required.' });
+      return;
+    }
     setSaving(true);
     setSaveMsg(null);
+    const first_name = form.first_name.trim();
+    const last_name = form.last_name.trim();
+    const full_name = canonicalFullName(first_name, last_name);
+
     const { error } = await supabase
       .from('athletes')
       .update({
-        full_name:     form.full_name.trim(),
+        first_name,
+        last_name: last_name || null,
+        full_name,
         date_of_birth: form.date_of_birth || null,
-        gender:        form.gender || null,
-        position:      form.position || null,
+        gender:        normalizeGenderForDb(form.gender),
+        position:      normalizePositionForDb(form.position),
         jersey_number: form.jersey_number !== '' ? Number(form.jersey_number) : null,
         email:         form.email.trim() || null,
         phone:         form.phone.trim() || null,
+        emergency_contact_phone: form.emergency_contact_phone?.trim() || null,
+        blood_group:             form.blood_group?.trim() || null,
+        address:                 form.address?.trim() || null,
       })
       .eq('id', id);
     setSaving(false);
@@ -139,7 +158,18 @@ export default function AthleteProfile() {
       setSaveMsg({ type: 'error', text: error.message });
     } else {
       setSaveMsg({ type: 'success', text: 'Profile saved.' });
-      setAthlete((a) => ({ ...a, ...form }));
+      setAthlete((a) => ({
+        ...a,
+        ...form,
+        first_name,
+        last_name: last_name || null,
+        full_name,
+        gender: normalizeGenderForDb(form.gender),
+        position: normalizePositionForDb(form.position),
+        emergency_contact_phone: form.emergency_contact_phone?.trim() || null,
+        blood_group: form.blood_group?.trim() || null,
+        address: form.address?.trim() || null,
+      }));
       setTimeout(() => setSaveMsg(null), 3000);
     }
   }
@@ -203,7 +233,7 @@ export default function AthleteProfile() {
     );
   }
 
-  const initials = athlete.full_name?.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase() ?? '?';
+  const initials = athleteInitialsFromAthlete(athlete);
 
   return (
     <>
@@ -245,7 +275,7 @@ export default function AthleteProfile() {
             {athlete.photo_url ? (
               <img
                 src={athlete.photo_url}
-                alt={athlete.full_name}
+                alt={athleteDisplayName(athlete)}
                 className="rounded-full object-cover"
                 style={{ width: 100, height: 100, border: '3px solid #F97316' }}
               />
@@ -277,7 +307,7 @@ export default function AthleteProfile() {
               {athlete.organisations?.name ?? 'Athlete'}
             </div>
             <h2 className="text-3xl font-black tracking-tighter text-white uppercase leading-none">
-              {athlete.full_name}
+              {athleteDisplayName(athlete)}
             </h2>
             <p className="text-sm text-gray-500 mt-2 uppercase font-bold tracking-tight">
               {[athlete.position, athlete.gender].filter(Boolean).join(' · ')}
@@ -301,14 +331,23 @@ export default function AthleteProfile() {
           <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-6">Profile Details</h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {/* Full Name */}
-            <div className="sm:col-span-2">
-              <label className={FIELD_STYLE.label}>Full Name</label>
+            {/* First + Last name */}
+            <div>
+              <label className={FIELD_STYLE.label}>First Name</label>
               <input
                 className={FIELD_STYLE.input}
                 style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-                value={form.full_name}
-                onChange={(e) => setField('full_name', e.target.value)}
+                value={form.first_name}
+                onChange={(e) => setField('first_name', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={FIELD_STYLE.label}>Last Name</label>
+              <input
+                className={FIELD_STYLE.input}
+                style={{ border: '1px solid rgba(255,255,255,0.06)' }}
+                value={form.last_name}
+                onChange={(e) => setField('last_name', e.target.value)}
               />
             </div>
 
@@ -347,8 +386,8 @@ export default function AthleteProfile() {
                 onChange={(e) => setField('gender', e.target.value)}
               >
                 <option value="">Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
               </select>
             </div>
 
@@ -362,9 +401,9 @@ export default function AthleteProfile() {
                 onChange={(e) => setField('position', e.target.value)}
               >
                 <option value="">Select</option>
-                <option value="Raider">Raider</option>
-                <option value="Defender">Defender</option>
-                <option value="All-Rounder">All-Rounder</option>
+                <option value="raider">Raider</option>
+                <option value="defender">Defender</option>
+                <option value="all_rounder">All-Rounder</option>
               </select>
             </div>
 
@@ -391,6 +430,49 @@ export default function AthleteProfile() {
                 value={form.phone}
                 onChange={(e) => setField('phone', e.target.value)}
                 placeholder="+91 98765 43210"
+              />
+            </div>
+
+            {/* Emergency contact */}
+            <div>
+              <label className={FIELD_STYLE.label}>Emergency contact number</label>
+              <input
+                type="tel"
+                className={FIELD_STYLE.input}
+                style={{ border: '1px solid rgba(255,255,255,0.06)' }}
+                value={form.emergency_contact_phone}
+                onChange={(e) => setField('emergency_contact_phone', e.target.value)}
+                placeholder="Next of kin / doctor"
+              />
+            </div>
+
+            {/* Blood group */}
+            <div>
+              <label className={FIELD_STYLE.label}>Blood group</label>
+              <select
+                className={FIELD_STYLE.select}
+                style={{ border: '1px solid rgba(255,255,255,0.06)' }}
+                value={form.blood_group}
+                onChange={(e) => setField('blood_group', e.target.value)}
+              >
+                {BLOOD_GROUP_OPTIONS.map((o) => (
+                  <option key={o.value || 'none'} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Address */}
+            <div className="sm:col-span-2">
+              <label className={FIELD_STYLE.label}>Address</label>
+              <textarea
+                className={FIELD_STYLE.input}
+                style={{ border: '1px solid rgba(255,255,255,0.06)', minHeight: '88px', resize: 'vertical' }}
+                value={form.address}
+                onChange={(e) => setField('address', e.target.value)}
+                placeholder="Street, city, postal code…"
+                rows={3}
               />
             </div>
           </div>

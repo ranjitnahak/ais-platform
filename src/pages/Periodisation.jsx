@@ -169,7 +169,7 @@ export default function Periodisation() {
       }
       const { data: ath } = await supabase
         .from('athletes')
-        .select('id, full_name, photo_url, position')
+        .select('id, first_name, last_name, full_name, photo_url, position')
         .eq('org_id', user.orgId)
         .in('id', ids)
         .order('full_name');

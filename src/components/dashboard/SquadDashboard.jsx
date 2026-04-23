@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import { supabase } from '../../lib/supabase';
 import { classifyScore } from '../../lib/scoring';
+import { athleteDisplayName, athleteInitialsFromAthlete } from '../../lib/athleteName';
 
 // Maps a classification tier to Tailwind colour classes for badge + progress bar
 const CLASSIFICATION_STYLES = {
@@ -21,13 +22,8 @@ function classifyFromPercentile(p) {
   return 'Below Average';
 }
 
-function AthleteInitials({ name }) {
-  const initials = name
-    ?.split(' ')
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase() ?? '?';
+function AthleteInitials({ athlete }) {
+  const initials = athleteInitialsFromAthlete(athlete);
   return (
     <div className="w-12 h-12 rounded-full bg-[#353437] flex items-center justify-center text-sm font-black text-white ghost-border shrink-0">
       {initials}
@@ -61,7 +57,7 @@ export default function SquadDashboard() {
       // 1. Fetch all athletes
       const { data: athleteRows, error: athErr } = await supabase
         .from('athletes')
-        .select('id, full_name, date_of_birth, gender, position, photo_url, is_active, org_id, organisations(name, sport, logo_url)');
+        .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, is_active, org_id, organisations(name, sport, logo_url)');
       if (athErr) throw athErr;
 
       // 2. Find the most recent assessment session
@@ -255,8 +251,8 @@ export default function SquadDashboard() {
                   <h4 className="font-bold text-white tracking-tight">Below-Average Readiness Alert</h4>
                   <p className="text-sm text-[#e0c0b1]">
                     {belowThreshold.length === 1
-                      ? `${belowThreshold[0].full_name} is`
-                      : `${belowThreshold.map((a) => a.full_name).join(', ')} are`}{' '}
+                      ? `${athleteDisplayName(belowThreshold[0])} is`
+                      : `${belowThreshold.map((a) => athleteDisplayName(a)).join(', ')} are`}{' '}
                     currently below readiness threshold.
                   </p>
                 </div>
@@ -301,15 +297,15 @@ export default function SquadDashboard() {
                           {athlete.photo_url ? (
                             <img
                               src={athlete.photo_url}
-                              alt={athlete.full_name}
+                              alt={athleteDisplayName(athlete)}
                               className="w-12 h-12 rounded-full object-cover shrink-0"
                             />
                           ) : (
-                            <AthleteInitials name={athlete.full_name} />
+                            <AthleteInitials athlete={athlete} />
                           )}
 
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-white text-sm truncate">{athlete.full_name}</h4>
+                            <h4 className="font-bold text-white text-sm truncate">{athleteDisplayName(athlete)}</h4>
                             {subtitle && (
                               <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter truncate">
                                 {subtitle}
