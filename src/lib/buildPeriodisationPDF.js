@@ -25,6 +25,38 @@ export const WEEKS_PER_PAGE = 17;
 const GRID_X = MARGIN + LABEL_COL;
 const GRID_W = PAGE_W - MARGIN - LABEL_COL - MARGIN; // 233 mm
 
+/** Parse #rgb or #rrggbb to { r, g, b } 0–255; null if invalid. */
+function hexToRgb(hex) {
+  if (typeof hex !== 'string' || !hex.startsWith('#')) return null;
+  let h = hex.slice(1).trim();
+  if (h.length === 3) {
+    h = h.split('').map((c) => c + c).join('');
+  }
+  if (h.length !== 6 || /[^0-9a-f]/i.test(h)) return null;
+  const n = parseInt(h, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+/** WCAG relative luminance 0–1 */
+function relativeLuminance(rgb) {
+  const lin = (v) => {
+    const x = v / 255;
+    return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+  };
+  const r = lin(rgb.r);
+  const g = lin(rgb.g);
+  const b = lin(rgb.b);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Readable label on arbitrary band background (fixes white-on-pastel). */
+function bandSpanTextColor(bgHex) {
+  const rgb = hexToRgb(bgHex);
+  if (!rgb) return '#111827';
+  const L = relativeLuminance(rgb);
+  return L > 0.55 ? '#111827' : '#ffffff';
+}
+
 // ── Low-level drawing primitives ─────────────────────────────────────────────
 
 function fillRect(pdf, x, y, w, h, hex) {
@@ -198,7 +230,8 @@ function drawBandRow(pdf, { row, weeks, cells, curY, colW }) {
 
     if (cell.value_text) {
       const fontSize = spanCount >= 3 ? 6 : spanCount === 2 ? 5 : 4;
-      txt(pdf, cell.value_text, bx + bw / 2, by + bh / 2, fontSize, '#ffffff', 'bold', {
+      const labelColor = bandSpanTextColor(bg);
+      txt(pdf, cell.value_text, bx + bw / 2, by + bh / 2, fontSize, labelColor, 'bold', {
         align: 'center',
         maxWidth: bw - 1,
       });
