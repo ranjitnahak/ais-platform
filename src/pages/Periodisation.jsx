@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentUser, canEditPlan, can } from '../lib/auth';
@@ -8,6 +8,10 @@ import { usePeriodisationPlan } from '../hooks/usePeriodisationPlan';
 import PeriodisationCanvas from '../components/periodisation/PeriodisationCanvas';
 import PeriodisationWeekly from '../components/periodisation/PeriodisationWeekly';
 import { addDays } from '../lib/periodisationUtils';
+import {
+  replaceAthleteWithTeamPlan,
+  updateAthleteFromTeamPlan,
+} from '../lib/athleteTeamPlanSync';
 
 function toMondayIso(iso) {
   const d = new Date(iso + 'T12:00:00');
@@ -174,6 +178,41 @@ export default function Periodisation() {
   }, [viewMode, selectedTeamId, user.orgId]);
 
   const selectedTeam = useMemo(() => teams.find((t) => t.id === selectedTeamId), [teams, selectedTeamId]);
+
+  const hasTeamPlanForSync = useMemo(
+    () => !!(ghostPlan?.id && ghostRows?.length),
+    [ghostPlan?.id, ghostRows?.length],
+  );
+
+  const handleReplaceWithTeamPlan = useCallback(async () => {
+    const u = getCurrentUser();
+    if (!u?.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
+    await replaceAthleteWithTeamPlan(supabase, {
+      orgId: u.orgId,
+      teamId: selectedTeamId,
+      athleteId: selectedAthleteId,
+      teamPlan: ghostPlan,
+      teamRows: ghostRows,
+      teamCells: ghostCells,
+      athletePlan: plan,
+    });
+    await fetchPlan();
+  }, [selectedTeamId, selectedAthleteId, ghostPlan, ghostRows, ghostCells, plan, fetchPlan]);
+
+  const handleUpdateFromTeamPlan = useCallback(async () => {
+    const u = getCurrentUser();
+    if (!u?.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
+    await updateAthleteFromTeamPlan(supabase, {
+      orgId: u.orgId,
+      teamId: selectedTeamId,
+      athleteId: selectedAthleteId,
+      teamPlan: ghostPlan,
+      teamRows: ghostRows,
+      teamCells: ghostCells,
+      athletePlan: plan,
+    });
+    await fetchPlan();
+  }, [selectedTeamId, selectedAthleteId, ghostPlan, ghostRows, ghostCells, plan, fetchPlan]);
 
   const effectivePlan = useMemo(() => {
     if (plan) return plan;
@@ -377,6 +416,9 @@ export default function Periodisation() {
             cells={cells}
             ghostRows={ghostRows}
             ghostCells={ghostCells}
+            hasTeamPlanForSync={hasTeamPlanForSync}
+            onReplaceWithTeamPlan={handleReplaceWithTeamPlan}
+            onUpdateFromTeamPlan={handleUpdateFromTeamPlan}
             teams={teams}
             selectedTeamId={selectedTeamId}
             setSelectedTeamId={(id) => {

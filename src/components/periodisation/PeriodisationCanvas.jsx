@@ -61,6 +61,9 @@ export default function PeriodisationCanvas({
   cells,
   ghostRows = [],
   ghostCells = [],
+  hasTeamPlanForSync = false,
+  onReplaceWithTeamPlan,
+  onUpdateFromTeamPlan,
   showTeamPlan = 'on',
   setShowTeamPlan,
   teams,
@@ -100,6 +103,7 @@ export default function PeriodisationCanvas({
 
   // PDF export state
   const [isExporting, setIsExporting] = useState(false);
+  const [teamPlanSyncBusy, setTeamPlanSyncBusy] = useState(false);
 
   // Menus / popovers
   const [ctxMenu, setCtxMenu] = useState(null);       // row label right-click
@@ -360,6 +364,20 @@ export default function PeriodisationCanvas({
     setFuture([]);
   };
 
+  const runTeamPlanAction = async (fn) => {
+    if (!fn) return;
+    setTeamPlanSyncBusy(true);
+    try {
+      await flushSave();
+      await fn();
+    } catch (err) {
+      console.error(err);
+      window.alert(err?.message || 'Team plan action failed. Please try again.');
+    } finally {
+      setTeamPlanSyncBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!Object.keys(patches).length) return;
     setSaveStatus('unsaved');
@@ -575,13 +593,15 @@ export default function PeriodisationCanvas({
         zoomLevel={zoomLevel}
         setZoomLevel={setZoomLevel}
         canEdit={canEdit}
-        patches={patches}
         onAddRow={() => setAddRowModal({ group: 'Planning', rowType: undefined, name: '' })}
         templates={templates}
         saveStatus={saveStatus}
-        flushSave={flushSave}
         onExportPDF={() => pdfExportRef.current?.exportToPDF()}
         isExporting={isExporting}
+        hasTeamPlanForSync={hasTeamPlanForSync}
+        teamPlanSyncBusy={teamPlanSyncBusy}
+        onReplaceWithTeamPlan={() => runTeamPlanAction(onReplaceWithTeamPlan)}
+        onUpdateFromTeamPlan={() => runTeamPlanAction(onUpdateFromTeamPlan)}
       />
 
       <PeriodisationGrid
