@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>S&amp;C Pro - Weekly Programme View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-tint": "#ffb690",
+                        "error-container": "#93000a",
+                        "surface": "#121317",
+                        "on-tertiary-container": "#323234",
+                        "background": "#121317",
+                        "inverse-surface": "#e3e2e7",
+                        "inverse-on-surface": "#2f3034",
+                        "secondary-fixed-dim": "#c8c6c8",
+                        "surface-container": "#1e1f23",
+                        "error": "#ffb4ab",
+                        "outline": "#a78b7d",
+                        "on-secondary-fixed-variant": "#474649",
+                        "tertiary-fixed": "#e4e2e4",
+                        "secondary-fixed": "#e4e2e4",
+                        "tertiary": "#c8c6c8",
+                        "on-tertiary-fixed": "#1b1b1d",
+                        "on-primary-fixed": "#341100",
+                        "on-error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#c8c6c8",
+                        "primary": "#ffb690",
+                        "on-tertiary": "#303032",
+                        "on-background": "#e3e2e7",
+                        "inverse-primary": "#9d4300",
+                        "on-primary": "#552100",
+                        "outline-variant": "#584237",
+                        "secondary": "#c8c6c8",
+                        "on-surface-variant": "#e0c0b1",
+                        "on-tertiary-fixed-variant": "#474648",
+                        "surface-container-highest": "#343539",
+                        "surface-container-high": "#292a2e",
+                        "surface-bright": "#38393d",
+                        "primary-container": "#f97316",
+                        "on-surface": "#e3e2e7",
+                        "surface-variant": "#343539",
+                        "surface-container-low": "#1a1b1f",
+                        "on-primary-fixed-variant": "#783200",
+                        "tertiary-container": "#9b9a9c",
+                        "primary-fixed": "#ffdbca",
+                        "on-secondary-container": "#b6b4b7",
+                        "primary-fixed-dim": "#ffb690",
+                        "surface-container-lowest": "#0d0e12",
+                        "on-secondary-fixed": "#1b1b1d",
+                        "on-error": "#690005",
+                        "secondary-container": "#474649",
+                        "on-primary-container": "#582200",
+                        "surface-dim": "#121317",
+                        "on-secondary": "#303032"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-margin": "24px",
+                        "gutter": "12px",
+                        "component-padding-y": "8px",
+                        "component-padding-x": "12px",
+                        "unit": "4px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "data-mono": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "body-base": ["Inter"],
+                        "display-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "data-mono": ["14px", {"lineHeight": "1", "fontWeight": "500"}],
+                        "body-sm": ["13px", {"lineHeight": "1.4", "letterSpacing": "0", "fontWeight": "400"}],
+                        "body-base": ["14px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+                        "display-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        body {
+            background-color: #121317;
+            color: #e3e2e7;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="font-body-base overflow-hidden">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-screen w-[240px] border-r border-[#3A3A3C] bg-[#1C1C1E] flex flex-col py-6 font-inter text-sm antialiased z-50">
+<div class="px-6 mb-8 flex items-center gap-3">
+<div class="w-8 h-8 bg-[#F97316] rounded-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-lg" data-icon="fitness_center">fitness_center</span>
+</div>
+<div>
+<h1 class="text-xl font-black text-[#F97316] tracking-tight">S&amp;C Pro</h1>
+<p class="text-[10px] text-[#8E8E93] uppercase font-bold tracking-widest">Elite Performance</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1 px-3">
+<a class="flex items-center gap-3 px-4 py-3 text-[#8E8E93] hover:text-white transition-colors hover:bg-[#2C2C2E] rounded" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+            Dashboard
+        </a>
+<!-- Active State: Programmes -->
+<a class="flex items-center gap-3 px-4 py-3 bg-[#F97316]/10 border-l-[3px] border-[#F97316] text-[#F97316] font-semibold transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="fitness_center">fitness_center</span>
+            Programmes
+        </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#8E8E93] hover:text-white transition-colors hover:bg-[#2C2C2E] rounded" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+            Athletes
+        </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#8E8E93] hover:text-white transition-colors hover:bg-[#2C2C2E] rounded" href="#">
+<span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
+            Analytics
+        </a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#8E8E93] hover:text-white transition-colors hover:bg-[#2C2C2E] rounded" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+            Settings
+        </a>
+</nav>
+<div class="px-3 mt-auto">
+<button class="w-full py-2.5 bg-[#F97316] text-white font-bold rounded-sm hover:brightness-110 active:scale-95 transition-all text-xs uppercase tracking-wider">
+            New Programme
+        </button>
+</div>
+</aside>
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 z-40 w-full border-b border-[#3A3A3C] bg-[#1C1C1E]/95 backdrop-blur-md flex items-center justify-between px-8 h-16 ml-[240px] w-[calc(100%-240px)]">
+<div class="flex items-center gap-8">
+<span class="text-lg font-bold text-white uppercase tracking-widest">S&amp;C Pro</span>
+<nav class="flex gap-6">
+<a class="text-[#8E8E93] hover:text-white transition-colors font-inter text-sm font-medium" href="#">Overview</a>
+<a class="text-[#F97316] border-b-2 border-[#F97316] pb-4 mt-4 font-inter text-sm font-medium" href="#">Schedule</a>
+<a class="text-[#8E8E93] hover:text-white transition-colors font-inter text-sm font-medium" href="#">Library</a>
+<a class="text-[#8E8E93] hover:text-white transition-colors font-inter text-sm font-medium" href="#">Metrics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="material-symbols-outlined text-[#8E8E93] cursor-pointer hover:text-white" data-icon="notifications">notifications</span>
+<span class="absolute -top-1 -right-1 w-2 h-2 bg-[#F97316] rounded-full"></span>
+</div>
+<span class="material-symbols-outlined text-[#8E8E93] cursor-pointer hover:text-white" data-icon="history">history</span>
+<div class="h-8 w-[1px] bg-[#3A3A3C] mx-2"></div>
+<button class="px-4 py-1.5 border border-[#3A3A3C] text-white text-xs font-bold hover:bg-[#2C2C2E] transition-colors rounded-sm">
+            Save Changes
+        </button>
+<img alt="Coach Avatar" class="w-8 h-8 rounded-full border border-[#3A3A3C]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDh88tVZ1iR-cFoSQbFrC-yrmbYsfeuoaxilFU5RkBx9vJVbK7G0Xu7TzF1l4NE7KAsb-RhfYizC3VIzFAnlYgQ8hr1_C1tnDHgT1Ad_jKVHGEEL8BB3-tKlluU-4HK5M7tfCvLvnLUhDgIlGaTNkH2pa0sUhBS2SUIFJm0RDGM9c7_D65Yki5x_jYDep9s_xSDwnCPwePe3ZUKkHpiFYgo5-TF2zoLhSIuSnf7vJqxtOa8q0bDBoUPRrbnPyontXpp3rdK-jxf5Q"/>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-[240px] pt-24 pb-32 px-8 overflow-y-auto h-screen">
+<!-- Breadcrumb & Header Area -->
+<div class="mb-8">
+<nav class="flex items-center gap-2 mb-4 font-label-caps text-[#8E8E93]">
+<span class="hover:text-white cursor-pointer">Programmes</span>
+<span class="material-symbols-outlined text-[14px]" data-icon="chevron_right">chevron_right</span>
+<span class="text-[#F97316]">Kabaddi Pre-Season Block</span>
+</nav>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-4">
+<h2 class="font-display-lg text-white">Kabaddi Pre-Season Block</h2>
+<span class="px-3 py-1 bg-[#F97316]/15 text-[#F97316] font-label-caps rounded-full">Accumulation</span>
+<span class="px-3 py-1 bg-[#3A3A3C] text-white font-label-caps rounded-full">Kabaddi</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-[#3A3A3C] text-white font-label-caps hover:bg-[#2C2C2E] transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="person_add">person_add</span>
+                    Assign to Team
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 border border-[#3A3A3C] text-white font-label-caps hover:bg-[#2C2C2E] transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="auto_awesome_motion">auto_awesome_motion</span>
+                    Save as Template
+                </button>
+</div>
+</div>
+</div>
+<!-- Week Selector Tabs -->
+<div class="flex items-center border-b border-[#3A3A3C] mb-8 overflow-x-auto no-scrollbar">
+<div class="flex gap-8 pb-3">
+<button class="flex items-center gap-2 text-[#8E8E93] hover:text-white transition-colors group">
+<span class="font-label-caps">Week 1</span>
+<span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+</button>
+<button class="flex items-center gap-2 text-[#8E8E93] hover:text-white transition-colors group">
+<span class="font-label-caps">Week 2</span>
+<span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+</button>
+<button class="flex items-center gap-2 text-[#F97316] relative group">
+<span class="font-label-caps">Week 3</span>
+<span class="w-1.5 h-1.5 bg-[#F97316] rounded-full"></span>
+<div class="absolute -bottom-[13px] left-0 right-0 h-[2px] bg-[#F97316]"></div>
+</button>
+<button class="text-[#8E8E93] hover:text-white transition-colors font-label-caps">Week 4</button>
+<button class="text-[#8E8E93] hover:text-white transition-colors font-label-caps">Week 5</button>
+<button class="text-[#8E8E93] hover:text-white transition-colors font-label-caps">Week 6</button>
+<button class="text-[#8E8E93] hover:text-white transition-colors font-label-caps">Week 7</button>
+<button class="text-[#8E8E93] hover:text-white transition-colors font-label-caps">Week 8</button>
+</div>
+</div>
+<!-- Week Title & Summary -->
+<div class="flex items-center gap-4 mb-6">
+<h3 class="font-headline-md text-white">Week 3 — Strength Accumulation</h3>
+<span class="material-symbols-outlined text-[#8E8E93] cursor-pointer hover:text-white" data-icon="sticky_note_2">sticky_note_2</span>
+</div>
+<!-- Training Grid (7-Day Calendar) -->
+<div class="grid grid-cols-7 gap-3 mb-8">
+<!-- Header Labels -->
+<div class="text-[#8E8E93] font-label-caps py-2 text-center border-b border-[#3A3A3C]">MON <span class="block text-[10px] mt-1">APR 14</span></div>
+<div class="text-[#8E8E93] font-label-caps py-2 text-center border-b border-[#3A3A3C]">TUE <span class="block text-[10px] mt-1">APR 15</span></div>
+<div class="text-[#8E8E93] font-label-caps py-2 text-center border-b border-[#3A3A3C]">WED <span class="block text-[10px] mt-1">APR 16</span></div>
+<div class="text-[#8E8E93] font-label-caps py-2 text-center border-b border-[#3A3A3C]">THU <span class="block text-[10px] mt-1">APR 17</span></div>
+<div class="text-[#8E8E93] font-label-caps py-2 text-center border-b border-[#3A3A3C]">FRI <span class="block text-[10px] mt-1">APR 18</span></div>
+<div class="text-[#8E8E93] font-label-caps py-2 text-center border-b border-[#3A3A3C]">SAT <span class="block text-[10px] mt-1">APR 19</span></div>
+<div class="text-[#8E8E93] font-label-caps py-2 text-center border-b border-[#3A3A3C]">SUN <span class="block text-[10px] mt-1">APR 20</span></div>
+<!-- MON: Strength -->
+<div class="bg-[#1C1C1E] border-l-4 border-[#F97316] p-4 flex flex-col gap-3 min-h-[380px] relative group hover:bg-[#2C2C2E] transition-colors border border-[#3A3A3C] border-l-[#F97316]">
+<div class="flex items-center justify-between">
+<span class="px-2 py-0.5 bg-[#F97316]/15 text-[#F97316] font-label-caps rounded-sm text-[10px]">STRENGTH</span>
+<span class="material-symbols-outlined text-[#8E8E93] text-lg cursor-pointer" data-icon="more_vert">more_vert</span>
+</div>
+<h4 class="font-semibold text-sm text-white leading-tight">Full Body A — Strength</h4>
+<div class="mt-auto space-y-2">
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="format_list_bulleted">format_list_bulleted</span>
+                    8 exercises
+                </div>
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+                    75 min
+                </div>
+</div>
+</div>
+<!-- TUE: Speed -->
+<div class="bg-[#1C1C1E] border-l-4 border-blue-500 p-4 flex flex-col gap-3 min-h-[380px] relative group hover:bg-[#2C2C2E] transition-colors border border-[#3A3A3C] border-l-blue-500">
+<div class="flex items-center justify-between">
+<span class="px-2 py-0.5 bg-blue-500/15 text-blue-400 font-label-caps rounded-sm text-[10px]">SPEED</span>
+<span class="material-symbols-outlined text-[#8E8E93] text-lg cursor-pointer" data-icon="more_vert">more_vert</span>
+</div>
+<h4 class="font-semibold text-sm text-white leading-tight">Speed &amp; Acceleration</h4>
+<div class="mt-auto space-y-2">
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="format_list_bulleted">format_list_bulleted</span>
+                    6 exercises
+                </div>
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+                    60 min
+                </div>
+</div>
+</div>
+<!-- WED: Add Session -->
+<button class="border-2 border-dashed border-[#3A3A3C] p-4 flex flex-col items-center justify-center gap-2 text-[#8E8E93] hover:border-[#F97316] hover:text-white transition-all group min-h-[380px]">
+<span class="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform" data-icon="add_circle">add_circle</span>
+<span class="font-label-caps">Add Session</span>
+</button>
+<!-- THU: Strength -->
+<div class="bg-[#1C1C1E] border-l-4 border-[#F97316] p-4 flex flex-col gap-3 min-h-[380px] relative group hover:bg-[#2C2C2E] transition-colors border border-[#3A3A3C] border-l-[#F97316]">
+<div class="flex items-center justify-between">
+<span class="px-2 py-0.5 bg-[#F97316]/15 text-[#F97316] font-label-caps rounded-sm text-[10px]">STRENGTH</span>
+<span class="material-symbols-outlined text-[#8E8E93] text-lg cursor-pointer" data-icon="more_vert">more_vert</span>
+</div>
+<h4 class="font-semibold text-sm text-white leading-tight">Full Body B — Strength</h4>
+<div class="mt-auto space-y-2">
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="format_list_bulleted">format_list_bulleted</span>
+                    9 exercises
+                </div>
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+                    80 min
+                </div>
+</div>
+</div>
+<!-- FRI: Conditioning -->
+<div class="bg-[#1C1C1E] border-l-4 border-teal-500 p-4 flex flex-col gap-3 min-h-[380px] relative group hover:bg-[#2C2C2E] transition-colors border border-[#3A3A3C] border-l-teal-500">
+<div class="flex items-center justify-between">
+<span class="px-2 py-0.5 bg-teal-500/15 text-teal-400 font-label-caps rounded-sm text-[10px]">CONDITIONING</span>
+<span class="material-symbols-outlined text-[#8E8E93] text-lg cursor-pointer" data-icon="more_vert">more_vert</span>
+</div>
+<h4 class="font-semibold text-sm text-white leading-tight">Metabolic Conditioning</h4>
+<div class="mt-auto space-y-2">
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="format_list_bulleted">format_list_bulleted</span>
+                    5 exercises
+                </div>
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+                    45 min
+                </div>
+</div>
+</div>
+<!-- SAT: Add Session -->
+<button class="border-2 border-dashed border-[#3A3A3C] p-4 flex flex-col items-center justify-center gap-2 text-[#8E8E93] hover:border-[#F97316] hover:text-white transition-all group min-h-[380px]">
+<span class="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform" data-icon="add_circle">add_circle</span>
+<span class="font-label-caps">Add Session</span>
+</button>
+<!-- SUN: Recovery -->
+<div class="bg-[#1C1C1E] border-l-4 border-emerald-500 p-4 flex flex-col gap-3 min-h-[380px] relative group hover:bg-[#2C2C2E] transition-colors border border-[#3A3A3C] border-l-emerald-500">
+<div class="flex items-center justify-between">
+<span class="px-2 py-0.5 bg-emerald-500/15 text-emerald-400 font-label-caps rounded-sm text-[10px]">RECOVERY</span>
+<span class="material-symbols-outlined text-[#8E8E93] text-lg cursor-pointer" data-icon="more_vert">more_vert</span>
+</div>
+<h4 class="font-semibold text-sm text-white leading-tight">Recovery &amp; Mobility</h4>
+<div class="mt-auto space-y-2">
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="format_list_bulleted">format_list_bulleted</span>
+                    4 exercises
+                </div>
+<div class="flex items-center gap-2 text-[#8E8E93] text-xs">
+<span class="material-symbols-outlined text-[16px]" data-icon="schedule">schedule</span>
+                    30 min
+                </div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar Shell -->
+<footer class="fixed bottom-6 right-8 z-50 flex gap-4 p-4 ml-[240px] bg-[#2C2C2E] rounded-xl shadow-2xl border border-[#3A3A3C]">
+<button class="text-white bg-[#3A3A3C] px-6 py-2.5 rounded-md font-inter text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:brightness-110 active:translate-y-0.5 transition-all">
+<span class="material-symbols-outlined text-[18px]" data-icon="content_copy">content_copy</span>
+        Copy Week
+    </button>
+<button class="bg-[#F97316] text-white px-6 py-2.5 rounded-md font-inter text-xs font-bold uppercase tracking-wider flex items-center gap-2 hover:brightness-110 active:translate-y-0.5 transition-all">
+<span class="material-symbols-outlined text-[18px]" data-icon="person_add">person_add</span>
+        Assign Week to Athletes
+    </button>
+</footer>
+</body></html>

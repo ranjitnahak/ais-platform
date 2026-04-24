@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-error-container": "#ffdad6",
+                      "surface-variant": "#343539",
+                      "on-tertiary-fixed": "#1b1b1d",
+                      "on-surface-variant": "#e0c0b1",
+                      "inverse-primary": "#9d4300",
+                      "surface": "#121317",
+                      "primary": "#ffb690",
+                      "on-background": "#e3e2e7",
+                      "surface-container-low": "#1a1b1f",
+                      "secondary-fixed": "#e4e2e4",
+                      "primary-fixed-dim": "#ffb690",
+                      "surface-dim": "#121317",
+                      "on-primary": "#552100",
+                      "background": "#121317",
+                      "surface-container-high": "#292a2e",
+                      "on-secondary": "#303032",
+                      "tertiary": "#c8c6c8",
+                      "error-container": "#93000a",
+                      "on-error": "#690005",
+                      "on-primary-fixed-variant": "#783200",
+                      "secondary-fixed-dim": "#c8c6c8",
+                      "on-secondary-fixed": "#1b1b1d",
+                      "on-tertiary": "#303032",
+                      "on-surface": "#e3e2e7",
+                      "error": "#ffb4ab",
+                      "surface-container-highest": "#343539",
+                      "surface-container": "#1e1f23",
+                      "surface-tint": "#ffb690",
+                      "tertiary-fixed-dim": "#c8c6c8",
+                      "outline": "#a78b7d",
+                      "on-secondary-fixed-variant": "#474649",
+                      "on-primary-container": "#582200",
+                      "on-secondary-container": "#b6b4b7",
+                      "inverse-on-surface": "#2f3034",
+                      "surface-container-lowest": "#0d0e12",
+                      "tertiary-fixed": "#e4e2e4",
+                      "tertiary-container": "#9b9a9c",
+                      "primary-fixed": "#ffdbca",
+                      "primary-container": "#f97316",
+                      "on-tertiary-container": "#323234",
+                      "on-primary-fixed": "#341100",
+                      "secondary": "#c8c6c8",
+                      "outline-variant": "#584237",
+                      "on-tertiary-fixed-variant": "#474648",
+                      "secondary-container": "#474649",
+                      "inverse-surface": "#e3e2e7",
+                      "surface-bright": "#38393d"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "component-padding-y": "8px",
+                      "container-margin": "24px",
+                      "unit": "4px",
+                      "gutter": "12px",
+                      "component-padding-x": "12px"
+              },
+              "fontFamily": {
+                      "data-mono": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "body-base": ["Inter"],
+                      "label-caps": ["Inter"],
+                      "display-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "data-mono": ["14px", {"lineHeight": "1", "fontWeight": "500"}],
+                      "body-sm": ["13px", {"lineHeight": "1.4", "letterSpacing": "0", "fontWeight": "400"}],
+                      "headline-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-base": ["14px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+                      "label-caps": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "display-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #121317;
+            color: #e3e2e7;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e1f23;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #343539;
+        }
+    </style>
+</head>
+<body class="font-body-base antialiased">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[240px] border-r bg-zinc-950 border-zinc-800 flex flex-col py-6 space-y-2 z-50">
+<div class="px-6 mb-8">
+<h1 class="text-xl font-black text-orange-500 font-inter">S&amp;C Pro</h1>
+<p class="font-inter text-xs uppercase tracking-widest font-bold text-zinc-500 mt-1">Elite Performance</p>
+</div>
+<nav class="flex-1 px-2 space-y-1">
+<a class="text-zinc-500 py-3 px-4 flex items-center gap-3 border-l-[3px] border-transparent hover:bg-zinc-900 hover:text-zinc-300 transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-inter text-xs uppercase tracking-widest font-bold">Home</span>
+</a>
+<a class="bg-orange-500/10 text-zinc-100 border-l-[3px] border-orange-500 py-3 px-4 flex items-center gap-3 active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined text-orange-500" data-icon="fitness_center">fitness_center</span>
+<span class="font-inter text-xs uppercase tracking-widest font-bold">Programmes</span>
+</a>
+<a class="text-zinc-500 py-3 px-4 flex items-center gap-3 border-l-[3px] border-transparent hover:bg-zinc-900 hover:text-zinc-300 transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-inter text-xs uppercase tracking-widest font-bold">Athletes</span>
+</a>
+<a class="text-zinc-500 py-3 px-4 flex items-center gap-3 border-l-[3px] border-transparent hover:bg-zinc-900 hover:text-zinc-300 transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+<span class="font-inter text-xs uppercase tracking-widest font-bold">Analytics</span>
+</a>
+<a class="text-zinc-500 py-3 px-4 flex items-center gap-3 border-l-[3px] border-transparent hover:bg-zinc-900 hover:text-zinc-300 transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+<span class="font-inter text-xs uppercase tracking-widest font-bold">Exercise Library</span>
+</a>
+<a class="text-zinc-500 py-3 px-4 flex items-center gap-3 border-l-[3px] border-transparent hover:bg-zinc-900 hover:text-zinc-300 transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-inter text-xs uppercase tracking-widest font-bold">Settings</span>
+</a>
+</nav>
+<div class="px-6 pt-6 mt-auto border-t border-zinc-800">
+<div class="flex items-center gap-3">
+<img class="w-8 h-8 rounded-full bg-zinc-800" data-alt="close-up portrait of a professional sports coach in athletic gear with a serious focused expression" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDa2CbhBGpWpT8PhHk0RH4vkhTsnFPgzlpSGSffwOWU3kiVrLSLOle9RuY61oV9zviftrzdH2_YtMoUX_DxXvBKtsB7l7c2tEqo_qy1fLuaDMfM0j_IEBWQjgN0Pdlz5pv9VJ9Z3ZxyfbQkP1PFNPSj6Ag1W31dmyvR9CfB7BaRbdodpr-NTYtrIBShCyjpgP_eshu7AVajl62bdBxpWdA722cPfK1ylGiepoabaBBvfljja89YW9OG0zDOV55RZD9xkRfu5MNApA"/>
+<div>
+<p class="text-xs font-bold text-zinc-100">Coach Profile</p>
+<p class="text-[10px] text-zinc-500">Head of Performance</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-[240px] bg-zinc-950 border-b border-zinc-800 z-40">
+<div class="flex justify-between items-center w-full px-6 py-3">
+<div class="flex items-center gap-2 font-inter text-sm tracking-tight font-medium text-zinc-500">
+<span class="hover:text-zinc-300 cursor-pointer">Kabaddi Pre-Season Block</span>
+<span class="text-zinc-700">›</span>
+<span class="hover:text-zinc-300 cursor-pointer">Week 3</span>
+<span class="text-zinc-700">›</span>
+<span class="text-orange-500 font-semibold">Monday, April 14</span>
+</div>
+<div class="text-zinc-500 font-inter text-sm tracking-tight font-medium">
+                All changes saved ✓
+            </div>
+</div>
+</header>
+<!-- Main Content Grid -->
+<main class="ml-[240px] mt-[52px] h-[calc(100vh-52px)] flex overflow-hidden">
+<!-- LEFT PANEL (Schedule) -->
+<section class="w-64 flex-shrink-0 border-r border-zinc-800 bg-surface-container-lowest flex flex-col p-4 space-y-6">
+<div>
+<h3 class="font-label-caps text-zinc-500 mb-4">WEEKLY SCHEDULE</h3>
+<div class="grid grid-cols-7 gap-1 text-center mb-4">
+<div class="text-[10px] text-zinc-600 font-bold">M</div>
+<div class="text-[10px] text-zinc-600 font-bold">T</div>
+<div class="text-[10px] text-zinc-600 font-bold">W</div>
+<div class="text-[10px] text-zinc-600 font-bold">T</div>
+<div class="text-[10px] text-zinc-600 font-bold">F</div>
+<div class="text-[10px] text-zinc-600 font-bold">S</div>
+<div class="text-[10px] text-zinc-600 font-bold">S</div>
+<div class="w-7 h-7 flex items-center justify-center rounded-sm bg-orange-500 text-zinc-950 font-bold text-xs">14</div>
+<div class="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-zinc-800 text-zinc-400 font-medium text-xs">15</div>
+<div class="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-zinc-800 text-zinc-400 font-medium text-xs">16</div>
+<div class="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-zinc-800 text-zinc-400 font-medium text-xs">17</div>
+<div class="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-zinc-800 text-zinc-400 font-medium text-xs">18</div>
+<div class="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-zinc-800 text-zinc-400 font-medium text-xs">19</div>
+<div class="w-7 h-7 flex items-center justify-center rounded-sm hover:bg-zinc-800 text-zinc-400 font-medium text-xs">20</div>
+<div class="flex justify-center"><span class="block w-1 h-1 bg-orange-500 rounded-full mt-0.5"></span></div>
+<div class="flex justify-center"><span class="block w-1 h-1 bg-zinc-700 rounded-full mt-0.5"></span></div>
+<div class="flex justify-center"><span class="block w-1 h-1 bg-orange-500 rounded-full mt-0.5"></span></div>
+<div class="flex justify-center"></div>
+<div class="flex justify-center"><span class="block w-1 h-1 bg-orange-500 rounded-full mt-0.5"></span></div>
+<div class="flex justify-center"></div>
+<div class="flex justify-center"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="p-3 bg-orange-500/10 border-l-2 border-orange-500 rounded-sm">
+<p class="text-[10px] font-bold text-orange-500 uppercase">AM SESSION</p>
+<p class="text-xs font-bold text-zinc-100 mt-1">Full Body A — Strength</p>
+<p class="text-[10px] text-zinc-500 mt-1">08:00 - 09:30</p>
+</div>
+<div class="p-3 bg-zinc-900/50 border-l-2 border-zinc-700 rounded-sm hover:bg-zinc-800 transition-colors cursor-pointer">
+<p class="text-[10px] font-bold text-zinc-500 uppercase">PM SESSION</p>
+<p class="text-xs font-bold text-zinc-300 mt-1">Tactical: Defensive Line</p>
+<p class="text-[10px] text-zinc-500 mt-1">16:00 - 17:30</p>
+</div>
+</div>
+</section>
+<!-- CENTRE PANEL (Session Builder) -->
+<section class="flex-1 bg-surface flex flex-col overflow-y-auto custom-scrollbar">
+<!-- Session Header -->
+<div class="px-8 py-6 border-b border-zinc-800/50">
+<div class="flex justify-between items-start mb-2">
+<div>
+<nav class="flex text-[11px] font-medium text-zinc-500 mb-1">
+<span>Kabaddi Pre-Season Block</span>
+<span class="mx-1 text-zinc-700">›</span>
+<span>Week 3</span>
+<span class="mx-1 text-zinc-700">›</span>
+<span>Monday, April 14</span>
+</nav>
+<h2 class="font-display-lg text-zinc-100 flex items-center gap-3">
+                            Full Body A — Strength
+                            <span class="px-2 py-0.5 bg-orange-500/15 text-orange-500 text-[10px] font-bold uppercase rounded border border-orange-500/20">Unpublished</span>
+</h2>
+</div>
+<button class="bg-orange-500 text-zinc-950 font-bold px-3 py-1.5 rounded hover:brightness-110 active:scale-95 transition-all text-xs uppercase tracking-wide">
+    Publish Session
+</button>
+</div>
+</div>
+<!-- Editor Space -->
+<div class="p-8 space-y-8">
+<!-- Coach Instructions -->
+<div>
+<label class="font-label-caps text-zinc-500 block mb-2">COACH INSTRUCTIONS</label>
+<textarea class="w-full bg-surface-container border border-zinc-800 rounded-sm p-3 text-zinc-300 text-sm focus:border-orange-500 focus:ring-0 transition-colors resize-none h-20" placeholder="General cues for the session..."></textarea>
+</div>
+<!-- Training Blocks -->
+<div class="space-y-6">
+<!-- Block A -->
+<div class="bg-surface-container rounded-sm border border-zinc-800 overflow-hidden">
+<div class="flex items-center justify-between bg-zinc-900/50 px-4 py-2 border-b border-zinc-800">
+<div class="flex items-center gap-3">
+<span class="bg-zinc-800 text-zinc-400 font-bold px-1.5 py-0.5 rounded text-[10px]">A</span>
+<h3 class="text-xs font-bold uppercase tracking-wider text-zinc-400">Warm-up</h3>
+</div>
+<span class="material-symbols-outlined text-zinc-600 text-sm" data-icon="drag_indicator">drag_indicator</span>
+</div>
+<div class="p-4 space-y-3">
+<div class="flex items-center justify-between text-sm p-2 hover:bg-zinc-800/50 rounded group">
+<div class="flex items-center gap-4">
+<span class="text-zinc-600 font-data-mono">1.</span>
+<span class="text-zinc-300">Foam Roll (Lower Body)</span>
+</div>
+<div class="flex gap-4 text-xs text-zinc-500">
+<span>5:00</span>
+<span class="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100" data-icon="edit">edit</span>
+</div>
+</div>
+<div class="flex items-center justify-between text-sm p-2 hover:bg-zinc-800/50 rounded group border-t border-zinc-800/30">
+<div class="flex items-center gap-4">
+<span class="text-zinc-600 font-data-mono">2.</span>
+<span class="text-zinc-300">Dynamic Mobility Flow</span>
+</div>
+<div class="flex gap-4 text-xs text-zinc-500">
+<span>1 x 10m</span>
+<span class="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100" data-icon="edit">edit</span>
+</div>
+</div>
+<button class="w-full py-2 mt-2 border border-dashed border-zinc-700 rounded text-zinc-500 font-bold text-[10px] uppercase tracking-widest hover:border-zinc-500 hover:text-zinc-400 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+    Add Exercise
+</button></div>
+</div>
+<!-- Block B -->
+<div class="bg-surface-container rounded-sm border-2 border-orange-500 overflow-hidden shadow-xl shadow-orange-500/5">
+<div class="flex items-center justify-between bg-zinc-900 px-4 py-2 border-b border-zinc-800">
+<div class="flex items-center gap-3">
+<span class="bg-orange-500 text-zinc-950 font-bold px-1.5 py-0.5 rounded text-[10px]">B</span>
+<h3 class="text-xs font-bold uppercase tracking-wider text-zinc-100">Main Lift</h3>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[10px] text-orange-500 font-bold uppercase mr-2">Editing</span>
+<span class="material-symbols-outlined text-zinc-600 text-sm" data-icon="drag_indicator">drag_indicator</span>
+</div>
+</div>
+<div class="p-4 space-y-3">
+<div class="flex items-center justify-between text-sm p-3 bg-zinc-800/80 rounded-sm border border-zinc-700" id="main-lift-back-squat">
+<div class="flex items-center gap-4">
+<span class="text-orange-500 font-bold font-data-mono">1.</span>
+<span class="text-zinc-100 font-semibold">Back Squat</span>
+</div>
+<div class="flex gap-6 text-xs font-bold text-orange-500 font-data-mono">
+<span>4 x 5 @ 80%</span>
+<span class="material-symbols-outlined text-sm" data-icon="keyboard_arrow_right">keyboard_arrow_right</span>
+</div>
+</div><div class="flex items-center justify-between text-sm p-3 bg-zinc-800/80 rounded-sm border border-zinc-700" id="main-lift-romanian-deadlift">
+<div class="flex items-center gap-4">
+<span class="text-orange-500 font-bold font-data-mono">2.</span>
+<span class="text-zinc-100 font-semibold">Romanian Deadlift</span>
+</div>
+<div class="flex gap-6 text-xs font-bold text-orange-500 font-data-mono">
+<span>3 × 8 @ 70%</span>
+<span class="material-symbols-outlined text-sm" data-icon="keyboard_arrow_right">keyboard_arrow_right</span>
+</div>
+</div><div class="flex items-center justify-between text-sm p-3 bg-zinc-800/80 rounded-sm border border-zinc-700" id="main-lift-bench-press">
+<div class="flex items-center gap-4">
+<span class="text-orange-500 font-bold font-data-mono">3.</span>
+<span class="text-zinc-100 font-semibold">Bench Press</span>
+</div>
+<div class="flex gap-6 text-xs font-bold text-orange-500 font-data-mono">
+<span>4 × 5 @ 77.5%</span>
+<span class="material-symbols-outlined text-sm" data-icon="keyboard_arrow_right">keyboard_arrow_right</span>
+</div>
+</div>
+<button class="w-full py-2 mt-2 border border-dashed border-zinc-700 rounded text-zinc-500 font-bold text-[10px] uppercase tracking-widest hover:border-zinc-500 hover:text-zinc-400 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+    Add Exercise
+</button></div>
+</div>
+<!-- Block C -->
+<div class="bg-surface-container rounded-sm border border-zinc-800 overflow-hidden">
+<div class="flex items-center justify-between bg-zinc-900/50 px-4 py-2 border-b border-zinc-800">
+<div class="flex items-center gap-3">
+<span class="bg-zinc-800 text-zinc-400 font-bold px-1.5 py-0.5 rounded text-[10px]">C</span>
+<h3 class="text-xs font-bold uppercase tracking-wider text-zinc-400">Accessory</h3>
+</div>
+<span class="material-symbols-outlined text-zinc-600 text-sm" data-icon="drag_indicator">drag_indicator</span>
+</div>
+<div class="p-4 space-y-3 text-zinc-500 italic text-sm text-center py-6 border-dashed border-2 border-zinc-800/50 rounded m-2">
+                            No exercises added yet
+                        <button class="w-full py-2 mt-2 border border-dashed border-zinc-700 rounded text-zinc-500 font-bold text-[10px] uppercase tracking-widest hover:border-zinc-500 hover:text-zinc-400 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+    Add Exercise
+</button></div>
+</div>
+<!-- Add Block Button -->
+<button class="w-full py-4 border-2 border-dashed border-zinc-800 rounded-sm text-zinc-600 font-bold text-xs uppercase tracking-widest hover:border-zinc-700 hover:text-zinc-400 transition-all flex items-center justify-center gap-2 group">
+<span class="material-symbols-outlined text-sm group-hover:scale-110 transition-transform" data-icon="add">add</span>
+                        Add Block
+                    </button>
+</div>
+</div>
+</section>
+<!-- RIGHT PANEL (Prescription) -->
+<section class="w-80 flex-shrink-0 border-l border-zinc-800 bg-surface-container-low flex flex-col z-10 overflow-y-auto custom-scrollbar">
+<div class="p-6 border-b border-zinc-800">
+<h3 class="font-headline-md text-zinc-100 mb-1">Prescription</h3>
+<div class="flex items-center gap-2 text-zinc-500 text-sm">
+<span class="material-symbols-outlined text-sm" data-icon="edit">edit</span>
+                    Editing: <span class="text-orange-500 font-bold">Back Squat</span>
+</div>
+</div>
+<div class="p-6 space-y-6">
+<!-- Parameters Grid -->
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="font-label-caps text-zinc-500 block mb-2">SETS</label>
+<input class="w-full bg-zinc-900 border border-zinc-800 rounded-sm text-zinc-100 font-data-mono p-2 focus:border-orange-500 focus:ring-0" type="number" value="4"/>
+</div>
+<div>
+<label class="font-label-caps text-zinc-500 block mb-2">REPS</label>
+<input class="w-full bg-zinc-900 border border-zinc-800 rounded-sm text-zinc-100 font-data-mono p-2 focus:border-orange-500 focus:ring-0" type="number" value="5"/>
+</div>
+<div>
+<label class="font-label-caps text-zinc-500 block mb-2">TYPE</label>
+<div class="relative">
+<select class="w-full appearance-none bg-zinc-900 border border-zinc-800 rounded-sm text-zinc-100 text-sm p-2 pr-8 focus:border-orange-500 focus:ring-0">
+<option>% 1RM</option>
+<option>RPE</option>
+<option>Weight (kg)</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-2 text-zinc-600 pointer-events-none" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div>
+<label class="font-label-caps text-zinc-500 block mb-2">VALUE</label>
+<div class="relative">
+<input class="w-full bg-zinc-900 border border-zinc-800 rounded-sm text-zinc-100 font-data-mono p-2 focus:border-orange-500 focus:ring-0" type="text" value="80"/>
+<span class="absolute right-3 top-2 text-zinc-600 font-data-mono">%</span>
+</div>
+</div>
+</div>
+<!-- Athlete Loads Section -->
+<div class="bg-orange-500/5 rounded-sm p-4 border border-orange-500/10">
+<h4 class="font-label-caps text-orange-500 mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-xs" data-icon="calculate" style="font-variation-settings: 'FILL' 1;">calculate</span>
+                        ATHLETE LOADS (KG)
+                    </h4>
+<div class="space-y-2">
+<div class="flex justify-between items-center text-xs">
+<span class="text-zinc-400">Arjun</span>
+<span class="font-data-mono text-zinc-100 font-bold">140 kg</span>
+</div>
+<div class="flex justify-between items-center text-xs">
+<span class="text-zinc-400">Vikram</span>
+<span class="font-data-mono text-zinc-100 font-bold">132 kg</span>
+</div>
+<div class="flex justify-between items-center text-xs">
+<span class="text-zinc-400">Rahul</span>
+<span class="font-data-mono text-zinc-100 font-bold">128 kg</span>
+</div>
+<div class="flex justify-between items-center text-xs">
+<span class="text-zinc-400">Sunil</span>
+<span class="font-data-mono text-zinc-100 font-bold">145 kg</span>
+</div>
+</div>
+</div>
+<!-- Secondary Toggles -->
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<label class="font-label-caps text-zinc-500">SECONDARY: RPE TARGET</label>
+<div class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500 peer-checked:after:bg-white"></div>
+</div>
+</div>
+<div class="relative">
+<input class="w-full bg-zinc-900 border border-zinc-800 rounded-sm text-zinc-100 font-data-mono p-2 focus:border-orange-500 focus:ring-0" type="text" value="8"/>
+</div>
+</div>
+<!-- Tempo/Rest -->
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="font-label-caps text-zinc-500 block mb-2">TEMPO</label>
+<input class="w-full bg-zinc-900 border border-zinc-800 rounded-sm text-zinc-100 font-data-mono p-2 focus:border-orange-500 focus:ring-0 text-center" type="text" value="3-1-1-0"/>
+</div>
+<div>
+<label class="font-label-caps text-zinc-500 block mb-2">REST (SEC)</label>
+<input class="w-full bg-zinc-900 border border-zinc-800 rounded-sm text-zinc-100 font-data-mono p-2 focus:border-orange-500 focus:ring-0 text-center" type="text" value="180"/>
+</div>
+</div>
+<!-- Coach Notes -->
+<div>
+<label class="font-label-caps text-zinc-500 block mb-2">COACH NOTE</label>
+<textarea class="w-full bg-zinc-900 border border-zinc-800 rounded-sm p-3 text-zinc-300 text-xs focus:border-orange-500 focus:ring-0 transition-colors resize-none h-24" placeholder="Specific cues for this exercise..."></textarea>
+</div>
+<button class="w-full bg-zinc-800 hover:bg-orange-500 text-zinc-300 hover:text-zinc-950 font-bold py-3 rounded-sm transition-all text-xs uppercase tracking-widest mt-4">
+                    Save Prescription
+                </button>
+</div>
+</section>
+</main>
+</body></html>

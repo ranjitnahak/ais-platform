@@ -1,0 +1,170 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Backgrounds — tonal layering, no shadows */
+  --color-bg: #121317;
+  --color-surface: #1e1f23;
+  --color-surface-low: #1a1b1f;
+  --color-surface-high: #292a2e;
+  --color-surface-highest: #343539;
+  --color-border: #3a3a3c;
+
+  /* Text */
+  --color-text: #e3e2e7;
+  --color-text-muted: #8e8e93;
+  --color-text-variant: #e0c0b1;
+
+  /* Primary accent */
+  --color-primary: #f97316;
+  --color-primary-hover: #ea6c10;
+  --color-primary-soft: rgba(249, 115, 22, 0.1);
+
+  /* Semantic */
+  --color-success: #34c759;
+  --color-warning: #ff9f0a;
+  --color-danger: #ff3b30;
+
+  /* Phase type colours */
+  --color-phase-accumulation: #f97316;
+  --color-phase-intensification: #8b5cf6;
+  --color-phase-realisation: #06b6d4;
+  --color-phase-transition: #10b981;
+  --color-phase-general: #6b7280;
+
+  /* Session category colours */
+  --color-cat-strength: #f97316;
+  --color-cat-speed: #3b82f6;
+  --color-cat-conditioning: #06b6d4;
+  --color-cat-recovery: #10b981;
+  --color-cat-power: #8b5cf6;
+  --color-cat-mobility: #f59e0b;
+  --color-cat-mixed: #6b7280;
+
+  /* Difficulty */
+  --color-diff-low: #10b981;
+  --color-diff-moderate: #f59e0b;
+  --color-diff-high: #f97316;
+  --color-diff-very-high: #ef4444;
+
+  /* Typography */
+  --font-family: 'Inter', sans-serif;
+  --font-size-display: 32px;
+  --font-size-headline: 20px;
+  --font-size-body: 14px;
+  --font-size-body-sm: 13px;
+  --font-size-label: 11px;
+  --font-weight-bold: 700;
+  --font-weight-semibold: 600;
+  --font-weight-medium: 500;
+  --font-weight-regular: 400;
+  --letter-spacing-label: 0.05em;
+
+  /* Spacing — 4px baseline */
+  --space-unit: 4px;
+  --space-gutter: 12px;
+  --space-container: 24px;
+  --space-pad-x: 12px;
+  --space-pad-y: 8px;
+
+  /* Border radius */
+  --radius-sm: 2px;
+  --radius-default: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* Prescription pills (Session Builder) */
+  --color-prescription-intensity: #f97316;
+  --color-prescription-intensity-bg: rgba(249, 115, 22, 0.15);
+  --color-prescription-intensity-border: rgba(249, 115, 22, 0.4);
+  --color-prescription-effort: #8b5cf6;
+  --color-prescription-effort-bg: rgba(139, 92, 246, 0.15);
+  --color-prescription-effort-border: rgba(139, 92, 246, 0.4);
+  --color-prescription-time: #06b6d4;
+  --color-prescription-time-bg: rgba(6, 182, 212, 0.15);
+  --color-prescription-time-border: rgba(6, 182, 212, 0.4);
+  --color-prescription-detail-bg: rgba(142, 142, 147, 0.15);
+  --color-prescription-detail-border: rgba(142, 142, 147, 0.3);
+  /* Text on primary-filled panels (e.g. athlete loads card) */
+  --color-on-accent: #ffffff;
+  --color-on-accent-muted: color-mix(in srgb, var(--color-on-accent) 55%, transparent);
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --session-builder-right: 280px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-body);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Scrollbar — Stitch reference spacing */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+/* Utilities */
+.sc-label-caps {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.sc-headline {
+  font-size: var(--font-size-headline);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+}
+
+.sc-display {
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+}
+
+.sc-body-sm {
+  font-size: var(--font-size-body-sm);
+  line-height: 1.4;
+}
+
+/* Sidebar active — Kinetic Precision */
+.sc-nav-active {
+  background: var(--color-primary-soft);
+  border-left: 3px solid var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* Table row */
+.sc-table-row {
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+}
+.sc-table-row:hover {
+  background: var(--color-surface-high);
+}
