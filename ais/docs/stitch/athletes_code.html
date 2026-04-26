@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary": "#303032",
+                      "surface-container-lowest": "#0d0e12",
+                      "outline-variant": "#584237",
+                      "primary": "#ffb690",
+                      "on-tertiary-fixed-variant": "#474648",
+                      "surface": "#121317",
+                      "secondary-container": "#474649",
+                      "on-tertiary": "#303032",
+                      "secondary-fixed": "#e4e2e4",
+                      "tertiary-fixed-dim": "#c8c6c8",
+                      "inverse-surface": "#e3e2e7",
+                      "inverse-primary": "#9d4300",
+                      "on-primary": "#552100",
+                      "surface-bright": "#38393d",
+                      "on-secondary-fixed-variant": "#474649",
+                      "tertiary-fixed": "#e4e2e4",
+                      "on-surface-variant": "#e0c0b1",
+                      "on-error": "#690005",
+                      "on-background": "#e3e2e7",
+                      "primary-fixed": "#ffdbca",
+                      "surface-variant": "#343539",
+                      "surface-tint": "#ffb690",
+                      "on-secondary-fixed": "#1b1b1d",
+                      "background": "#121317",
+                      "error": "#ffb4ab",
+                      "error-container": "#93000a",
+                      "surface-container-highest": "#343539",
+                      "secondary": "#c8c6c8",
+                      "surface-container-low": "#1a1b1f",
+                      "outline": "#a78b7d",
+                      "on-surface": "#e3e2e7",
+                      "primary-fixed-dim": "#ffb690",
+                      "primary-container": "#f97316",
+                      "on-error-container": "#ffdad6",
+                      "on-tertiary-fixed": "#1b1b1d",
+                      "surface-dim": "#121317",
+                      "secondary-fixed-dim": "#c8c6c8",
+                      "tertiary-container": "#9b9a9c",
+                      "on-secondary-container": "#b6b4b7",
+                      "on-primary-fixed-variant": "#783200",
+                      "on-primary-container": "#582200",
+                      "tertiary": "#c8c6c8",
+                      "surface-container-high": "#292a2e",
+                      "on-primary-fixed": "#341100",
+                      "surface-container": "#1e1f23",
+                      "on-tertiary-container": "#323234",
+                      "inverse-on-surface": "#2f3034"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "container-margin": "24px",
+                      "unit": "4px",
+                      "gutter": "12px",
+                      "component-padding-y": "8px",
+                      "component-padding-x": "12px"
+              },
+              "fontFamily": {
+                      "label-caps": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "display-lg": ["Inter"],
+                      "body-base": ["Inter"],
+                      "data-mono": ["Inter"]
+              },
+              "fontSize": {
+                      "label-caps": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "headline-md": ["20px", {"lineHeight": "1.4", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-sm": ["13px", {"lineHeight": "1.4", "letterSpacing": "0", "fontWeight": "400"}],
+                      "display-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "body-base": ["14px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+                      "data-mono": ["14px", {"lineHeight": "1", "fontWeight": "500"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #121317;
+            color: #e3e2e7;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3A3A3C; border-radius: 10px; }
+    </style>
+</head>
+<body class="font-body-base antialiased">
+<!-- SIDEBAR NAV -->
+<aside class="fixed left-0 top-0 h-full flex flex-col py-6 w-[240px] bg-[#1C1C1E] border-r border-[#3A3A3C] font-['Inter'] text-sm tracking-tight antialiased z-50">
+<div class="px-6 mb-8">
+<span class="text-lg font-black tracking-tighter text-orange-500 uppercase">S&amp;C PRO</span>
+<p class="text-[10px] text-[#8E8E93] font-bold tracking-widest uppercase">Elite Performance</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-[#8E8E93] hover:text-white hover:bg-[#2C2C2E] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">home</span>
+                Home
+            </a>
+<a class="flex items-center px-6 py-3 text-[#8E8E93] hover:text-white hover:bg-[#2C2C2E] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">fitness_center</span>
+                Programmes
+            </a>
+<a class="flex items-center px-6 py-3 bg-orange-500/10 border-l-[3px] border-orange-500 text-orange-500 font-semibold transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3" style="font-variation-settings: 'FILL' 1;">groups</span>
+                Athletes
+            </a>
+<a class="flex items-center px-6 py-3 text-[#8E8E93] hover:text-white hover:bg-[#2C2C2E] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">monitoring</span>
+                Analytics
+            </a>
+<a class="flex items-center px-6 py-3 text-[#8E8E93] hover:text-white hover:bg-[#2C2C2E] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">menu_book</span>
+                Exercise Library
+            </a>
+</nav>
+<div class="mt-auto px-6 space-y-1">
+<a class="flex items-center py-3 text-[#8E8E93] hover:text-white hover:bg-[#2C2C2E] transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+                Settings
+            </a>
+<div class="flex items-center pt-6 mt-6 border-t border-[#3A3A3C]">
+<img class="w-8 h-8 rounded-full bg-surface-container-highest object-cover border border-[#3A3A3C]" data-alt="professional male sports coach with athletic build and focused expression in high-performance training facility" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAXsXEpiZCy61qedlOLKWq_XZa_B9m1iyitM4p2anIF6ezvnHGSoX5FEbxNsEWFmr8mIh4qfUL5whKU3oOEbyz8MLDOGl2X4wui3Mfh1ZqNRrZbKVxc2olwAUk6EN_OAK7hKz9GsAOTSwKtO-KAtW9zMtberFGUzJXobbCanUySrGuEPXzMBwt0WhFFB2woYntO99io4hcsFM52RjI7odOccLxr134jNjEVXdIc1RBFemu7qWbg1UXmSeU9l6gLQNXfkD52NggJ8g"/>
+<div class="ml-3 overflow-hidden">
+<p class="text-xs font-bold text-white truncate">Coach Profile</p>
+<p class="text-[10px] text-[#8E8E93]">Head S&amp;C</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- TOP BAR -->
+<header class="fixed top-0 right-0 h-16 bg-[#1C1C1E]/80 backdrop-blur-md border-b border-[#3A3A3C] flex items-center justify-between pl-[264px] pr-8 w-full z-40">
+<div class="flex items-center gap-6">
+<h1 class="font-headline-md text-white">Athletes</h1>
+<div class="relative group">
+<button class="flex items-center gap-2 bg-[#2C2C2E] px-3 py-1.5 rounded text-xs font-label-caps text-white border border-[#3A3A3C]">
+                    All Teams
+                    <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#8E8E93] text-sm">search</span>
+<input class="bg-[#2C2C2E] border border-[#3A3A3C] rounded text-xs px-9 py-2 w-64 focus:outline-none focus:border-orange-500 text-white" placeholder="Search athletes..." type="text"/>
+</div>
+<button class="bg-primary-container hover:bg-orange-600 text-on-primary-container text-xs font-bold px-4 py-2 rounded flex items-center gap-2 transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined text-sm">add</span>
+                + Add Athlete
+            </button>
+<div class="flex items-center gap-2 ml-2">
+<span class="material-symbols-outlined text-[#8E8E93] hover:text-white cursor-pointer transition-colors">notifications</span>
+<span class="material-symbols-outlined text-[#8E8E93] hover:text-white cursor-pointer transition-colors">account_circle</span>
+</div>
+</div>
+</header>
+<!-- MAIN CONTENT -->
+<main class="pt-24 pl-[264px] pr-8 pb-32 min-h-screen">
+<!-- DATA TABLE CONTAINER -->
+<div class="bg-[#1C1C1E] border border-[#3A3A3C] rounded-lg overflow-hidden">
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left min-w-[1100px]">
+<thead class="bg-[#2C2C2E] border-b border-[#3A3A3C]">
+<tr>
+<th class="px-6 py-4 w-12">
+<input checked="" class="w-4 h-4 rounded bg-transparent border-[#3A3A3C] checked:bg-orange-500 focus:ring-0" type="checkbox"/>
+</th>
+<th class="px-4 py-4 font-label-caps text-[#8E8E93]">Athlete</th>
+<th class="px-4 py-4 font-label-caps text-[#8E8E93]">Teams</th>
+<th class="px-4 py-4 font-label-caps text-[#8E8E93]">Programme</th>
+<th class="px-4 py-4 font-label-caps text-[#8E8E93]">Last Session</th>
+<th class="px-4 py-4 font-label-caps text-[#8E8E93]">Compliance</th>
+<th class="px-4 py-4 font-label-caps text-[#8E8E93]">Assessment</th>
+<th class="px-4 py-4 font-label-caps text-[#8E8E93] text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#3A3A3C]">
+<!-- Athlete 1: Arjun -->
+<tr class="hover:bg-[#2C2C2E] transition-colors group bg-orange-500/[0.03]">
+<td class="px-6 py-4">
+<input checked="" class="w-4 h-4 rounded bg-transparent border-[#3A3A3C] checked:bg-orange-500 focus:ring-0" type="checkbox"/>
+</td>
+<td class="px-4 py-4">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="close-up portrait of a determined young South Asian male athlete with athletic headband in soft gymnasium lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXTvj5Gwn4bl6IIZXyKkBXD9wm6B44tnQpKK4J1ttqcL3z3M5jDnjS5eExoYRAMOQ4JUhpAGFF-VCkr5aWi2ga2sGD30tFRp1R2qIfpM3bW3I0iSgJ7v7ZP9L3Co7SQuJqK8C8YydP6k1rAvlh4_k5V4oHAdmnQPKoKMWM4KwiKuQrraD7ZhQtxtvyLAw-Wv9E8Ju9hLl6hpF9NAuSS_nHS4MLAbFx4druEEyaAbzi64GYgP4D9PRLbdLzHMxlQWfpldKhIJZmhQ"/>
+<div>
+<p class="text-sm font-bold text-white">Arjun Kumar</p>
+<p class="text-[11px] text-[#8E8E93]">arjun.k@elitesports.com</p>
+</div>
+</div>
+</td>
+<td class="px-4 py-4">
+<span class="px-2 py-0.5 bg-[#2C2C2E] text-[#e3e2e7] border border-[#3A3A3C] rounded-full text-[10px] font-medium">Asian Games — Men</span>
+</td>
+<td class="px-4 py-4">
+<a class="text-orange-500 text-xs font-semibold hover:underline decoration-orange-500/30" href="#">Kabaddi Pre-Season Block</a>
+</td>
+<td class="px-4 py-4 text-[#e3e2e7] text-xs">Today</td>
+<td class="px-4 py-4">
+<div class="w-32">
+<div class="flex justify-between items-end mb-1">
+<span class="text-xs font-data-mono text-green-500">92%</span>
+</div>
+<div class="w-full bg-[#2C2C2E] h-[4px] rounded-full overflow-hidden">
+<div class="bg-green-500 h-full w-[92%]"></div>
+</div>
+</div>
+</td>
+<td class="px-4 py-4">
+<span class="px-2 py-0.5 bg-green-500/15 text-green-500 rounded text-[10px] font-bold uppercase tracking-wider">Excellent</span>
+</td>
+<td class="px-4 py-4 text-right">
+<div class="flex justify-end gap-2 text-[#8E8E93]">
+<button class="hover:text-orange-500 transition-colors" title="View Profile"><span class="material-symbols-outlined text-[18px]">person</span></button>
+<button class="hover:text-orange-500 transition-colors" title="Assign Programme"><span class="material-symbols-outlined text-[18px]">assignment_add</span></button>
+<button class="hover:text-orange-500 transition-colors" title="View Compliance"><span class="material-symbols-outlined text-[18px]">rule</span></button>
+</div>
+</td>
+</tr>
+<!-- Athlete 2: Priya -->
+<tr class="hover:bg-[#2C2C2E] transition-colors group bg-orange-500/[0.03]">
+<td class="px-6 py-4">
+<input checked="" class="w-4 h-4 rounded bg-transparent border-[#3A3A3C] checked:bg-orange-500 focus:ring-0" type="checkbox"/>
+</td>
+<td class="px-4 py-4">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="professional South Asian female athlete focused during training session in a high-tech athletic facility" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnqxT9zkNv2l28_O3MUX6L_rKIWcBdKo0JybbnyUGjtxKIGXoLNZ969_c34a9HOrskvg69TOmGvz3ZVna2HEDfJAGlrwQRmpACTEZECIIbd2zGvTXG8AMimPAURhe_F08t8wORvunqyQ6XOMTbuG3aqhzY8EWn-EZQ7ddE6S6bgYlt6ReEXNvFaj_DT78cyATf36x5yx3PJcq-VM89as-pK-CTw8VGNLq8EnENVBR1mLJn2ob_LFTVy4Wr0J0TRb8KFVEuZA4gSQ"/>
+<div>
+<p class="text-sm font-bold text-white">Priya Sharma</p>
+<p class="text-[11px] text-[#8E8E93]">priya.s@elitesports.com</p>
+</div>
+</div>
+</td>
+<td class="px-4 py-4">
+<span class="px-2 py-0.5 bg-[#2C2C2E] text-[#e3e2e7] border border-[#3A3A3C] rounded-full text-[10px] font-medium">Asian Games — Women</span>
+</td>
+<td class="px-4 py-4">
+<span class="text-[#8E8E93] text-[10px] italic">—</span>
+</td>
+<td class="px-4 py-4 text-[#e3e2e7] text-xs">5 days ago</td>
+<td class="px-4 py-4">
+<div class="w-32">
+<div class="flex justify-between items-end mb-1">
+<span class="text-xs font-data-mono text-orange-500">61%</span>
+</div>
+<div class="w-full bg-[#2C2C2E] h-[4px] rounded-full overflow-hidden">
+<div class="bg-orange-500 h-full w-[61%]"></div>
+</div>
+</div>
+</td>
+<td class="px-4 py-4">
+<span class="px-2 py-0.5 bg-blue-500/15 text-blue-400 rounded text-[10px] font-bold uppercase tracking-wider">Above Average</span>
+</td>
+<td class="px-4 py-4 text-right">
+<div class="flex justify-end gap-2 text-[#8E8E93]">
+<button class="hover:text-orange-500 transition-colors" title="View Profile"><span class="material-symbols-outlined text-[18px]">person</span></button>
+<button class="hover:text-orange-500 transition-colors" title="Assign Programme"><span class="material-symbols-outlined text-[18px]">assignment_add</span></button>
+<button class="hover:text-orange-500 transition-colors" title="View Compliance"><span class="material-symbols-outlined text-[18px]">rule</span></button>
+</div>
+</td>
+</tr>
+<!-- Athlete 3: Rahul -->
+<tr class="hover:bg-[#2C2C2E] transition-colors group bg-orange-500/[0.03]">
+<td class="px-6 py-4">
+<input checked="" class="w-4 h-4 rounded bg-transparent border-[#3A3A3C] checked:bg-orange-500 focus:ring-0" type="checkbox"/>
+</td>
+<td class="px-4 py-4">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="focused young male athlete during weightlifting session in dark urban fitness center" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDurSIlxkwFLh0KGC8byDzQNfVT5IsT4PyrZtjpzW2PRmEH9-qgNsPxkXeqF8nQRu2RdyYmqtMv1c2rbqRu6EmOHNmaX6yxlj1HXjNv-ZOEkGfl9iIfYiGmdFa1jgmc27kfreEaewOTQb1Yfm7bV_NYLddZcIzWmuECZ_0DR2AlI5rRhLL1ypNBQcRXVjutRMKWsvrVz6muEDo83y0-CgQ_2aPZiUUBNIPydx18k2WGzIKigFKJl6LCH0c675WhJyQtJvcpapk40g"/>
+<div>
+<p class="text-sm font-bold text-white">Rahul Singh</p>
+<p class="text-[11px] text-[#8E8E93]">rahul.s@elitesports.com</p>
+</div>
+</div>
+</td>
+<td class="px-4 py-4">
+<span class="px-2 py-0.5 bg-[#2C2C2E] text-[#e3e2e7] border border-[#3A3A3C] rounded-full text-[10px] font-medium">Asian Games — Men</span>
+</td>
+<td class="px-4 py-4">
+<a class="text-orange-500 text-xs font-semibold hover:underline decoration-orange-500/30" href="#">Kabaddi Pre-Season Block</a>
+</td>
+<td class="px-4 py-4 text-[#e3e2e7] text-xs">Never</td>
+<td class="px-4 py-4">
+<div class="w-32">
+<div class="flex justify-between items-end mb-1">
+<span class="text-xs font-data-mono text-red-500">0%</span>
+</div>
+<div class="w-full bg-[#2C2C2E] h-[4px] rounded-full overflow-hidden">
+<div class="bg-red-500 h-0 w-[0%]"></div>
+</div>
+</div>
+</td>
+<td class="px-4 py-4">
+<span class="text-[#8E8E93] text-[10px] italic">—</span>
+</td>
+<td class="px-4 py-4 text-right">
+<div class="flex justify-end gap-2 text-[#8E8E93]">
+<button class="hover:text-orange-500 transition-colors" title="View Profile"><span class="material-symbols-outlined text-[18px]">person</span></button>
+<button class="hover:text-orange-500 transition-colors" title="Assign Programme"><span class="material-symbols-outlined text-[18px]">assignment_add</span></button>
+<button class="hover:text-orange-500 transition-colors" title="View Compliance"><span class="material-symbols-outlined text-[18px]">rule</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+<!-- BULK ACTION BAR -->
+<div class="fixed bottom-6 left-[264px] right-8 bg-[#2C2C2E] border border-[#3A3A3C] rounded-lg shadow-2xl p-4 flex items-center justify-between z-30 translate-y-0 opacity-100 transition-all duration-300">
+<div class="flex items-center gap-4">
+<span class="bg-orange-500 text-white font-bold text-xs px-2 py-0.5 rounded">3</span>
+<span class="text-white text-sm font-semibold">athletes selected</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-1.5 bg-white text-black text-xs font-bold rounded hover:bg-gray-200 transition-colors">Assign Programme</button>
+<button class="px-4 py-1.5 border border-[#3A3A3C] text-white text-xs font-bold rounded hover:bg-[#3A3A3C] transition-colors">Remove from Team</button>
+<button class="px-4 py-1.5 border border-[#3A3A3C] text-red-400 text-xs font-bold rounded hover:bg-red-500/10 transition-colors">Archive</button>
+</div>
+</div>
+<!-- SLIDE-IN PROFILE PANEL (Right) -->
+<div class="fixed top-0 right-0 h-full w-[440px] bg-[#1C1C1E] border-l border-[#3A3A3C] shadow-2xl z-50 transform translate-x-0 transition-transform duration-300 flex flex-col">
+<div class="p-4 flex items-center justify-between border-b border-[#3A3A3C]">
+<span class="text-[10px] font-bold tracking-widest text-[#8E8E93] uppercase">Athlete Profile</span>
+<button class="text-[#8E8E93] hover:text-white"><span class="material-symbols-outlined">close</span></button>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar">
+<!-- Hero Header -->
+<div class="relative h-48 w-full">
+<img class="w-full h-full object-cover" data-alt="full height portrait of a South Asian male athlete in high performance training attire against dark industrial gym background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-8KXp4pLmwr0giWZiCYL0OybtR6ds6mIvzGQHjj-t5UAcxfJutz1u2l3ZDb-Kw5jTZD5oO9RN-J6PkLa3MuGNLcRIRkWUM5SA2Vs02iysK68yV-bHiqBRIPEXPJ3E1TPBZfW9HdD0K3eu-FWTunPtliHWYYaBllt0ZjswtyY_DkxjvQxeMAqaf9xAw-3smivJ-F1eFHHuXsnElfVtXsl-0fFBVn5_NDRIW9yb1jpqe_VSVDXAV7aQDH0Ojgc0o6oTuxy7t34Fgg"/>
+<div class="absolute inset-0 bg-gradient-to-t from-[#1C1C1E] via-transparent"></div>
+</div>
+<div class="px-8 -mt-12 relative">
+<h2 class="text-2xl font-black text-white tracking-tight">Arjun Kumar</h2>
+<p class="text-sm text-[#8E8E93]">arjun.k@elitesports.com</p>
+<div class="mt-4 flex items-center gap-4">
+<div class="px-3 py-1 bg-orange-500/10 border border-orange-500/30 rounded text-[11px] font-bold text-orange-500">Asian Games — Men</div>
+</div>
+<!-- Metrics Section -->
+<div class="mt-8">
+<h3 class="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-4">Compliance History (Last 4 Weeks)</h3>
+<div class="flex items-end justify-between h-32 gap-3 pb-2 border-b border-[#3A3A3C]">
+<div class="flex flex-col items-center flex-1 gap-2">
+<div class="w-full bg-[#2C2C2E] rounded-t-sm relative group overflow-hidden h-[85%]">
+<div class="absolute bottom-0 w-full bg-orange-500/40 h-full"></div>
+<div class="absolute bottom-0 w-full bg-orange-500 h-[80%]"></div>
+</div>
+<span class="text-[10px] text-[#8E8E93] font-data-mono">W1</span>
+</div>
+<div class="flex flex-col items-center flex-1 gap-2">
+<div class="w-full bg-[#2C2C2E] rounded-t-sm relative group overflow-hidden h-[100%]">
+<div class="absolute bottom-0 w-full bg-orange-500/40 h-full"></div>
+<div class="absolute bottom-0 w-full bg-orange-500 h-[92%]"></div>
+</div>
+<span class="text-[10px] text-[#8E8E93] font-data-mono">W2</span>
+</div>
+<div class="flex flex-col items-center flex-1 gap-2">
+<div class="w-full bg-[#2C2C2E] rounded-t-sm relative group overflow-hidden h-[95%]">
+<div class="absolute bottom-0 w-full bg-orange-500/40 h-full"></div>
+<div class="absolute bottom-0 w-full bg-orange-500 h-[88%]"></div>
+</div>
+<span class="text-[10px] text-[#8E8E93] font-data-mono">W3</span>
+</div>
+<div class="flex flex-col items-center flex-1 gap-2">
+<div class="w-full bg-[#2C2C2E] rounded-t-sm relative group overflow-hidden h-[100%] border-x border-t border-orange-500/50">
+<div class="absolute bottom-0 w-full bg-orange-500/40 h-full"></div>
+<div class="absolute bottom-0 w-full bg-orange-500 h-[92%]"></div>
+</div>
+<span class="text-[10px] text-white font-bold font-data-mono">W4</span>
+</div>
+</div>
+</div>
+<!-- AIS Assessment Section -->
+<div class="mt-8">
+<h3 class="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-4">AIS Performance Assessments</h3>
+<div class="grid grid-cols-2 gap-3">
+<div class="p-3 bg-[#2C2C2E] border border-[#3A3A3C] rounded">
+<p class="text-[10px] text-[#8E8E93] uppercase font-bold mb-2">Flexibility</p>
+<span class="px-2 py-0.5 bg-green-500/15 text-green-500 rounded text-[10px] font-bold">Elite</span>
+</div>
+<div class="p-3 bg-[#2C2C2E] border border-[#3A3A3C] rounded">
+<p class="text-[10px] text-[#8E8E93] uppercase font-bold mb-2">Speed</p>
+<span class="px-2 py-0.5 bg-blue-500/15 text-blue-400 rounded text-[10px] font-bold">Excellent</span>
+</div>
+<div class="p-3 bg-[#2C2C2E] border border-[#3A3A3C] rounded">
+<p class="text-[10px] text-[#8E8E93] uppercase font-bold mb-2">Power</p>
+<span class="px-2 py-0.5 bg-green-500/15 text-green-500 rounded text-[10px] font-bold">Elite</span>
+</div>
+<div class="p-3 bg-[#2C2C2E] border border-[#3A3A3C] rounded">
+<p class="text-[10px] text-[#8E8E93] uppercase font-bold mb-2">Endurance</p>
+<span class="px-2 py-0.5 bg-orange-500/15 text-orange-400 rounded text-[10px] font-bold">Above Avg</span>
+</div>
+</div>
+</div>
+<!-- Bottom Button -->
+<div class="mt-12 mb-12">
+<button class="w-full bg-primary-container text-on-primary-container font-black uppercase text-xs py-4 rounded tracking-widest hover:bg-orange-600 transition-all active:scale-[0.98]">
+                        Assign New Programme
+                    </button>
+<button class="w-full mt-3 py-3 text-[#8E8E93] text-xs font-bold hover:text-white transition-colors">
+                        View Full Data Log
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</body></html>
