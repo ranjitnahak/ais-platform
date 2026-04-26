@@ -163,8 +163,8 @@ export default function SessionBuilderBlocksList({
   onApplyExerciseLayout,
   onOpenSearch,
   onAddBlock,
+  canEdit = can('programme', 'edit'),
 }) {
-  const canEdit = can('programme', 'edit')
   const [activeId, setActiveId] = useState(null)
   const [hoveredRowId, setHoveredRowId] = useState(null)
 
@@ -178,7 +178,7 @@ export default function SessionBuilderBlocksList({
     (event) => {
       const { active, over } = event
       setActiveId(null)
-      if (!over || !can('programme', 'edit')) return
+      if (!over || !canEdit) return
 
       const prev = itemsByBlockFromProps(blocks)
       const next = computeNextItemsByBlock(prev, active.id, over)
@@ -365,16 +365,7 @@ export default function SessionBuilderBlocksList({
     </div>
   )
 
-  if (!canEdit) {
-    return (
-      <>
-        {inner}
-        <button type="button" onClick={() => void onAddBlock()} style={{ ...addBlockBtn, marginTop: 12 }}>
-          + Add block
-        </button>
-      </>
-    )
-  }
+  if (!canEdit) return inner
 
   return (
     <DndContext

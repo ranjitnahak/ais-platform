@@ -32,6 +32,8 @@ export default function SessionBuilder() {
   const [addForBlockId, setAddForBlockId] = useState(null)
   const [selectedExerciseId, setSelectedExerciseId] = useState(null)
   const [toast, setToast] = useState(null)
+  const canManageProgramme = can('programme', 'edit')
+  const canEditSession = canManageProgramme && !session?.is_published
 
   useEffect(() => {
     if (session?.name) setTitle(session.name)
@@ -42,6 +44,12 @@ export default function SessionBuilder() {
     const t = setTimeout(() => setToast(null), 2200)
     return () => clearTimeout(t)
   }, [toast])
+
+  useEffect(() => {
+    if (canEditSession) return
+    setSearchOpen(false)
+    setAddForBlockId(null)
+  }, [canEditSession])
 
   const selectedExercise = useMemo(() => {
     for (const b of blocks) {
@@ -57,7 +65,7 @@ export default function SessionBuilder() {
   }, [])
 
   const saveSessionTitle = useCallback(async () => {
-    if (!session || !can('programme', 'edit')) return
+    if (!session || !canEditSession) return
     try {
       const { error } = await supabase.from('sessions').update({ name: title }).eq('id', session.id).eq('org_id', user.orgId)
       if (error) throw error
@@ -65,10 +73,10 @@ export default function SessionBuilder() {
     } catch (e) {
       console.error('[SessionBuilder]', e)
     }
-  }, [session, title, user.orgId, reload])
+  }, [session, title, user.orgId, reload, canEditSession])
 
   const togglePublish = useCallback(async () => {
-    if (!session || !can('programme', 'edit')) return
+    if (!session || !canManageProgramme) return
     try {
       const next = !session.is_published
       const { error } = await supabase
@@ -81,10 +89,10 @@ export default function SessionBuilder() {
     } catch (e) {
       console.error('[SessionBuilder]', e)
     }
-  }, [session, user.orgId, reload])
+  }, [session, user.orgId, reload, canManageProgramme])
 
   const addBlock = useCallback(async () => {
-    if (!session || !can('programme', 'edit')) return
+    if (!session || !canEditSession) return
     try {
       const nextLabel = String.fromCharCode(65 + blocks.length)
       const sort = blocks.length ? Math.max(...blocks.map((b) => b.sort_order ?? 0)) + 1 : 0
@@ -101,11 +109,11 @@ export default function SessionBuilder() {
     } catch (e) {
       console.error('[SessionBuilder]', e)
     }
-  }, [session, blocks, user.orgId, reload])
+  }, [session, blocks, user.orgId, reload, canEditSession])
 
   const deleteExercise = useCallback(
     async (exerciseId) => {
-      if (!can('programme', 'edit')) return
+      if (!canEditSession) return
       const snapshot = blocks.map((b) => ({
         ...b,
         session_exercises: [...(b.session_exercises || [])],
@@ -127,12 +135,12 @@ export default function SessionBuilder() {
         setToast(null)
       }
     },
-    [blocks, selectedExerciseId, user.orgId, setBlocks],
+    [blocks, selectedExerciseId, user.orgId, setBlocks, canEditSession],
   )
 
   const toggleSupersetLink = useCallback(
     async (blockId, exerciseId, sortedIndex) => {
-      if (!can('programme', 'edit')) return
+      if (!canEditSession) return
       const block = blocks.find((b) => b.id === blockId)
       if (!block) return
       const sorted = [...(block.session_exercises || [])].sort((a, c) => (a.sort_order ?? 0) - (c.sort_order ?? 0))
@@ -200,12 +208,12 @@ export default function SessionBuilder() {
         await reload()
       }
     },
-    [blocks, user.orgId, setBlocks, reload],
+    [blocks, user.orgId, setBlocks, reload, canEditSession],
   )
 
   const applyExerciseLayout = useCallback(
     async (layout) => {
-      if (!can('programme', 'edit')) return
+      if (!canEditSession) return
       try {
         for (const { blockId, exerciseIds } of layout) {
           for (let i = 0; i < exerciseIds.length; i++) {
@@ -222,12 +230,12 @@ export default function SessionBuilder() {
         console.error('[SessionBuilder]', e)
       }
     },
-    [user.orgId, reload],
+    [user.orgId, reload, canEditSession],
   )
 
   const addExercise = useCallback(
     async (exerciseRow) => {
-      if (!addForBlockId || !can('programme', 'edit')) return
+      if (!addForBlockId || !canEditSession) return
       try {
         const block = blocks.find((b) => b.id === addForBlockId)
         const list = block?.session_exercises || []
@@ -250,7 +258,7 @@ export default function SessionBuilder() {
         console.error('[SessionBuilder]', e)
       }
     },
-    [addForBlockId, blocks, user.orgId, reload],
+    [addForBlockId, blocks, user.orgId, reload, canEditSession],
   )
 
   if (loading) return <div style={{ padding: 24, color: 'var(--color-text-muted)' }}>Loading session…</div>
@@ -315,7 +323,7 @@ export default function SessionBuilder() {
             <span style={{ color: 'var(--color-primary)', fontWeight: 'var(--font-weight-semibold)' }}>{crumb.dayLabel}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
-            {can('programme', 'edit') ? (
+            {canEditSession ? (
               <input
                 className="sc-display"
                 value={title}
@@ -349,13 +357,18 @@ export default function SessionBuilder() {
               >
                 {session.is_published ? 'Published' : 'Unpublished'}
               </span>
-              {can('programme', 'edit') && (
+              {canManageProgramme && (
                 <button type="button" style={btnOutlineSm} onClick={() => void togglePublish()}>
                   {session.is_published ? 'Unpublish session' : 'Publish session'}
                 </button>
               )}
             </div>
           </div>
+          {session.is_published && canManageProgramme ? (
+            <p className="sc-body-sm" style={{ margin: '8px 0 0', color: 'var(--color-text-muted)' }}>
+              This session is published and locked. Unpublish to make changes.
+            </p>
+          ) : null}
 
           <label className="sc-label-caps" style={{ display: 'block', marginTop: 20 }}>
             Coach instructions
@@ -363,9 +376,9 @@ export default function SessionBuilder() {
           <textarea
             defaultValue={session.coach_instructions || ''}
             key={session.id}
-            disabled={!can('programme', 'edit')}
+            disabled={!canEditSession}
             onBlur={async (e) => {
-              if (!can('programme', 'edit')) return
+              if (!canEditSession) return
               try {
                 const { error } = await supabase
                   .from('sessions')
@@ -401,10 +414,12 @@ export default function SessionBuilder() {
             onToggleSupersetLink={toggleSupersetLink}
             onApplyExerciseLayout={applyExerciseLayout}
             onOpenSearch={(blockId) => {
+              if (!canEditSession) return
               setAddForBlockId(blockId)
               setSearchOpen(true)
             }}
             onAddBlock={addBlock}
+            canEdit={canEditSession}
           />
         </section>
         <aside
