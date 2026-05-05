@@ -380,7 +380,7 @@ export default function Athletes() {
                     >
                       <button
                         onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === athlete.id ? null : athlete.id); }}
-                        className="absolute top-3 right-3 z-10 w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
+                        className="absolute top-3 right-3 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/15 text-gray-400 hover:text-white transition-colors"
                         title="Options"
                       >
                         <span className="material-symbols-outlined text-base">more_vert</span>
