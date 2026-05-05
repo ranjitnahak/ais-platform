@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getCurrentUser } from '../lib/auth';
 import { athleteDisplayName, athleteInitialsFromAthlete, canonicalFullName } from '../lib/athleteName';
 import { BLOOD_GROUP_OPTIONS, normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
 import ImageCropModal from '../components/athletes/ImageCropModal';
@@ -40,6 +41,7 @@ export default function AthleteProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const user = getCurrentUser();
 
   const [athlete, setAthlete]         = useState(null);
   const [form, setForm]               = useState(null);
@@ -50,6 +52,8 @@ export default function AthleteProfile() {
   const [scores, setScores]           = useState([]);
   const [sessionDate, setSessionDate] = useState(null);
   const [pendingFile, setPendingFile] = useState(null);     // raw file → triggers crop modal
+  const [dangerDialog, setDangerDialog] = useState(null);
+  const [dangerWorking, setDangerWorking] = useState(false);
 
   useEffect(() => { loadAthlete(); }, [id]);
 
@@ -215,6 +219,40 @@ export default function AthleteProfile() {
       setTimeout(() => setSaveMsg(null), 3000);
     }
     setUploading(false);
+  }
+
+  async function handleArchive() {
+    setDangerWorking(true);
+    try {
+      const { error } = await supabase
+        .from('athletes')
+        .update({ is_archived: true, is_active: false })
+        .eq('id', id)
+        .eq('org_id', user.orgId);
+      if (error) throw error;
+      navigate('/athletes');
+    } catch (err) {
+      console.error('[AthleteProfile:handleArchive] failed:', err);
+      setDangerWorking(false);
+      setDangerDialog(null);
+    }
+  }
+
+  async function handleDelete() {
+    setDangerWorking(true);
+    try {
+      const { error } = await supabase
+        .from('athletes')
+        .delete()
+        .eq('id', id)
+        .eq('org_id', user.orgId);
+      if (error) throw error;
+      navigate('/athletes');
+    } catch (err) {
+      console.error('[AthleteProfile:handleDelete] failed:', err);
+      setDangerWorking(false);
+      setDangerDialog(null);
+    }
   }
 
   if (loading) {
@@ -536,6 +574,31 @@ export default function AthleteProfile() {
             </div>
           )}
         </div>
+
+        <div
+          style={{ border: '1px solid rgba(239,68,68,0.2)', borderRadius: '16px', padding: '28px', backgroundColor: '#1b1b1d' }}
+          className="mt-6"
+        >
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#EF4444] mb-4">Danger Zone</h3>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => setDangerDialog('archive')}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#F97316] hover:bg-[#F97316]/10 transition-colors"
+              style={{ border: '1px solid rgba(249,115,22,0.3)' }}
+            >
+              <span className="material-symbols-outlined text-base">archive</span>
+              Archive athlete
+            </button>
+            <button
+              onClick={() => setDangerDialog('delete')}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
+              style={{ border: '1px solid rgba(239,68,68,0.3)' }}
+            >
+              <span className="material-symbols-outlined text-base">delete_forever</span>
+              Delete permanently
+            </button>
+          </div>
+        </div>
       </main>
 
       {/* Bottom nav — mobile */}
@@ -564,6 +627,58 @@ export default function AthleteProfile() {
         ))}
       </nav>
     </div>
+
+    {dangerDialog && athlete && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        style={{ background: 'rgba(0,0,0,0.7)' }}
+        onClick={() => !dangerWorking && setDangerDialog(null)}
+      >
+        <div
+          className="rounded-2xl p-8 w-full max-w-sm mx-4"
+          style={{ background: '#1b1b1d', border: '1px solid rgba(255,255,255,0.08)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <span
+              className="material-symbols-outlined text-2xl"
+              style={{ color: dangerDialog === 'delete' ? '#EF4444' : '#F97316' }}
+            >
+              {dangerDialog === 'delete' ? 'delete_forever' : 'archive'}
+            </span>
+            <h2 className="text-white font-black text-base uppercase tracking-wide">
+              {dangerDialog === 'delete' ? 'Delete Athlete' : 'Archive Athlete'}
+            </h2>
+          </div>
+          <p className="text-gray-400 text-sm mb-2">
+            <span className="text-white font-bold">{athleteDisplayName(athlete)}</span>
+          </p>
+          <p className="text-gray-500 text-sm mb-6">
+            {dangerDialog === 'delete'
+              ? 'This will permanently delete the athlete record. Their assessment results and plan data will remain in the database but will be unlinked. This cannot be undone.'
+              : 'This will hide the athlete from all rosters and filters. Their data is preserved and can be restored from the database.'}
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setDangerDialog(null)}
+              disabled={dangerWorking}
+              className="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+              style={{ background: '#2a2a2c', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => dangerDialog === 'delete' ? handleDelete() : handleArchive()}
+              disabled={dangerWorking}
+              className="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-white transition-colors disabled:opacity-50"
+              style={{ background: dangerDialog === 'delete' ? '#EF4444' : '#F97316' }}
+            >
+              {dangerWorking ? 'Working…' : dangerDialog === 'delete' ? 'Delete permanently' : 'Archive'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

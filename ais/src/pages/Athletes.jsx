@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getCurrentUser } from '../lib/auth';
 import AddAthleteModal from '../components/athletes/AddAthleteModal';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
-
-const ORG_ID = 'a1000000-0000-0000-0000-000000000001';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +51,7 @@ function formatTier(tier) {
 
 export default function Athletes() {
   const navigate = useNavigate();
+  const user = getCurrentUser();
 
   const [athletes, setAthletes]             = useState([]);
   const [classMap, setClassMap]             = useState({});
@@ -64,8 +64,17 @@ export default function Athletes() {
   const [teamFilter, setTeamFilter]         = useState('All');
   const [genderFilter, setGenderFilter]     = useState('All');
   const [posFilter, setPosFilter]           = useState('All');
+  const [menuOpen, setMenuOpen]             = useState(null);
+  const [confirmDialog, setConfirmDialog]   = useState(null);
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClickOutside() { setMenuOpen(null); }
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [menuOpen]);
 
   async function load() {
     setLoading(true);
@@ -84,7 +93,7 @@ export default function Athletes() {
       const { data: teamRows } = await supabase
         .from('teams')
         .select('id, name')
-        .eq('org_id', ORG_ID)
+        .eq('org_id', user.orgId)
         .order('name');
 
       // ── Athlete–team membership ───────────────────────────────────────────
@@ -175,6 +184,36 @@ export default function Athletes() {
       return true;
     });
   }, [athletes, search, genderFilter, posFilter, teamFilter, athleteTeamsMap]);
+
+  async function handleArchive(athlete) {
+    try {
+      const { error } = await supabase
+        .from('athletes')
+        .update({ is_archived: true, is_active: false })
+        .eq('id', athlete.id)
+        .eq('org_id', user.orgId);
+      if (error) throw error;
+      setConfirmDialog(null);
+      load();
+    } catch (err) {
+      console.error('[handleArchive] failed:', err);
+    }
+  }
+
+  async function handleDelete(athlete) {
+    try {
+      const { error } = await supabase
+        .from('athletes')
+        .delete()
+        .eq('id', athlete.id)
+        .eq('org_id', user.orgId);
+      if (error) throw error;
+      setConfirmDialog(null);
+      load();
+    } catch (err) {
+      console.error('[handleDelete] failed:', err);
+    }
+  }
 
   return (
     <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
@@ -334,49 +373,79 @@ export default function Athletes() {
                   const badgeClass = CLASS_BADGE[tier];
 
                   return (
-                    <button
+                    <div
                       key={athlete.id}
-                      onClick={() => navigate(`/athletes/${athlete.id}`)}
-                      className="bg-[#2a2a2c] rounded-xl p-5 flex flex-col gap-4 hover:bg-[#39393b] transition-colors text-left w-full active:scale-95"
+                      className="relative bg-[#2a2a2c] rounded-xl hover:bg-[#39393b] transition-colors"
                       style={{ border: '1px solid rgba(255,255,255,0.06)' }}
                     >
-                      {/* Photo / initials */}
-                      <div className="flex items-start justify-between">
-                        {athlete.photo_url ? (
-                          <img
-                            src={athlete.photo_url}
-                            alt={athleteDisplayName(athlete)}
-                            className="rounded-full object-cover"
-                            style={{ width: 56, height: 56, border: '2px solid #F97316' }}
-                          />
-                        ) : (
-                          <AthleteInitials athlete={athlete} size={56} />
-                        )}
-                        {tier && badgeClass && (
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${badgeClass}`}>
-                            {tier}
-                          </span>
-                        )}
-                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === athlete.id ? null : athlete.id); }}
+                        className="absolute top-3 right-3 z-10 w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
+                        title="Options"
+                      >
+                        <span className="material-symbols-outlined text-base">more_vert</span>
+                      </button>
 
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-white text-sm truncate">{athleteDisplayName(athlete)}</h4>
-                        <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tight mt-0.5 truncate">
-                          {[athlete.position, athlete.gender, age ? `Age ${age}` : null]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </p>
-                        {athlete.organisations?.name && (
-                          <p className="text-[10px] text-gray-600 mt-1 truncate">{athlete.organisations.name}</p>
-                        )}
-                      </div>
+                      {menuOpen === athlete.id && (
+                        <div
+                          className="absolute top-10 right-3 z-20 rounded-lg overflow-hidden shadow-xl"
+                          style={{ background: '#2a2a2c', border: '1px solid rgba(255,255,255,0.1)', minWidth: '160px' }}
+                        >
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setMenuOpen(null); setConfirmDialog({ type: 'archive', athlete }); }}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white text-left"
+                          >
+                            <span className="material-symbols-outlined text-base text-[#F97316]">archive</span>
+                            Archive
+                          </button>
+                          <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }} />
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setMenuOpen(null); setConfirmDialog({ type: 'delete', athlete }); }}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[#EF4444] hover:bg-[#EF4444]/10 text-left"
+                          >
+                            <span className="material-symbols-outlined text-base">delete</span>
+                            Delete permanently
+                          </button>
+                        </div>
+                      )}
 
-                      {/* Arrow */}
-                      <div className="flex items-center justify-end">
-                        <span className="material-symbols-outlined text-gray-600 text-sm">chevron_right</span>
-                      </div>
-                    </button>
+                      <button
+                        onClick={() => navigate(`/athletes/${athlete.id}`)}
+                        className="p-5 flex flex-col gap-4 text-left w-full active:scale-95"
+                      >
+                        <div className="flex items-start justify-between">
+                          {athlete.photo_url ? (
+                            <img
+                              src={athlete.photo_url}
+                              alt={athleteDisplayName(athlete)}
+                              className="rounded-full object-cover"
+                              style={{ width: 56, height: 56, border: '2px solid #F97316' }}
+                            />
+                          ) : (
+                            <AthleteInitials athlete={athlete} size={56} />
+                          )}
+                          {tier && badgeClass && (
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${badgeClass}`}>
+                              {tier}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-white text-sm truncate">{athleteDisplayName(athlete)}</h4>
+                          <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tight mt-0.5 truncate">
+                            {[athlete.position, athlete.gender, age ? `Age ${age}` : null].filter(Boolean).join(' · ')}
+                          </p>
+                          {athlete.organisations?.name && (
+                            <p className="text-[10px] text-gray-600 mt-1 truncate">{athlete.organisations.name}</p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-end">
+                          <span className="material-symbols-outlined text-gray-600 text-sm">chevron_right</span>
+                        </div>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -410,6 +479,59 @@ export default function Athletes() {
           </NavLink>
         ))}
       </nav>
+
+      {confirmDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.7)' }}
+          onClick={() => setConfirmDialog(null)}
+        >
+          <div
+            className="rounded-2xl p-8 w-full max-w-sm mx-4"
+            style={{ background: '#1b1b1d', border: '1px solid rgba(255,255,255,0.08)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <span
+                className="material-symbols-outlined text-2xl"
+                style={{ color: confirmDialog.type === 'delete' ? '#EF4444' : '#F97316' }}
+              >
+                {confirmDialog.type === 'delete' ? 'delete_forever' : 'archive'}
+              </span>
+              <h2 className="text-white font-black text-base uppercase tracking-wide">
+                {confirmDialog.type === 'delete' ? 'Delete Athlete' : 'Archive Athlete'}
+              </h2>
+            </div>
+            <p className="text-gray-400 text-sm mb-2">
+              <span className="text-white font-bold">{athleteDisplayName(confirmDialog.athlete)}</span>
+            </p>
+            <p className="text-gray-500 text-sm mb-6">
+              {confirmDialog.type === 'delete'
+                ? 'This will permanently delete the athlete record. Their assessment results and plan data will remain in the database but will be unlinked. This cannot be undone.'
+                : 'This will hide the athlete from all rosters and filters. Their data is preserved and can be restored from the database.'}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors"
+                style={{ background: '#2a2a2c', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmDialog.type === 'delete'
+                  ? handleDelete(confirmDialog.athlete)
+                  : handleArchive(confirmDialog.athlete)
+                }
+                className="px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest text-white transition-colors"
+                style={{ background: confirmDialog.type === 'delete' ? '#EF4444' : '#F97316' }}
+              >
+                {confirmDialog.type === 'delete' ? 'Delete permanently' : 'Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (
