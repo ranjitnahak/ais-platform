@@ -56,6 +56,9 @@ export async function deepCopyWeek({ supabase, user, programme, sourceWeekId, ta
         category: s.category,
         session_type: s.session_type,
         programme_week_id: targetWeekId,
+        is_published: false,
+        publish_at: null,
+        created_by: null,
       })
       .select()
       .single()
@@ -116,6 +119,7 @@ export async function deepCopyWeek({ supabase, user, programme, sourceWeekId, ta
           rest_seconds: e.rest_seconds,
           is_optional: e.is_optional,
           coach_note: e.coach_note,
+          superset_group: e.superset_group,
         }))
         const { error: inEx } = await supabase.from('session_exercises').insert(rows)
         if (inEx) throw inEx

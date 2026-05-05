@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { DIFFICULTIES, PHASE_TYPES, TRAINING_AGES } from '../../lib/programmeUi.js'
+import { isoLocal, startOfWeekMonday } from '../../lib/weekDates.js'
 import { btnOutline, btnPrimary } from './programmeLibraryUi.jsx'
 
 const inputStyle = {
@@ -10,6 +11,43 @@ const inputStyle = {
   background: 'var(--color-surface-low)',
   color: 'var(--color-text)',
 }
+
+const SPORT_OPTIONS = [
+  'Athletics (Track & Field)',
+  'Badminton',
+  'Baseball',
+  'Basketball',
+  'Boxing',
+  'Cricket',
+  'CrossFit',
+  'Cycling',
+  'Field Hockey',
+  'Football (Soccer)',
+  'Futsal',
+  'Golf',
+  'Gymnastics',
+  'Handball',
+  'Ice Hockey',
+  'Judo',
+  'Kabaddi',
+  'Lacrosse',
+  'MMA',
+  'Netball',
+  'Powerlifting',
+  'Rugby League',
+  'Rugby Union',
+  'Skiing',
+  'Squash',
+  'Swimming',
+  'Table Tennis',
+  'Taekwondo',
+  'Tennis',
+  'Triathlon',
+  'Volleyball',
+  'Weightlifting',
+  'Wrestling',
+  'Other',
+]
 
 function Field({ label, children }) {
   return (
@@ -30,6 +68,7 @@ export default function CreateProgrammeModal({ onClose, onSave }) {
   const [difficulty, setDiff] = useState('moderate')
   const [description, setDesc] = useState('')
   const [weeks, setWeeks] = useState(4)
+  const [startDate, setStartDate] = useState(() => isoLocal(startOfWeekMonday(new Date())))
 
   return (
     <div
@@ -66,7 +105,14 @@ export default function CreateProgrammeModal({ onClose, onSave }) {
         <label className="sc-label-caps" style={{ display: 'block', margin: '12px 0 8px' }}>
           Sport
         </label>
-        <input value={sport} onChange={(e) => setSport(e.target.value)} style={inputStyle} />
+        <select value={sport} onChange={(e) => setSport(e.target.value)} style={inputStyle}>
+          <option value="">Select sport</option>
+          {SPORT_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
           <Field label="Phase type">
             <select value={phase_type} onChange={(e) => setPhase(e.target.value)} style={inputStyle}>
@@ -100,6 +146,19 @@ export default function CreateProgrammeModal({ onClose, onSave }) {
           Description
         </label>
         <textarea value={description} onChange={(e) => setDesc(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+        <div style={{ marginTop: 12 }}>
+          <Field label="Start date (Week 1)">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={inputStyle}
+            />
+            <p className="sc-body-sm" style={{ color: 'var(--color-text-muted)', margin: '6px 0 0' }}>
+              Week columns align to the Monday-start week that contains this date.
+            </p>
+          </Field>
+        </div>
         <label className="sc-label-caps" style={{ display: 'block', margin: '12px 0 8px' }}>
           Number of weeks
         </label>
@@ -119,7 +178,18 @@ export default function CreateProgrammeModal({ onClose, onSave }) {
             type="button"
             style={btnPrimary}
             disabled={!name.trim()}
-            onClick={() => onSave({ name, sport, phase_type, training_age, difficulty, description, weeks })}
+            onClick={() =>
+              onSave({
+                name,
+                sport,
+                phase_type,
+                training_age,
+                difficulty,
+                description,
+                weeks,
+                startDate: startDate || null,
+              })
+            }
           >
             Save
           </button>

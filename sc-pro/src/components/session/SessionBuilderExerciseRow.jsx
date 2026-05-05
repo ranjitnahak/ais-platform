@@ -169,23 +169,30 @@ export default function SessionBuilderExerciseRow({
         >
           <IconTrash />
         </button>
-        <span
+        <button
+          type="button"
           {...listeners}
           aria-label="Drag to reorder or move to another block"
           title="Drag to reorder or move to another block"
           onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
           style={{
             color: 'var(--color-text-muted)',
-            width: 20,
+            width: 26,
+            height: 26,
+            padding: 0,
             flexShrink: 0,
             cursor: 'grab',
             touchAction: 'none',
             userSelect: 'none',
+            border: 'none',
+            background: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           ⠿
-        </span>
+        </button>
         <span className="sc-body-sm" style={{ color: 'var(--color-text-muted)', width: 22, flexShrink: 0 }}>
           {idx + 1}.
         </span>

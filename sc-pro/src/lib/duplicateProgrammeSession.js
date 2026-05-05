@@ -31,13 +31,7 @@ export async function duplicateProgrammeSessionDeep(supabase, { orgId, sourceSes
     .select(
       `
       id, session_id, org_id, label, block_type, format, sort_order, notes,
-      session_exercises (
-        id, block_id, org_id, exercise_id, sort_order, sets, reps,
-        prescription_type, prescription_value,
-        secondary_prescription_type, secondary_prescription_value,
-        tertiary_prescription_type, tertiary_prescription_value,
-        superset_group, reps_range_high, tempo, rest_seconds, is_optional, coach_note
-      )
+      session_exercises (*)
     `,
     )
     .eq('session_id', sourceSessionId)
@@ -60,6 +54,7 @@ export async function duplicateProgrammeSessionDeep(supabase, { orgId, sourceSes
     notes: src.notes ?? null,
     is_published: false,
     publish_at: null,
+    created_by: null,
   }
 
   const { data: newSess, error: e1 } = await supabase.from('sessions').insert(insertSession).select().single()
@@ -93,21 +88,21 @@ export async function duplicateProgrammeSessionDeep(supabase, { orgId, sourceSes
         org_id: orgId,
         block_id: nb.id,
         exercise_id: ex.exercise_id,
-        sort_order: ex.sort_order ?? 0,
-        sets: ex.sets ?? null,
-        reps: ex.reps ?? null,
-        prescription_type: ex.prescription_type ?? 'absolute',
-        prescription_value: ex.prescription_value ?? null,
-        secondary_prescription_type: ex.secondary_prescription_type ?? null,
-        secondary_prescription_value: ex.secondary_prescription_value ?? null,
-        tertiary_prescription_type: ex.tertiary_prescription_type ?? null,
-        tertiary_prescription_value: ex.tertiary_prescription_value ?? null,
-        superset_group: ex.superset_group ?? null,
-        reps_range_high: ex.reps_range_high ?? null,
-        tempo: ex.tempo ?? null,
-        rest_seconds: ex.rest_seconds ?? null,
-        is_optional: ex.is_optional ?? false,
-        coach_note: ex.coach_note ?? null,
+        sort_order: ex.sort_order,
+        sets: ex.sets,
+        reps: ex.reps,
+        reps_range_high: ex.reps_range_high,
+        prescription_type: ex.prescription_type,
+        prescription_value: ex.prescription_value,
+        secondary_prescription_type: ex.secondary_prescription_type,
+        secondary_prescription_value: ex.secondary_prescription_value,
+        tertiary_prescription_type: ex.tertiary_prescription_type,
+        tertiary_prescription_value: ex.tertiary_prescription_value,
+        rest_seconds: ex.rest_seconds,
+        tempo: ex.tempo,
+        coach_note: ex.coach_note,
+        is_optional: ex.is_optional,
+        superset_group: ex.superset_group,
       })
       if (eE) throw eE
     }

@@ -28,7 +28,8 @@ export default function SessionInfoPanel({
 }) {
   const [lastLog, setLastLog] = useState(null)
 
-  const lib = exerciseRow?.exercise_library
+  const rawLib = exerciseRow?.exercise_library
+  const lib = Array.isArray(rawLib) ? rawLib[0] : rawLib
   const exId = exerciseRow?.exercise_id
   const embed = useMemo(() => getYoutubeEmbedUrl(lib?.video_url), [lib?.video_url])
 

@@ -134,7 +134,8 @@ export default function AddExerciseModal({ open, onClose, regions, patterns, onE
       const equipment_required = [...equip]
       const row = {
         org_id: user.orgId,
-        created_by: user.id,
+        // Auth is still stubbed in sc-pro; stub user IDs may not exist in public.users.
+        // Keep created_by null until real auth/user mapping is wired.
         name: n,
         region_id: regionId,
         pattern_id: patternId,

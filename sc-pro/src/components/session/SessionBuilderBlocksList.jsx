@@ -8,7 +8,8 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { can } from '../../lib/auth.js'
 import { blockHasLinkedSupersets, sortedExercises, supersetRowMeta } from '../../lib/sessionBuilderExerciseUtils.js'
 import { addBlockBtn, formatPill } from '../../lib/sessionBuilderUi.js'
@@ -24,6 +25,8 @@ const FMT_LABELS = {
 }
 
 const APPEND_PREFIX = 'append:'
+/** Prefix block drag ids so they never collide with exercise UUIDs in the same DndContext */
+const BLOCK_DND_PREFIX = 'blk:'
 
 function appendDroppableId(blockId) {
   return `${APPEND_PREFIX}${blockId}`
@@ -35,6 +38,18 @@ function isAppendDroppableId(id) {
 
 function parseAppendBlockId(id) {
   return String(id).slice(APPEND_PREFIX.length)
+}
+
+function blockDndId(blockId) {
+  return `${BLOCK_DND_PREFIX}${blockId}`
+}
+
+function isBlockDragId(id) {
+  return String(id ?? '').startsWith(BLOCK_DND_PREFIX)
+}
+
+function parseBlockDndId(id) {
+  return String(id).startsWith(BLOCK_DND_PREFIX) ? String(id).slice(BLOCK_DND_PREFIX.length) : null
 }
 
 function itemsByBlockFromProps(blocks) {
@@ -52,6 +67,38 @@ function findExerciseById(blocks, exerciseId) {
     }
   }
   return null
+}
+
+function findBlockById(blocks, blockId) {
+  return blocks.find((b) => b.id === blockId) ?? null
+}
+
+/** Map drop target id (block drag handle, exercise row, or append zone) → owning block id */
+function resolveBlockDropTarget(overId, blocks) {
+  if (!overId) return null
+  const s = String(overId)
+  if (isBlockDragId(s)) return parseBlockDndId(s)
+  if (isAppendDroppableId(s)) return parseAppendBlockId(s)
+  for (const b of blocks) {
+    if (b.id === s) return b.id
+    for (const ex of b.session_exercises || []) {
+      if (ex.id === s) return b.id
+    }
+  }
+  return null
+}
+
+function computeBlockReorder(blocks, activeDndId, over) {
+  const activeBid = parseBlockDndId(activeDndId)
+  if (!activeBid || !over?.id) return null
+  const overBid = resolveBlockDropTarget(over.id, blocks)
+  if (!overBid || activeBid === overBid) return null
+  const order = blocks.map((b) => b.id)
+  const oldIndex = order.indexOf(activeBid)
+  const newIndex = order.indexOf(overBid)
+  if (oldIndex < 0 || newIndex < 0) return null
+  if (oldIndex === newIndex) return null
+  return arrayMove(order, oldIndex, newIndex)
 }
 
 /**
@@ -151,6 +198,188 @@ function ExerciseDragPreview({ ex }) {
   )
 }
 
+function BlockDragPreview({ block }) {
+  const linkedSupersets = blockHasLinkedSupersets(block)
+  const formatPillLabel = linkedSupersets ? 'Supersets' : FMT_LABELS[block.format] || block.format
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '12px 14px',
+        borderRadius: 'var(--radius-lg)',
+        background: 'var(--color-surface-high)',
+        border: '1px solid var(--color-primary)',
+        boxShadow: '0 10px 28px rgba(0,0,0,0.45)',
+        cursor: 'grabbing',
+        color: 'var(--color-text)',
+        minWidth: 260,
+      }}
+    >
+      <span style={{ color: 'var(--color-text-muted)' }} aria-hidden>
+        ⠿
+      </span>
+      <div
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 'var(--radius-full)',
+          background: 'var(--color-primary)',
+          color: 'var(--color-text)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 'var(--font-weight-bold)',
+          fontSize: 12,
+        }}
+      >
+        {block.label}
+      </div>
+      <span style={{ fontWeight: 'var(--font-weight-semibold)', textTransform: 'uppercase' }}>Block</span>
+      <span style={formatPill}>{formatPillLabel}</span>
+    </div>
+  )
+}
+
+function SortableBlockShell({
+  block,
+  selectedExercise,
+  selectedExerciseId,
+  onSelectExerciseRow,
+  hoveredRowId,
+  setHoveredRowId,
+  onDeleteExercise,
+  onToggleSupersetLink,
+  orgId,
+  onReload,
+  onOpenSearch,
+  sorted,
+  ids,
+  formatPillLabel,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: blockDndId(block.id),
+    data: { type: 'block', blockId: block.id },
+  })
+
+  const shellStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.35 : 1,
+    border:
+      selectedExercise && block.session_exercises?.some((e) => e.id === selectedExercise.id)
+        ? '1px solid var(--color-primary)'
+        : '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-lg)',
+    background: 'var(--color-surface)',
+    padding: 'var(--space-pad-x)',
+    position: 'relative',
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={shellStyle}
+      {...attributes}
+      onDragLeave={(e) => {
+        const next = e.relatedTarget
+        if (!next || !e.currentTarget.contains(next)) setHoveredRowId(null)
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+        <button
+          type="button"
+          {...listeners}
+          aria-label="Drag block to reorder"
+          title="Drag block to reorder"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            flexShrink: 0,
+            width: 28,
+            height: 28,
+            padding: 0,
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            background: 'transparent',
+            cursor: 'grab',
+            touchAction: 'none',
+            color: 'color-mix(in srgb, var(--color-text) 78%, transparent)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 16,
+            lineHeight: 1,
+          }}
+        >
+          ⠿
+        </button>
+        <div
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 'var(--radius-full)',
+            background: 'var(--color-primary)',
+            color: 'var(--color-text)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 'var(--font-weight-bold)',
+            fontSize: 12,
+          }}
+        >
+          {block.label}
+        </div>
+        <span style={{ fontWeight: 'var(--font-weight-semibold)', textTransform: 'uppercase' }}>Block</span>
+        <span style={formatPill}>{formatPillLabel}</span>
+        {selectedExercise && block.session_exercises?.some((e) => e.id === selectedExercise.id) && (
+          <span className="sc-label-caps" style={{ color: 'var(--color-primary)' }}>
+            Editing
+          </span>
+        )}
+      </div>
+      <SortableContext id={block.id} items={ids} strategy={verticalListSortingStrategy}>
+        {sorted.map((ex, idx) => (
+          <SessionBuilderExerciseRow
+            key={ex.id}
+            ex={ex}
+            blockId={block.id}
+            sorted={sorted}
+            idx={idx}
+            isLast={idx === sorted.length - 1}
+            selectedExerciseId={selectedExerciseId}
+            onSelectExerciseRow={onSelectExerciseRow}
+            hoveredRowId={hoveredRowId}
+            setHoveredRowId={setHoveredRowId}
+            onDeleteExercise={onDeleteExercise}
+            onToggleSupersetLink={onToggleSupersetLink}
+            orgId={orgId}
+            canEdit
+            onReload={onReload}
+          />
+        ))}
+        <BlockAppendDropZone blockId={block.id} />
+      </SortableContext>
+      <button
+        type="button"
+        onClick={() => onOpenSearch(block.id)}
+        style={{
+          width: '100%',
+          marginTop: 8,
+          padding: 10,
+          borderRadius: 'var(--radius-md)',
+          border: '1px dashed var(--color-border)',
+          background: 'transparent',
+          color: 'var(--color-text-muted)',
+          cursor: 'pointer',
+        }}
+      >
+        + Add exercise
+      </button>
+    </div>
+  )
+}
+
 export default function SessionBuilderBlocksList({
   blocks,
   selectedExercise,
@@ -161,6 +390,7 @@ export default function SessionBuilderBlocksList({
   onDeleteExercise,
   onToggleSupersetLink,
   onApplyExerciseLayout,
+  onApplyBlockOrder,
   onOpenSearch,
   onAddBlock,
   canEdit = can('programme', 'edit'),
@@ -180,6 +410,12 @@ export default function SessionBuilderBlocksList({
       setActiveId(null)
       if (!over || !canEdit) return
 
+      if (isBlockDragId(active.id)) {
+        const nextOrder = computeBlockReorder(blocks, active.id, over)
+        if (nextOrder) void onApplyBlockOrder?.(nextOrder)
+        return
+      }
+
       const prev = itemsByBlockFromProps(blocks)
       const next = computeNextItemsByBlock(prev, active.id, over)
       if (!next) return
@@ -193,25 +429,24 @@ export default function SessionBuilderBlocksList({
       }))
       void onApplyExerciseLayout?.(layout)
     },
-    [blocks, onApplyExerciseLayout],
+    [blocks, onApplyExerciseLayout, onApplyBlockOrder, canEdit],
   )
 
-  const activeExercise = activeId ? findExerciseById(blocks, activeId) : null
+  const activeExercise =
+    activeId && !isBlockDragId(activeId) ? findExerciseById(blocks, activeId) : null
+  const activeBlock =
+    activeId && isBlockDragId(activeId) ? findBlockById(blocks, parseBlockDndId(activeId)) : null
 
-  const inner = (
+  /** Read-only session view (no DnD) */
+  const innerReadonly = (
     <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {blocks.map((b) => {
         const sorted = sortedExercises(b)
-        const ids = sorted.map((e) => e.id)
         const linkedSupersets = blockHasLinkedSupersets(b)
         const formatPillLabel = linkedSupersets ? 'Supersets' : FMT_LABELS[b.format] || b.format
         return (
           <div
             key={b.id}
-            onDragLeave={(e) => {
-              const next = e.relatedTarget
-              if (!next || !e.currentTarget.contains(next)) setHoveredRowId(null)
-            }}
             style={{
               border:
                 selectedExercise && b.session_exercises?.some((e) => e.id === selectedExercise.id)
@@ -247,125 +482,80 @@ export default function SessionBuilderBlocksList({
                 </span>
               )}
             </div>
-            {canEdit ? (
-              <SortableContext id={b.id} items={ids} strategy={verticalListSortingStrategy}>
-                {sorted.map((ex, idx) => (
-                  <SessionBuilderExerciseRow
-                    key={ex.id}
-                    ex={ex}
-                    blockId={b.id}
-                    sorted={sorted}
-                    idx={idx}
-                    isLast={idx === sorted.length - 1}
-                    selectedExerciseId={selectedExerciseId}
-                    onSelectExerciseRow={onSelectExerciseRow}
-                    hoveredRowId={hoveredRowId}
-                    setHoveredRowId={setHoveredRowId}
-                    onDeleteExercise={onDeleteExercise}
-                    onToggleSupersetLink={onToggleSupersetLink}
-                    orgId={orgId}
-                    canEdit={canEdit}
-                    onReload={onReload}
+            {sorted.map((ex, idx) => {
+              const lib = ex.exercise_library
+              const act = ex.id === selectedExerciseId
+              const summary =
+                ex.prescription_type === 'pct_1rm'
+                  ? `${ex.sets ?? '—'} × ${ex.reps ?? '—'} @ ${ex.prescription_value ?? '—'}%`
+                  : `${ex.sets ?? '—'} × ${ex.reps ?? '—'}`
+              const { showRail } = supersetRowMeta(sorted, idx)
+              return (
+                <div
+                  key={ex.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectExerciseRow?.(ex.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onSelectExerciseRow?.(ex.id)
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 6px',
+                    borderBottom: idx < sorted.length - 1 ? '1px solid var(--color-border)' : 'none',
+                    background: act ? 'var(--color-primary-soft)' : 'transparent',
+                    borderRadius: act ? 'var(--radius-md)' : 0,
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    outline: 'none',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: showRail ? 2 : 0,
+                      flexShrink: 0,
+                      alignSelf: 'stretch',
+                      marginRight: showRail ? 4 : 0,
+                      background: showRail ? 'var(--color-primary)' : 'transparent',
+                      borderRadius: 1,
+                    }}
+                    aria-hidden
                   />
-                ))}
-                <BlockAppendDropZone blockId={b.id} />
-              </SortableContext>
-            ) : (
-              <>
-                {sorted.map((ex, idx) => {
-                  const lib = ex.exercise_library
-                  const act = ex.id === selectedExerciseId
-                  const summary =
-                    ex.prescription_type === 'pct_1rm'
-                      ? `${ex.sets ?? '—'} × ${ex.reps ?? '—'} @ ${ex.prescription_value ?? '—'}%`
-                      : `${ex.sets ?? '—'} × ${ex.reps ?? '—'}`
-                  const { showRail } = supersetRowMeta(sorted, idx)
-                  return (
-                    <div
-                      key={ex.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => onSelectExerciseRow?.(ex.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          onSelectExerciseRow?.(ex.id)
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '8px 6px',
-                        borderBottom: idx < sorted.length - 1 ? '1px solid var(--color-border)' : 'none',
-                        background: act ? 'var(--color-primary-soft)' : 'transparent',
-                        borderRadius: act ? 'var(--radius-md)' : 0,
-                        cursor: 'pointer',
-                        color: 'var(--color-text)',
-                        outline: 'none',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: showRail ? 2 : 0,
-                          flexShrink: 0,
-                          alignSelf: 'stretch',
-                          marginRight: showRail ? 4 : 0,
-                          background: showRail ? 'var(--color-primary)' : 'transparent',
-                          borderRadius: 1,
-                        }}
-                        aria-hidden
-                      />
-                      <span style={{ width: 26, flexShrink: 0 }} aria-hidden />
-                      <span style={{ color: 'var(--color-text-muted)', width: 20 }} aria-hidden>
-                        ⠿
-                      </span>
-                      <span className="sc-body-sm" style={{ color: 'var(--color-text-muted)', width: 22 }}>
-                        {idx + 1}.
-                      </span>
-                      <span style={{ flex: 1 }}>{lib?.name || 'Exercise'}</span>
-                      <span
-                        style={{
-                          color: ex.prescription_type === 'pct_1rm' ? 'var(--color-primary)' : 'var(--color-text)',
-                          fontSize: 'var(--font-size-body-sm)',
-                        }}
-                      >
-                        {summary}
-                      </span>
-                      <span style={{ width: 26, flexShrink: 0 }} aria-hidden />
-                      <span style={{ color: 'var(--color-text-muted)' }}>›</span>
-                    </div>
-                  )
-                })}
-              </>
-            )}
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => onOpenSearch(b.id)}
-                style={{
-                  width: '100%',
-                  marginTop: 8,
-                  padding: 10,
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px dashed var(--color-border)',
-                  background: 'transparent',
-                  color: 'var(--color-text-muted)',
-                  cursor: 'pointer',
-                }}
-              >
-                + Add exercise
-              </button>
-            )}
+                  <span style={{ width: 26, flexShrink: 0 }} aria-hidden />
+                  <span style={{ color: 'var(--color-text-muted)', width: 20 }} aria-hidden>
+                    ⠿
+                  </span>
+                  <span className="sc-body-sm" style={{ color: 'var(--color-text-muted)', width: 22 }}>
+                    {idx + 1}.
+                  </span>
+                  <span style={{ flex: 1 }}>{lib?.name || 'Exercise'}</span>
+                  <span
+                    style={{
+                      color: ex.prescription_type === 'pct_1rm' ? 'var(--color-primary)' : 'var(--color-text)',
+                      fontSize: 'var(--font-size-body-sm)',
+                    }}
+                  >
+                    {summary}
+                  </span>
+                  <span style={{ width: 26, flexShrink: 0 }} aria-hidden />
+                  <span style={{ color: 'var(--color-text-muted)' }}>›</span>
+                </div>
+              )
+            })}
           </div>
         )
       })}
     </div>
   )
 
-  if (!canEdit) return inner
+  if (!canEdit) return innerReadonly
 
   return (
     <DndContext
@@ -375,9 +565,40 @@ export default function SessionBuilderBlocksList({
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveId(null)}
     >
-      {inner}
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <SortableContext items={blocks.map((b) => blockDndId(b.id))} strategy={verticalListSortingStrategy}>
+          {blocks.map((b) => {
+            const sorted = sortedExercises(b)
+            const ids = sorted.map((e) => e.id)
+            const formatPillLabel = blockHasLinkedSupersets(b) ? 'Supersets' : FMT_LABELS[b.format] || b.format
+            return (
+              <SortableBlockShell
+                key={b.id}
+                block={b}
+                selectedExercise={selectedExercise}
+                selectedExerciseId={selectedExerciseId}
+                onSelectExerciseRow={onSelectExerciseRow}
+                hoveredRowId={hoveredRowId}
+                setHoveredRowId={setHoveredRowId}
+                onDeleteExercise={onDeleteExercise}
+                onToggleSupersetLink={onToggleSupersetLink}
+                orgId={orgId}
+                onReload={onReload}
+                onOpenSearch={onOpenSearch}
+                sorted={sorted}
+                ids={ids}
+                formatPillLabel={formatPillLabel}
+              />
+            )
+          })}
+        </SortableContext>
+      </div>
       <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' }}>
-        {activeExercise ? <ExerciseDragPreview ex={activeExercise} /> : null}
+        {activeExercise ? (
+          <ExerciseDragPreview ex={activeExercise} />
+        ) : activeBlock ? (
+          <BlockDragPreview block={activeBlock} />
+        ) : null}
       </DragOverlay>
       <button type="button" onClick={() => void onAddBlock()} style={{ ...addBlockBtn, marginTop: 12 }}>
         + Add block

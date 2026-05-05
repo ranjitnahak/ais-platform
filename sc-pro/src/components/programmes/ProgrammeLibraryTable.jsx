@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DIFF_BADGE,
   PHASE_ACCENT_VAR,
@@ -7,20 +9,117 @@ import {
 import { IconButton, MenuItem, badgeBase } from './programmeLibraryUi.jsx'
 import { PAGE_SIZE } from '../../hooks/useProgrammesLibrary.js'
 
+/** Fixed panel aligned to overflow menu trigger; scrollable if viewport is short */
+function programmeMenuStyle(rect) {
+  if (!rect || typeof window === 'undefined') return {}
+  const w = 220
+  const pad = 8
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  let left = rect.right - w
+  left = Math.max(pad, Math.min(left, vw - w - pad))
+  let top = rect.bottom + 6
+  const maxFixed = 280
+  let maxHeight = Math.min(maxFixed, vh - top - pad)
+  if (maxHeight < 112) {
+    const above = rect.top - pad
+    const useAbove = Math.min(maxFixed, above - 6)
+    if (useAbove > maxHeight + 20) {
+      maxHeight = useAbove
+      top = Math.max(pad, rect.top - maxHeight - 6)
+    } else {
+      maxHeight = Math.max(112, Math.min(maxFixed, vh - top - pad))
+    }
+  }
+  return {
+    position: 'fixed',
+    left,
+    top,
+    width: w,
+    maxHeight,
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    zIndex: 10000,
+    background: 'var(--color-surface-highest)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-md)',
+    boxShadow: '0 10px 40px rgba(0,0,0,0.55)',
+  }
+}
+
 export default function ProgrammeLibraryTable({
   slice,
   filteredLength,
   pageSafe,
   totalPages,
   teamUsage,
-  menuRow,
-  setMenuRow,
   navigate,
   duplicateProgramme,
   deleteProgramme,
   saveAsTemplate,
   setPage,
 }) {
+  const [menu, setMenu] = useState(null)
+  const menuPanelRef = useRef(null)
+
+  const menuStyle = useMemo(() => programmeMenuStyle(menu?.rect), [menu])
+
+  useEffect(() => {
+    if (!menu) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMenu(null)
+    }
+    const onDown = (e) => {
+      if (menuPanelRef.current?.contains(e.target)) return
+      if (e.target.closest?.('[data-programme-menu-trigger="true"]')) return
+      setMenu(null)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('mousedown', onDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mousedown', onDown)
+    }
+  }, [menu])
+
+  const openMenuForRow = (r, e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenu((prev) => (prev?.programme?.id === r.id ? null : { programme: r, rect }))
+  }
+
+  const menuPortal =
+    menu &&
+    createPortal(
+      <div ref={menuPanelRef} data-programme-menu="panel" role="menu" style={menuStyle}>
+        <MenuItem
+          onClick={() => {
+            setMenu(null)
+            navigate(`/programmes/${menu.programme.id}/edit`)
+          }}
+        >
+          Edit programme overview
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setMenu(null)
+            saveAsTemplate(menu.programme)
+          }}
+        >
+          Save as Template
+        </MenuItem>
+        <MenuItem onClick={() => setMenu(null)}>Archive</MenuItem>
+        <MenuItem
+          onClick={() => {
+            setMenu(null)
+            deleteProgramme(menu.programme.id)
+          }}
+        >
+          Delete
+        </MenuItem>
+      </div>,
+      document.body,
+    )
+
   return (
     <>
       <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: 0 }}>
@@ -49,13 +148,9 @@ export default function ProgrammeLibraryTable({
               const phaseKey = PHASE_BADGE[r.phase_type] ? r.phase_type : 'general'
               const diffKey = DIFF_BADGE[r.difficulty] ? r.difficulty : 'moderate'
               const accent = PHASE_ACCENT_VAR[phaseKey] || PHASE_ACCENT_VAR.general
+              const menuOpen = menu?.programme?.id === r.id
               return (
-                <tr
-                  key={r.id}
-                  className="sc-table-row"
-                  style={{ position: 'relative' }}
-                  onMouseLeave={() => setMenuRow((m) => (m === r.id ? null : m))}
-                >
+                <tr key={r.id} className="sc-table-row">
                   <td style={{ padding: '12px', borderLeft: `3px solid var(${accent})` }}>
                     <strong>{r.name}</strong>
                   </td>
@@ -91,36 +186,11 @@ export default function ProgrammeLibraryTable({
                       by coach
                     </div>
                   </td>
-                  <td style={{ padding: '12px', textAlign: 'right' }}>
-                    <span style={{ opacity: menuRow === r.id ? 1 : 0.35 }} className="row-actions">
-                      <IconButton label="Edit" onClick={() => navigate(`/programmes/${r.id}/edit`)} icon="pencil" />
+                  <td style={{ padding: '12px', textAlign: 'right', verticalAlign: 'middle' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', opacity: menuOpen ? 1 : 0.92 }}>
                       <IconButton label="Copy" onClick={() => duplicateProgramme(r)} icon="copy" />
-                      <IconButton label="More" onClick={() => setMenuRow(r.id)} icon="dots" />
+                      <IconButton label="More" onClick={(e) => openMenuForRow(r, e)} icon="dots" menuTrigger />
                     </span>
-                    {menuRow === r.id && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          right: 12,
-                          top: 44,
-                          background: 'var(--color-surface-highest)',
-                          border: '1px solid var(--color-border)',
-                          borderRadius: 'var(--radius-md)',
-                          zIndex: 5,
-                          minWidth: 180,
-                        }}
-                      >
-                        <MenuItem onClick={() => saveAsTemplate(r)}>Save as Template</MenuItem>
-                        <MenuItem
-                          onClick={() => {
-                            setMenuRow(null)
-                          }}
-                        >
-                          Archive
-                        </MenuItem>
-                        <MenuItem onClick={() => deleteProgramme(r.id)}>Delete</MenuItem>
-                      </div>
-                    )}
                   </td>
                 </tr>
               )
@@ -128,6 +198,7 @@ export default function ProgrammeLibraryTable({
           </tbody>
         </table>
       </div>
+      {menuPortal}
       <div
         style={{
           display: 'flex',

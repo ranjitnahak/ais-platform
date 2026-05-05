@@ -49,22 +49,34 @@ export function MenuItem({ children, onClick }) {
   )
 }
 
-export function IconButton({ label, onClick, icon }) {
+export function IconButton({ label, onClick, icon, menuTrigger }) {
   return (
     <button
       type="button"
       title={label}
+      {...(menuTrigger ? { 'data-programme-menu-trigger': 'true' } : {})}
       onClick={(e) => {
         e.stopPropagation()
-        onClick()
+        onClick(e)
       }}
       style={{
         marginLeft: 8,
         background: 'transparent',
         border: 'none',
         cursor: 'pointer',
-        color: 'var(--color-text-muted)',
+        color: 'color-mix(in srgb, var(--color-text) 78%, transparent)',
         padding: 4,
+        fontSize: icon === 'dots' ? 18 : 16,
+        lineHeight: 1,
+        borderRadius: 'var(--radius-sm)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.color = 'var(--color-text)'
+        e.currentTarget.style.background = 'var(--color-surface-high)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.color = 'color-mix(in srgb, var(--color-text) 78%, transparent)'
+        e.currentTarget.style.background = 'transparent'
       }}
     >
       {icon === 'pencil' && '✎'}

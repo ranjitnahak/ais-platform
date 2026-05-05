@@ -5,6 +5,17 @@ import { getCurrentUser } from '../lib/auth.js'
 
 export const PAGE_SIZE = 5
 
+/** Maps PostgREST “unknown column” errors to an actionable hint when `start_date` is not migrated yet. */
+function friendlyProgrammeDbError(err) {
+  const m = String(err?.message ?? err ?? '')
+  if (m.includes('start_date') && (m.includes('schema') || m.includes('column'))) {
+    return (
+      'Database is missing programmes.start_date. In Supabase → SQL Editor, run ais/sql/sc_pro_programmes_start_date.sql, then save again.'
+    )
+  }
+  return m || 'Request failed'
+}
+
 function useTeamUsageMap(programmeIds, refreshKey) {
   const [map, setMap] = useState({})
   useEffect(() => {
@@ -71,7 +82,6 @@ export function useProgrammesLibrary() {
   const [createdBy, setCreatedBy] = useState('Any Coach')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null)
-  const [menuRow, setMenuRow] = useState(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [onlyTemplates, setOnlyTemplates] = useState(false)
 
@@ -141,6 +151,7 @@ export function useProgrammesLibrary() {
           training_age: payload.training_age,
           difficulty: payload.difficulty,
           description: payload.description || null,
+          start_date: payload.startDate || null,
           is_template: false,
           // V1 stub: omit creator until auth supplies a real public.users id (FK-safe).
           created_by: null,
@@ -161,7 +172,7 @@ export function useProgrammesLibrary() {
       navigate(`/programmes/${prog.id}`)
     } catch (e) {
       console.error('[Programmes] create', e)
-      setError(e.message ?? 'Create failed')
+      setError(friendlyProgrammeDbError(e))
     }
   }
 
@@ -177,6 +188,7 @@ export function useProgrammesLibrary() {
           training_age: source.training_age,
           difficulty: source.difficulty,
           description: source.description,
+          start_date: source.start_date ?? null,
           is_template: false,
           created_by: null,
         })
@@ -201,11 +213,10 @@ export function useProgrammesLibrary() {
         const { error: w1 } = await supabase.from('programme_weeks').insert(ins)
         if (w1) throw w1
       }
-      setMenuRow(null)
       setRefreshKey((k) => k + 1)
     } catch (e) {
       console.error('[Programmes] duplicate', e)
-      setError(e.message ?? 'Duplicate failed')
+      setError(friendlyProgrammeDbError(e))
     }
   }
 
@@ -213,7 +224,6 @@ export function useProgrammesLibrary() {
     try {
       const { error } = await supabase.from('programmes').delete().eq('id', id).eq('org_id', user.orgId)
       if (error) throw error
-      setMenuRow(null)
       setRefreshKey((k) => k + 1)
     } catch (e) {
       console.error('[Programmes] delete', e)
@@ -229,7 +239,6 @@ export function useProgrammesLibrary() {
         .eq('id', source.id)
         .eq('org_id', user.orgId)
       if (error) throw error
-      setMenuRow(null)
       setRefreshKey((k) => k + 1)
     } catch (e) {
       console.error('[Programmes] template', e)
@@ -254,8 +263,6 @@ export function useProgrammesLibrary() {
     setPage,
     modal,
     setModal,
-    menuRow,
-    setMenuRow,
     onlyTemplates,
     setOnlyTemplates,
     templateCount,

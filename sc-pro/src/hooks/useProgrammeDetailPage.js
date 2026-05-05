@@ -3,7 +3,8 @@ import { flushSync } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { can, getCurrentUser } from '../lib/auth.js'
-import { weekDays, isoLocal } from '../lib/weekDates.js'
+import { weekDays, isoLocal, weekOneMondayIso, diffCalendarDaysIso } from '../lib/weekDates.js'
+import { shiftProgrammeSessionsByDelta } from '../lib/shiftProgrammeSessionDates.js'
 import { athleteDisplayName } from '../lib/programmeUi.js'
 import { duplicateProgrammeSessionDeep } from '../lib/duplicateProgrammeSession.js'
 import { fetchSessionForClipboard, pasteClipboardSession } from '../lib/sessionClipboardPaste.js'
@@ -60,8 +61,8 @@ export function useProgrammeDetailPage(programmeId) {
   const [copyOpen, setCopyOpen] = useState(false)
   const [emptyWeekTargets, setEmptyWeekTargets] = useState([])
   const [weekIdsWithSessions, setWeekIdsWithSessions] = useState([])
-  /** { type: 'team' | 'athlete', name: string } | null — programme assignment display */
-  const [assignPill, setAssignPill] = useState(null)
+  /** Explicit programme ↔ team / athlete assignments (junction tables) */
+  const [assignTargets, setAssignTargets] = useState({ teams: [], athletes: [] })
   /** Full session + blocks + exercises for weekly grid copy/paste */
   const [copiedSession, setCopiedSession] = useState(null)
   const [clipboardToast, setClipboardToast] = useState(null)
@@ -70,7 +71,7 @@ export function useProgrammeDetailPage(programmeId) {
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
-    setAssignPill(null)
+    setAssignTargets({ teams: [], athletes: [] })
     try {
       const { data: p, error: e1 } = await supabase
         .from('programmes')
@@ -109,41 +110,50 @@ export function useProgrammeDetailPage(programmeId) {
         return w?.[0]?.id ?? null
       })
 
-      let pill = null
+      const teamsOut = []
+      const athletesOut = []
       try {
-        if (p.athlete_id) {
+        const { data: pt, error: ePt } = await supabase
+          .from('programme_teams')
+          .select('team_id, teams(id, name)')
+          .eq('programme_id', programmeId)
+          .eq('org_id', user.orgId)
+        if (ePt) throw ePt
+        for (const row of pt ?? []) {
+          const t = Array.isArray(row.teams) ? row.teams[0] : row.teams
+          if (t?.id) teamsOut.push({ id: t.id, name: t.name || 'Team' })
+        }
+        const { data: pa, error: ePa } = await supabase
+          .from('programme_athletes')
+          .select('athlete_id, athletes(full_name, first_name, last_name)')
+          .eq('programme_id', programmeId)
+          .eq('org_id', user.orgId)
+        if (ePa) throw ePa
+        for (const row of pa ?? []) {
+          const ath = Array.isArray(row.athletes) ? row.athletes[0] : row.athletes
+          if (ath && row.athlete_id) athletesOut.push({ id: row.athlete_id, name: athleteDisplayName(ath) })
+        }
+      } catch (e) {
+        console.error('[ProgrammeDetail] assign junction', e)
+      }
+      if (!teamsOut.length && !athletesOut.length && p.athlete_id) {
+        try {
           const { data: ath, error: ea } = await supabase
             .from('athletes')
             .select('full_name, first_name, last_name')
             .eq('id', p.athlete_id)
             .eq('org_id', user.orgId)
             .maybeSingle()
-          if (!ea && ath) pill = { type: 'athlete', name: athleteDisplayName(ath) }
-        } else {
-          const ids = await getProgrammeSessionIds(programmeId, user.orgId)
-          if (ids.length) {
-            const { data: sessRows, error: es } = await supabase
-              .from('sessions')
-              .select('team_id')
-              .eq('org_id', user.orgId)
-              .in('id', ids)
-              .not('team_id', 'is', null)
-              .limit(1)
-            if (!es && sessRows?.[0]?.team_id) {
-              const tid = sessRows[0].team_id
-              const { data: team, error: et } = await supabase.from('teams').select('name').eq('id', tid).eq('org_id', user.orgId).maybeSingle()
-              if (!et && team?.name) pill = { type: 'team', name: team.name }
-            }
-          }
+          if (!ea && ath) athletesOut.push({ id: p.athlete_id, name: athleteDisplayName(ath) })
+        } catch (e) {
+          console.error('[ProgrammeDetail] legacy athlete pill', e)
         }
-      } catch (e) {
-        console.error('[ProgrammeDetail] assign pill', e)
       }
-      setAssignPill(pill)
+      setAssignTargets({ teams: teamsOut, athletes: athletesOut })
     } catch (e) {
       console.error('[ProgrammeDetail]', e)
       setError(e.message ?? 'Failed to load')
-      setAssignPill(null)
+      setAssignTargets({ teams: [], athletes: [] })
     } finally {
       setLoading(false)
     }
@@ -298,6 +308,110 @@ export function useProgrammeDetailPage(programmeId) {
     } catch (e) {
       console.error('[ProgrammeDetail]', e)
       setToast(e.message ?? 'Failed')
+    }
+  }
+
+  async function updateProgrammeDetails(payload) {
+    if (!can('programme', 'edit') || !programme) return
+    const trimmed = String(payload.name || '').trim()
+    if (!trimmed) return
+
+    const nextStart =
+      payload.startDate != null && String(payload.startDate).trim() !== ''
+        ? String(payload.startDate).trim().slice(0, 10)
+        : null
+
+    const merged = {
+      ...programme,
+      name: trimmed,
+      sport: payload.sport?.trim() ? payload.sport.trim() : null,
+      phase_type: payload.phase_type,
+      training_age: payload.training_age,
+      difficulty: payload.difficulty,
+      description: payload.description?.trim() ? payload.description.trim() : null,
+      start_date: nextStart,
+    }
+
+    const oldM = weekOneMondayIso(programme)
+    const newM = weekOneMondayIso(merged)
+    const delta = oldM && newM ? diffCalendarDaysIso(oldM, newM) : 0
+
+    const patch = {
+      name: trimmed,
+      sport: merged.sport,
+      phase_type: merged.phase_type,
+      training_age: merged.training_age,
+      difficulty: merged.difficulty,
+      description: merged.description,
+      start_date: nextStart,
+    }
+
+    try {
+      if (delta !== 0) {
+        await shiftProgrammeSessionsByDelta({
+          supabase,
+          orgId: user.orgId,
+          programmeId,
+          deltaDays: delta,
+        })
+      }
+      const { error } = await supabase.from('programmes').update(patch).eq('id', programmeId).eq('org_id', user.orgId)
+      if (error) {
+        if (delta !== 0) {
+          await shiftProgrammeSessionsByDelta({
+            supabase,
+            orgId: user.orgId,
+            programmeId,
+            deltaDays: -delta,
+          }).catch((r) => console.error('[ProgrammeDetail] rollback session dates', r))
+        }
+        throw error
+      }
+      setProgramme((prev) => (prev ? { ...prev, ...patch } : prev))
+      setToast(
+        delta !== 0 ? 'Programme updated; all sessions moved with the new Week 1 start.' : 'Programme details updated',
+      )
+      await refreshWeek()
+    } catch (e) {
+      console.error('[ProgrammeDetail] update details', e)
+      const msg = e?.message ?? 'Update failed'
+      setToast(msg)
+      throw e instanceof Error ? e : new Error(msg)
+    }
+  }
+
+  async function renameProgramme(nextName) {
+    const trimmed = String(nextName || '').trim()
+    if (!trimmed || !programme) return
+    if (trimmed === programme.name) return
+    try {
+      const { error } = await supabase
+        .from('programmes')
+        .update({ name: trimmed })
+        .eq('id', programmeId)
+        .eq('org_id', user.orgId)
+      if (error) throw error
+      setProgramme((prev) => (prev ? { ...prev, name: trimmed } : prev))
+      setToast('Programme name updated')
+    } catch (e) {
+      console.error('[ProgrammeDetail] rename', e)
+      setToast(e.message ?? 'Rename failed')
+    }
+  }
+
+  async function clearProgrammeAssignments() {
+    try {
+      const { error: d1 } = await supabase.from('programme_teams').delete().eq('programme_id', programmeId).eq('org_id', user.orgId)
+      if (d1) throw d1
+      const { error: d2 } = await supabase.from('programme_athletes').delete().eq('programme_id', programmeId).eq('org_id', user.orgId)
+      if (d2) throw d2
+      const { error: e2 } = await supabase.from('programmes').update({ athlete_id: null }).eq('id', programmeId).eq('org_id', user.orgId)
+      if (e2) throw e2
+      setToast('Assignments cleared')
+      await load()
+    } catch (e) {
+      console.error('[ProgrammeDetail] clear assignments', e)
+      setToast(e.message ?? 'Clear failed')
     }
   }
 
@@ -622,10 +736,13 @@ export function useProgrammeDetailPage(programmeId) {
     dayCols,
     sessionsByDay,
     saveTemplate,
+    updateProgrammeDetails,
+    renameProgramme,
+    clearProgrammeAssignments,
     createSession,
     refreshWeek,
     load,
-    assignPill,
+    assignTargets,
     moveSessionToDay,
     reorderSessionsForDay,
     toggleSessionPublish,

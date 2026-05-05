@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient.js'
 import { getCurrentUser } from '../../lib/auth.js'
 import { isoLocal } from '../../lib/weekDates.js'
 import MonthCalendar from '../ui/MonthCalendar.jsx'
 import { flattenSessionExercises } from '../../lib/sessionPreviewFormat.js'
+import { ASSISTANT_ACTION_COMPLETE } from '../../lib/assistantContext.js'
 
 function sessionListDisplayName(s) {
   const n = (s?.name && String(s.name).trim()) || ''
@@ -58,6 +59,8 @@ export default function SessionBuilderLeft({ session, programmeId }) {
   const [selectedDate, setSelectedDate] = useState(sessionDateIso)
   const [monthSessionDates, setMonthSessionDates] = useState(() => new Set())
   const [daySessions, setDaySessions] = useState([])
+  const [programmeWeekIds, setProgrammeWeekIds] = useState([])
+  const [weeksLoadedForProgramme, setWeeksLoadedForProgramme] = useState(false)
 
   const todayIso = isoLocal(new Date())
 
@@ -69,7 +72,39 @@ export default function SessionBuilderLeft({ session, programmeId }) {
   }, [session?.id])
 
   useEffect(() => {
+    let cancel = false
+    ;(async () => {
+      if (!programmeId) {
+        if (!cancel) {
+          setProgrammeWeekIds([])
+          setWeeksLoadedForProgramme(false)
+        }
+        return
+      }
+      try {
+        const { data, error } = await supabase
+          .from('programme_weeks')
+          .select('id')
+          .eq('org_id', user.orgId)
+          .eq('programme_id', programmeId)
+        if (error) throw error
+        if (cancel) return
+        setProgrammeWeekIds((data ?? []).map((r) => r.id).filter(Boolean))
+      } catch (e) {
+        console.error('[SessionBuilder] left panel programme weeks', e)
+        if (!cancel) setProgrammeWeekIds([])
+      } finally {
+        if (!cancel) setWeeksLoadedForProgramme(true)
+      }
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [programmeId, user.orgId])
+
+  useEffect(() => {
     if (!session?.team_id) return
+    if (programmeId && !weeksLoadedForProgramme) return
     let cancel = false
     const { y, m0 } = viewYM
     const start = new Date(y, m0, 1, 12, 0, 0, 0)
@@ -78,13 +113,21 @@ export default function SessionBuilderLeft({ session, programmeId }) {
     const endIso = isoLocal(end)
     ;(async () => {
       try {
-        const { data, error } = await supabase
+        let q = supabase
           .from('sessions')
           .select('id, session_date')
           .eq('org_id', user.orgId)
           .eq('team_id', session.team_id)
           .gte('session_date', startIso)
           .lte('session_date', endIso)
+        if (programmeId) {
+          if (!programmeWeekIds.length) {
+            if (!cancel) setMonthSessionDates(new Set())
+            return
+          }
+          q = q.in('programme_week_id', programmeWeekIds)
+        }
+        const { data, error } = await q
         if (error) throw error
         if (cancel) return
         const next = new Set((data ?? []).map((r) => (r.session_date || '').slice(0, 10)))
@@ -97,20 +140,19 @@ export default function SessionBuilderLeft({ session, programmeId }) {
     return () => {
       cancel = true
     }
-  }, [session?.team_id, user.orgId, viewYM.y, viewYM.m0])
+  }, [session?.team_id, user.orgId, viewYM.y, viewYM.m0, programmeId, programmeWeekIds, weeksLoadedForProgramme])
 
-  useEffect(() => {
+  const loadDaySessions = useCallback(async () => {
     if (!session?.team_id || !selectedDate) {
       setDaySessions([])
       return
     }
-    let cancel = false
-    ;(async () => {
-      try {
-        const { data, error } = await supabase
-          .from('sessions')
-          .select(
-            `
+    if (programmeId && !weeksLoadedForProgramme) return
+    try {
+      let q = supabase
+        .from('sessions')
+        .select(
+          `
             id, name, category, start_time, session_date,
             session_blocks (
               id, label, sort_order,
@@ -123,22 +165,39 @@ export default function SessionBuilderLeft({ session, programmeId }) {
               )
             )
           `,
-          )
-          .eq('org_id', user.orgId)
-          .eq('team_id', session.team_id)
-          .eq('session_date', selectedDate)
-          .order('start_time', { ascending: true })
-        if (error) throw error
-        if (!cancel) setDaySessions(data ?? [])
-      } catch (e) {
-        console.error('[SessionBuilder] left panel day', e)
-        if (!cancel) setDaySessions([])
+        )
+        .eq('org_id', user.orgId)
+        .eq('team_id', session.team_id)
+        .eq('session_date', selectedDate)
+        .order('start_time', { ascending: true })
+      if (programmeId) {
+        if (!programmeWeekIds.length) {
+          setDaySessions([])
+          return
+        }
+        q = q.in('programme_week_id', programmeWeekIds)
       }
-    })()
-    return () => {
-      cancel = true
+      const { data, error } = await q
+      if (error) throw error
+      setDaySessions(data ?? [])
+    } catch (e) {
+      console.error('[SessionBuilder] left panel day', e)
+      setDaySessions([])
     }
-  }, [session?.team_id, user.orgId, selectedDate])
+  }, [session?.team_id, user.orgId, selectedDate, programmeId, programmeWeekIds, weeksLoadedForProgramme])
+
+  useEffect(() => {
+    void loadDaySessions()
+  }, [loadDaySessions])
+
+  useEffect(() => {
+    const onAssistantDone = (e) => {
+      if (e.detail?.pageKey !== 'session_builder') return
+      void loadDaySessions()
+    }
+    window.addEventListener(ASSISTANT_ACTION_COMPLETE, onAssistantDone)
+    return () => window.removeEventListener(ASSISTANT_ACTION_COMPLETE, onAssistantDone)
+  }, [loadDaySessions])
 
   const bumpMonth = (delta) => {
     setViewYM((prev) => {

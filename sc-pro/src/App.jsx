@@ -4,6 +4,8 @@ import Programmes from './pages/Programmes.jsx'
 import ProgrammeDetail from './pages/ProgrammeDetail.jsx'
 import SessionBuilder from './pages/SessionBuilder.jsx'
 import PlaceholderPage from './pages/PlaceholderPage.jsx'
+import Athletes from './pages/Athletes.jsx'
+import AssistantPanel from './components/assistant/AssistantPanel.jsx'
 
 function Shell({ children }) {
   return (
@@ -25,21 +27,24 @@ function Shell({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
-    <Shell>
-      <Routes>
-        <Route path="/" element={<Navigate to="/programmes" replace />} />
-        <Route path="/programmes" element={<Programmes />} />
-        <Route path="/programmes/:id" element={<ProgrammeDetail />} />
-        <Route path="/programmes/:id/edit" element={<ProgrammeDetail />} />
-        <Route path="/programmes/:programmeId/sessions/:sessionId" element={<SessionBuilder />} />
-        <Route path="/home" element={<PlaceholderPage title="Home" />} />
-        <Route path="/athletes" element={<PlaceholderPage title="Athletes" />} />
-        <Route path="/analytics" element={<PlaceholderPage title="Analytics" />} />
-        <Route path="/exercise-library" element={<PlaceholderPage title="Exercise Library" />} />
-        <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
-        <Route path="*" element={<Navigate to="/programmes" replace />} />
-      </Routes>
-    </Shell>
+      <>
+        <Shell>
+          <Routes>
+            <Route path="/" element={<Navigate to="/programmes" replace />} />
+            <Route path="/programmes" element={<Programmes />} />
+            <Route path="/programmes/:id" element={<ProgrammeDetail />} />
+            <Route path="/programmes/:id/edit" element={<ProgrammeDetail />} />
+            <Route path="/programmes/:programmeId/sessions/:sessionId" element={<SessionBuilder />} />
+            <Route path="/home" element={<PlaceholderPage title="Home" />} />
+            <Route path="/athletes" element={<Athletes />} />
+            <Route path="/analytics" element={<PlaceholderPage title="Analytics" />} />
+            <Route path="/exercise-library" element={<PlaceholderPage title="Exercise Library" />} />
+            <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+            <Route path="*" element={<Navigate to="/programmes" replace />} />
+          </Routes>
+        </Shell>
+        <AssistantPanel />
+      </>
     </BrowserRouter>
   )
 }
