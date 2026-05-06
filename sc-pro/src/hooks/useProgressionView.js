@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getCurrentUser } from '../lib/auth.js'
 import { emitSessionExerciseSaved } from '../lib/sessionExerciseCrossTabSync.js'
-import { progressionSessionLabel, slotLabel, toVarFlags } from '../lib/progressionMatrixHelpers.js'
+import {
+  embeddedSession,
+  parseProgressionPickerLabel,
+  pickProgrammeSessionForProgressionColumn,
+  progressionSessionLabel,
+  slotLabel,
+  toVarFlags,
+  weekdayLongEnGBFromSessionDate,
+} from '../lib/progressionMatrixHelpers.js'
 import { supabase } from '../lib/supabaseClient.js'
 
 export function useProgressionView({ programmeId, weeks, activeSessionName, orgId }) {
+  const user = getCurrentUser()
   const [matrixData, setMatrixData] = useState({ columns: [], rows: [], visibleVars: [] })
   const [matrixReloadSeq, setMatrixReloadSeq] = useState(0)
   const [sessionNames, setSessionNames] = useState([])
@@ -19,18 +29,20 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
       try {
         const { data, error } = await supabase
           .from('programme_sessions')
-          .select('programme_week_id, sessions(name, session_date)')
+          .select('programme_week_id, sessions(name, session_date, team_id)')
           .eq('org_id', orgId)
           .in('programme_week_id', weekIds)
         if (error) throw error
         const uniq = []
         const seen = new Set()
         for (const row of data ?? []) {
-          const label = progressionSessionLabel(row.sessions)
+          const sess = embeddedSession(row.sessions)
+          if (!sess) continue
+          const label = progressionSessionLabel(sess)
           if (!label) continue
           if (seen.has(label)) continue
           seen.add(label)
-          uniq.push({ label, name: String(row.sessions?.name ?? '').trim() })
+          uniq.push({ label, name: String(sess.name ?? '').trim() })
         }
         if (!cancelled) setSessionNames(uniq)
       } catch (err) {
@@ -41,7 +53,7 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
     return () => {
       cancelled = true
     }
-  }, [weekIds, orgId])
+  }, [weekIds, orgId, user.teamIds])
 
   useEffect(() => {
     if (!weeks?.length || !orgId || !activeSessionName) {
@@ -61,21 +73,8 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
 
         const selectedName =
           (sessionNames.find((s) => s.label === activeSessionName)?.name ?? activeSessionName) || ''
-        for (const week of weeks) {
-          const { data: psRows, error: psErr } = await supabase
-            .from('programme_sessions')
-            .select('id, session_id, sort_order, sessions(*)')
-            .eq('programme_week_id', week.id)
-            .eq('org_id', orgId)
-            .order('sort_order', { ascending: true })
-          if (psErr) throw psErr
-
-          const target =
-            (psRows ?? []).find((r) => progressionSessionLabel(r.sessions) === activeSessionName) ??
-            (psRows ?? []).find((r) => String(r.sessions?.name ?? '').trim() === selectedName)
-          columns.push({ weekId: week.id, weekNumber: week.week_number, sessionId: target?.session_id ?? null })
-          if (!target?.session_id) continue
-
+        const { dayLabel } = parseProgressionPickerLabel(activeSessionName)
+        const fetchBlocks = async (sessionId) => {
           const { data: blocks, error: bErr } = await supabase
             .from('session_blocks')
             .select(
@@ -90,14 +89,61 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
                 )
               `,
             )
-            .eq('session_id', target.session_id)
+            .eq('session_id', sessionId)
             .eq('org_id', orgId)
             .order('sort_order', { ascending: true })
           if (bErr) throw bErr
+          return blocks ?? []
+        }
+
+        for (const week of weeks) {
+          const { data: psRows, error: psErr } = await supabase
+            .from('programme_sessions')
+            .select('id, session_id, sort_order, sessions(*)')
+            .eq('programme_week_id', week.id)
+            .eq('org_id', orgId)
+            .order('sort_order', { ascending: true })
+          if (psErr) throw psErr
+
+          const visibleRows = (psRows ?? []).filter((r) => {
+            const s = embeddedSession(r.sessions)
+            return s && user.teamIds?.includes(s.team_id)
+          })
+          const target = pickProgrammeSessionForProgressionColumn(psRows, {
+            activeSessionName,
+            selectedName,
+            teamIds: user.teamIds,
+          })
+          let chosen = target ?? null
+          if (!chosen?.session_id && visibleRows.length) chosen = visibleRows[0]
+          if (!chosen?.session_id) {
+            columns.push({ weekId: week.id, weekNumber: week.week_number, sessionId: null })
+            continue
+          }
+          let blocks = await fetchBlocks(chosen.session_id)
+          const countRows = (bs) => bs.reduce((n, b) => n + (b.session_exercises?.length ?? 0), 0)
+          let bestCount = countRows(blocks)
+          const candidateRows = dayLabel ? visibleRows.filter((r) => {
+            const s = embeddedSession(r.sessions)
+            return s && weekdayLongEnGBFromSessionDate(s.session_date) === dayLabel
+          }) : visibleRows
+          if (candidateRows.length > 1) {
+            for (const cand of candidateRows) {
+              if (!cand?.session_id || cand.session_id === chosen.session_id) continue
+              const candBlocks = await fetchBlocks(cand.session_id)
+              const candCount = countRows(candBlocks)
+              if (candCount > bestCount) {
+                chosen = cand
+                blocks = candBlocks
+                bestCount = candCount
+              }
+            }
+          }
+          columns.push({ weekId: week.id, weekNumber: week.week_number, sessionId: chosen.session_id })
 
           rowsByWeek.set(week.id, {
-            sessionId: target.session_id,
-            blocks: (blocks ?? []).map((b) => ({
+            sessionId: chosen.session_id,
+            blocks: blocks.map((b) => ({
               label: b.label || 'A',
               sort_order: b.sort_order ?? 0,
               exercises: [...(b.session_exercises ?? [])].sort(
@@ -110,9 +156,14 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
         const rowMap = new Map()
         for (const [weekId, wk] of rowsByWeek.entries()) {
           for (const blk of wk.blocks) {
+            const seenPerExercise = new Map()
             blk.exercises.forEach((ex, idx) => {
               const exName = String(ex.exercise_library?.name ?? '').trim() || `Exercise ${idx + 1}`
-              const key = `${String(blk.label)}|${idx}|${exName}`
+              const exStable = ex.exercise_id ?? exName
+              const occ = (seenPerExercise.get(exStable) ?? 0) + 1
+              seenPerExercise.set(exStable, occ)
+              // Align rows by block + exercise identity (+ occurrence), not raw index.
+              const key = `${String(blk.label)}|${String(exStable)}|${occ}`
               if (!rowMap.has(key)) {
                 rowMap.set(key, {
                   blockLabel: String(blk.label),
@@ -191,7 +242,7 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
       }
     })()
     return () => { cancelled = true }
-  }, [programmeId, weeks, activeSessionName, orgId, sessionNames, matrixReloadSeq])
+  }, [programmeId, weeks, activeSessionName, orgId, sessionNames, matrixReloadSeq, user.teamIds])
   const getOrCreateExerciseRow = useCallback(async ({
       orgId: scopeOrgId,
       weekId,

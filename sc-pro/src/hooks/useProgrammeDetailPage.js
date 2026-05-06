@@ -9,6 +9,7 @@ import { athleteDisplayName } from '../lib/programmeUi.js'
 import { duplicateProgrammeSessionDeep } from '../lib/duplicateProgrammeSession.js'
 import { fetchSessionForClipboard, pasteClipboardSession } from '../lib/sessionClipboardPaste.js'
 import { getProgrammeSessionIds } from './useProgrammeAssignment.js'
+import { countVisibleProgrammeSessionLinks } from '../lib/programmeWeeklyCopy.js'
 
 function linkDateIsoFromRow(row) {
   const s = row?.sessions
@@ -259,26 +260,36 @@ export function useProgrammeDetailPage(programmeId) {
     if (!copyOpen || !weekId) return
     let cancelled = false
     ;(async () => {
-      const targets = []
-      for (const w of weeks) {
-        if (w.id === weekId) continue
-        const { count, error } = await supabase
-          .from('programme_sessions')
-          .select('id', { count: 'exact', head: true })
-          .eq('programme_week_id', w.id)
-          .eq('org_id', user.orgId)
-        if (error) {
-          console.error('[ProgrammeDetail] count weeks', error)
-          continue
-        }
-        if ((count ?? 0) === 0) targets.push(w)
+      const candidateIds = weeks.filter((w) => w.id !== weekId).map((w) => w.id)
+      if (!candidateIds.length) {
+        if (!cancelled) setEmptyWeekTargets([])
+        return
       }
+      const { data: psRows, error } = await supabase
+        .from('programme_sessions')
+        .select('programme_week_id, sessions(team_id)')
+        .eq('org_id', user.orgId)
+        .in('programme_week_id', candidateIds)
+      if (error) {
+        console.error('[ProgrammeDetail] copy week targets', error)
+        if (!cancelled) setEmptyWeekTargets([])
+        return
+      }
+      const byWeek = new Map()
+      for (const id of candidateIds) byWeek.set(id, [])
+      for (const r of psRows ?? []) {
+        const wid = r.programme_week_id
+        if (wid && byWeek.has(wid)) byWeek.get(wid).push(r)
+      }
+      const targets = weeks.filter(
+        (w) => w.id !== weekId && countVisibleProgrammeSessionLinks(byWeek.get(w.id) ?? [], user.teamIds) === 0,
+      )
       if (!cancelled) setEmptyWeekTargets(targets)
     })()
     return () => {
       cancelled = true
     }
-  }, [copyOpen, weekId, weeks, user.orgId])
+  }, [copyOpen, weekId, weeks, user.orgId, user.teamIds])
 
   const selectedWeek = useMemo(() => weeks.find((w) => w.id === weekId), [weeks, weekId])
   const dayCols = useMemo(

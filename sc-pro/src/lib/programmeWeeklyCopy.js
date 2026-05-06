@@ -1,18 +1,30 @@
 import { weekDays, isoLocal } from './weekDates.js'
 
+/** Same visibility rule as ProgrammeDetail week grid (refreshWeek filter). */
+export function countVisibleProgrammeSessionLinks(rows, teamIds) {
+  const ids = teamIds ?? []
+  let n = 0
+  for (const r of rows ?? []) {
+    const s = r.sessions
+    const row = Array.isArray(s) ? s[0] : s
+    if (row && ids.includes(row.team_id)) n++
+  }
+  return n
+}
+
 export async function deepCopyWeek({ supabase, user, programme, sourceWeekId, targetWeekId, weeks }) {
   const src = weeks.find((w) => w.id === sourceWeekId)
   const tgt = weeks.find((w) => w.id === targetWeekId)
   if (!src || !tgt) throw new Error('Invalid week')
   if (sourceWeekId === targetWeekId) throw new Error('Source and target week must differ')
 
-  const { count: targetCount, error: cErr } = await supabase
+  const { data: targetPs, error: cErr } = await supabase
     .from('programme_sessions')
-    .select('id', { count: 'exact', head: true })
+    .select('id, sessions(team_id)')
     .eq('programme_week_id', targetWeekId)
     .eq('org_id', user.orgId)
   if (cErr) throw cErr
-  if ((targetCount ?? 0) > 0) {
+  if (countVisibleProgrammeSessionLinks(targetPs, user.teamIds) > 0) {
     throw new Error('Target week already has sessions. Use an empty week or remove sessions first.')
   }
 
