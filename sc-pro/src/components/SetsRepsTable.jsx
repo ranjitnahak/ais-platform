@@ -5,8 +5,8 @@ import {
   cascadeRows,
   gridFieldFromPillKey,
   effortPillKeyForGrid,
+  clearExerciseBundle,
   hydrateGridFromExercise,
-  loadBundle,
   MAX_OPT_COLS,
   mkEmptyRow,
   OPTIONAL_GRID_KEYS,
@@ -14,7 +14,7 @@ import {
   patchFromRow0,
   pillKeyForLoad,
   resizeRows,
-  saveBundle,
+  sessionExerciseFingerprint,
 } from '../lib/setsRepsGridLogic.js'
 import { ADD_BTN, Ch, ColumnAddMenu, EditableCell } from './setsRepsGridCells.jsx'
 
@@ -36,6 +36,7 @@ export default function SetsRepsTable({ exercise, orgId, canEdit, onReload, onCo
   const menuPanelRef = useRef(null)
   const lastExId = useRef(null)
   const lastSetsN = useRef(null)
+  const lastFingerprintRef = useRef(undefined)
   const persistTimer = useRef(null)
   const exerciseRef = useRef(exercise)
   const activeColsRef = useRef([])
@@ -84,40 +85,51 @@ export default function SetsRepsTable({ exercise, orgId, canEdit, onReload, onCo
     if (!ex?.id) return
     const n = clampSets(ex.sets)
     const seed = () => mkEmptyRow(ex.reps)
+    const fp = sessionExerciseFingerprint(ex)
 
     if (lastExId.current !== ex.id) {
       lastExId.current = ex.id
       lastSetsN.current = n
-      const b = loadBundle(ex.id, n)
-      if (b) {
-        setSetsData(b.rows)
-        setActiveColumns(b.activeColumns)
-      } else {
-        const h = hydrateGridFromExercise(ex, n)
-        setActiveColumns(h.activeColumns)
-        setSetsData(h.rows)
-      }
+      lastFingerprintRef.current = fp
+      clearExerciseBundle(ex.id)
+      const h = hydrateGridFromExercise(ex, n)
+      setActiveColumns(h.activeColumns)
+      setSetsData(h.rows)
       return
     }
-
+    if (lastFingerprintRef.current !== fp) {
+      lastFingerprintRef.current = fp
+      clearExerciseBundle(ex.id)
+      const h = hydrateGridFromExercise(ex, n)
+      setActiveColumns(h.activeColumns)
+      setSetsData(h.rows)
+      lastSetsN.current = n
+      return
+    }
     if (lastSetsN.current !== n) {
       lastSetsN.current = n
       setSetsData((prev) => resizeRows(prev.length ? prev : Array.from({ length: n }, seed), n, seed()))
     }
-  }, [exercise?.id, exercise?.sets])
-
-  useEffect(() => {
-    if (!exercise?.id || !setsData.length) return
-    saveBundle(exercise.id, setsData, activeColumns)
-  }, [exercise?.id, setsData, activeColumns])
-
+  }, [
+    exercise?.id,
+    exercise?.sets,
+    exercise?.reps,
+    exercise?.prescription_type,
+    exercise?.prescription_value,
+    exercise?.secondary_prescription_type,
+    exercise?.secondary_prescription_value,
+    exercise?.tertiary_prescription_type,
+    exercise?.tertiary_prescription_value,
+    exercise?.rest_seconds,
+    exercise?.tempo,
+    exercise?.updated_at,
+  ])
   const updateMenuPos = useCallback(() => {
     const el = addBtnRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
     setMenuPos({ top: r.bottom + 6, right: r.right, vw: typeof window !== 'undefined' ? window.innerWidth : 0 })
   }, [])
-
   useLayoutEffect(() => {
     if (!menuOpen) {
       setMenuPos(null)
@@ -132,7 +144,6 @@ export default function SetsRepsTable({ exercise, orgId, canEdit, onReload, onCo
       window.removeEventListener('resize', fn)
     }
   }, [menuOpen, updateMenuPos])
-
   useEffect(() => {
     if (!menuOpen) return
     const close = (e) => {
@@ -144,7 +155,6 @@ export default function SetsRepsTable({ exercise, orgId, canEdit, onReload, onCo
     document.addEventListener('pointerdown', close, true)
     return () => document.removeEventListener('pointerdown', close, true)
   }, [menuOpen])
-
   useEffect(() => {
     if (!focusPillKey) return
     const gf = gridFieldFromPillKey(focusPillKey)
@@ -159,7 +169,6 @@ export default function SetsRepsTable({ exercise, orgId, canEdit, onReload, onCo
     }
     onFocusConsumed?.()
   }, [focusPillKey, exercise?.id, onFocusConsumed])
-
   const availableToAdd = useMemo(() => OPTIONAL_GRID_KEYS.filter((k) => !activeColumns.includes(k)), [activeColumns])
   const showPlus = activeColumns.length < MAX_OPT_COLS && availableToAdd.length > 0
 
@@ -247,22 +256,7 @@ export default function SetsRepsTable({ exercise, orgId, canEdit, onReload, onCo
     color: 'var(--color-text)',
     borderBottom: '1px solid var(--color-border)',
   }
-  const ringBtn = {
-    width: 36,
-    height: 36,
-    borderRadius: '50%',
-    border: '2px solid var(--color-primary)',
-    background: 'transparent',
-    color: 'var(--color-primary)',
-    fontSize: 20,
-    lineHeight: 1,
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 0,
-    flexShrink: 0,
-  }
+  const ringBtn = { width: 36, height: 36, borderRadius: '50%', border: '2px solid var(--color-primary)', background: 'transparent', color: 'var(--color-primary)', fontSize: 20, lineHeight: 1, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }
   const rmBtn = { border: 'none', background: 'transparent', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 4px' }
 
   const menuOptions = useMemo(

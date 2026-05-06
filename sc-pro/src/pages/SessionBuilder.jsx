@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { can, getCurrentUser } from '../lib/auth.js'
 import { useSessionData } from '../hooks/useSessionData.js'
+import { useSessionBuilderRemoteRefresh } from '../hooks/useSessionBuilderRemoteRefresh.js'
 import { useSessionBuilderCrumb } from '../hooks/useSessionBuilderCrumb.js'
 import SessionBuilderLeft from '../components/session/SessionBuilderLeft.jsx'
 import SessionInfoPanel from '../components/SessionInfoPanel.jsx'
@@ -67,11 +68,26 @@ export default function SessionBuilder() {
     loading,
     error,
     reload,
+    applyExercisePatch,
     athleteNames,
     oneRmByAthleteExercise,
     athleteLoadsMessage,
     rosterTeamId,
   } = useSessionData(sessionId)
+  useSessionBuilderRemoteRefresh(programmeId, reload)
+
+  useEffect(() => {
+    const onPatch = (e) => {
+      const d = e.detail
+      if (!d?.sessionExerciseId || !d?.patch) return
+      const evtSid = d.sessionId
+      if (evtSid != null && evtSid !== '' && String(evtSid) !== String(sessionId)) return
+      applyExercisePatch(d.sessionExerciseId, d.patch)
+    }
+    window.addEventListener('sc-pro-session-exercise-patch', onPatch)
+    return () => window.removeEventListener('sc-pro-session-exercise-patch', onPatch)
+  }, [sessionId, applyExercisePatch])
+
   const crumb = useSessionBuilderCrumb(session, user.orgId)
   const [title, setTitle] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)

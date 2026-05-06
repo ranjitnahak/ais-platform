@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { can } from '../../lib/auth.js'
 import { DIFF_BADGE, PHASE_BADGE } from '../../lib/programmeUi.js'
@@ -5,10 +6,10 @@ import { weekOneMondayIso } from '../../lib/weekDates.js'
 import { badgeBase, btnOutline, btnPrimary } from '../../lib/programmeSessionUi.js'
 import SessionPreviewPanel from '../SessionPreviewPanel.jsx'
 import WeeklySessionGrid from './WeeklySessionGrid.jsx'
+import ProgressionView from './ProgressionView.jsx'
 import SessionSelectionBar from '../SessionSelectionBar.jsx'
 import ProgrammeDetailModals from './ProgrammeDetailModals.jsx'
 import { IconButton, MenuItem } from '../programmes/programmeLibraryUi.jsx'
-
 export default function ProgrammeDetailView({
   v,
   programme,
@@ -37,6 +38,7 @@ export default function ProgrammeDetailView({
   showSelectionBar,
 }) {
   const navigate = useNavigate()
+  const [viewMode, setViewMode] = useState('day')
   const phaseKey = PHASE_BADGE[programme.phase_type] ? programme.phase_type : 'general'
   const diffKey = DIFF_BADGE[programme.difficulty] ? programme.difficulty : 'moderate'
   const week1Iso = weekOneMondayIso(programme)
@@ -238,7 +240,6 @@ export default function ProgrammeDetailView({
           </button>
         )}
       </div>
-
       <div
         className="sc-body-sm"
         style={{
@@ -254,7 +255,6 @@ export default function ProgrammeDetailView({
         <span style={{ ...badgeBase, ...DIFF_BADGE[diffKey] }}>{diffKey.replace('_', ' ')}</span>
         {week1Label ? <span>Week 1 starts {week1Label}</span> : null}
       </div>
-
       <div
         data-programme-week-nav
         style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 8, borderBottom: '1px solid var(--color-border)' }}
@@ -284,8 +284,28 @@ export default function ProgrammeDetailView({
             )}
           </button>
         ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', background: 'var(--color-surface-high)', borderRadius: 'var(--radius-sm)', padding: 2, gap: 2, alignSelf: 'center', flexShrink: 0 }}>
+          {['day', 'progression'].map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setViewMode(mode)}
+              style={{
+                padding: '4px 12px',
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 'var(--font-size-body-sm)',
+                background: viewMode === mode ? 'var(--color-primary)' : 'transparent',
+                color: viewMode === mode ? '#fff' : 'var(--color-text-muted)',
+                fontWeight: viewMode === mode ? 'var(--font-weight-semibold)' : 'var(--font-weight-medium)',
+              }}
+            >
+              {mode === 'day' ? 'Day view' : 'Progression view'}
+            </button>
+          ))}
+        </div>
       </div>
-
       {v.selectedWeek && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <span style={{ fontWeight: 'var(--font-weight-semibold)' }}>
@@ -297,31 +317,23 @@ export default function ProgrammeDetailView({
         </div>
       )}
 
-      <WeeklySessionGrid
-        dayCols={v.dayCols}
-        sessionsByDay={v.sessionsByDay}
-        counts={v.counts}
-        programmeId={id}
-        navigate={navigate}
-        onAddSession={(iso) => v.setCreateOpen({ session_date: iso })}
-        canEdit={can('programme', 'edit')}
-        onMoveSession={v.moveSessionToDay}
-        onReorderSessionsForDay={v.reorderSessionsForDay}
-        onPreviewSession={(sessionId) => setPreviewSessionId(sessionId)}
-        clipboardSessionName={can('programme', 'edit') ? (v.copiedSession?.session?.name ?? null) : null}
-        onCopySessionToClipboard={v.copySessionToClipboard}
-        onPasteCopiedSession={v.pasteCopiedSessionToDate}
-        onPasteSlot={(iso) => selection.tryPasteBulkSlot(iso)}
-        bulkPasteQueueLength={selection.bulkPasteQueueLength}
-        onToggleSessionPublish={v.toggleSessionPublish}
-        onSaveSessionToLibraryStub={v.saveSessionToLibraryStub}
-        onRepeatSessionToDate={v.repeatSessionToDate}
-        onDeleteSession={v.deleteSession}
-        selectedSessionIds={selection.selectedSessionIds}
-        onToggleSelect={selection.toggleSessionInSelection}
-        onGridBackgroundPointerUp={selection.onGridBackgroundPointerUp}
-        onSelectAllSessions={selection.selectAllInWeek}
-      />
+      {viewMode === 'day' ? (
+        <WeeklySessionGrid
+          dayCols={v.dayCols} sessionsByDay={v.sessionsByDay} counts={v.counts} programmeId={id} navigate={navigate}
+          onAddSession={(iso) => v.setCreateOpen({ session_date: iso })}
+          canEdit={can('programme', 'edit')} onMoveSession={v.moveSessionToDay} onReorderSessionsForDay={v.reorderSessionsForDay}
+          onPreviewSession={(sessionId) => setPreviewSessionId(sessionId)}
+          clipboardSessionName={can('programme', 'edit') ? (v.copiedSession?.session?.name ?? null) : null}
+          onCopySessionToClipboard={v.copySessionToClipboard} onPasteCopiedSession={v.pasteCopiedSessionToDate} onPasteSlot={(iso) => selection.tryPasteBulkSlot(iso)}
+          bulkPasteQueueLength={selection.bulkPasteQueueLength}
+          onToggleSessionPublish={v.toggleSessionPublish} onSaveSessionToLibraryStub={v.saveSessionToLibraryStub} onRepeatSessionToDate={v.repeatSessionToDate} onDeleteSession={v.deleteSession}
+          selectedSessionIds={selection.selectedSessionIds}
+          onToggleSelect={selection.toggleSessionInSelection} onGridBackgroundPointerUp={selection.onGridBackgroundPointerUp}
+          onSelectAllSessions={selection.selectAllInWeek}
+        />
+      ) : (
+        <ProgressionView programmeId={id} weeks={v.weeks} orgId={v.user.orgId} defaultSessionName={Object.values(v.sessionsByDay).flat()[0]?.session?.name ?? null} />
+      )}
 
       {previewSessionId ? (
         <SessionPreviewPanel
@@ -331,7 +343,6 @@ export default function ProgrammeDetailView({
           onClose={() => setPreviewSessionId(null)}
         />
       ) : null}
-
       {showSelectionBar ? (
         <SessionSelectionBar
           count={selectionCount}

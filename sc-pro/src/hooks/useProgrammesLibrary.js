@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { getCurrentUser } from '../lib/auth.js'
+import { duplicateProgrammeSessionDeep } from '../lib/duplicateProgrammeSession.js'
 
 export const PAGE_SIZE = 5
 
@@ -212,6 +213,41 @@ export function useProgrammesLibrary() {
         }))
         const { error: w1 } = await supabase.from('programme_weeks').insert(ins)
         if (w1) throw w1
+
+        const { data: newWeeks, error: w2 } = await supabase
+          .from('programme_weeks')
+          .select('id, week_number')
+          .eq('programme_id', copy.id)
+          .eq('org_id', user.orgId)
+          .order('week_number')
+        if (w2) throw w2
+
+        const oldWeekIdByWeekNumber = new Map((weeks ?? []).map((w) => [w.week_number, w.id]))
+        const newWeekIdByWeekNumber = new Map((newWeeks ?? []).map((w) => [w.week_number, w.id]))
+
+        for (const srcWeek of weeks) {
+          const oldWeekId = oldWeekIdByWeekNumber.get(srcWeek.week_number)
+          const newWeekId = newWeekIdByWeekNumber.get(srcWeek.week_number)
+          if (!oldWeekId || !newWeekId) continue
+
+          const { data: psRows, error: psErr } = await supabase
+            .from('programme_sessions')
+            .select('id, session_id, sort_order, sessions(*)')
+            .eq('programme_week_id', oldWeekId)
+            .eq('org_id', user.orgId)
+            .order('sort_order', { ascending: true })
+          if (psErr) throw psErr
+
+          for (const ps of psRows ?? []) {
+            await duplicateProgrammeSessionDeep(supabase, {
+              orgId: user.orgId,
+              sourceSessionId: ps.session_id,
+              targetWeekId: newWeekId,
+              newSessionDate: ps.sessions?.session_date,
+              nextSortOrder: ps.sort_order,
+            })
+          }
+        }
       }
       setRefreshKey((k) => k + 1)
     } catch (e) {

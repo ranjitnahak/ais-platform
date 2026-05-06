@@ -168,6 +168,79 @@ export function useSessionData(sessionId) {
 
   const reload = useCallback(() => load({ silent: true }), [load])
 
+  const applyExercisePatch = useCallback((exerciseId, patch) => {
+    if (!exerciseId || !patch || typeof patch !== 'object') return
+    const eid = String(exerciseId)
+    setBlocks((prev) =>
+      prev.map((block) => ({
+        ...block,
+        session_exercises: (block.session_exercises ?? []).map((ex) =>
+          String(ex.id) === eid ? { ...ex, ...patch } : ex,
+        ),
+      })),
+    )
+  }, [])
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined' || !sessionId) return
+    const bc = new BroadcastChannel('sc-pro-session-sync')
+    bc.onmessage = (ev) => {
+      const d = ev.data
+      if (!d || d.type !== 'session-exercise-remote-change') return
+      if (d.sessionExerciseId && d.patch && typeof d.patch === 'object') {
+        applyExercisePatch(d.sessionExerciseId, d.patch)
+      }
+      const evtSid = d.sessionId
+      const reloadThisSession =
+        evtSid == null || evtSid === '' || String(evtSid) === String(sessionId)
+      if (reloadThisSession) void load({ silent: true })
+    }
+    return () => bc.close()
+  }, [sessionId, load, applyExercisePatch])
+
+  const blockIdsSig = useMemo(
+    () =>
+      (blocks ?? [])
+        .map((b) => b.id)
+        .filter(Boolean)
+        .sort()
+        .join('|'),
+    [blocks],
+  )
+
+  useEffect(() => {
+    if (!sessionId || !orgId) return
+    let cancelled = false
+    const chRef = { current: null }
+    ;(async () => {
+      const { data: blockRows } = await supabase
+        .from('session_blocks')
+        .select('id')
+        .eq('session_id', sessionId)
+        .eq('org_id', orgId)
+      if (cancelled) return
+      const ids = (blockRows ?? []).map((b) => b.id).filter(Boolean)
+      if (!ids.length) return
+      const filter = `block_id=in.(${ids.join(',')})`
+      const uid =
+        typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now())
+      chRef.current = supabase
+        .channel(`session-exercises:${sessionId}:${uid}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'session_exercises', filter },
+          () => {
+            void load({ silent: true })
+          },
+        )
+        .subscribe()
+    })()
+    return () => {
+      cancelled = true
+      if (chRef.current) void supabase.removeChannel(chRef.current)
+    }
+  }, [sessionId, orgId, load, blockIdsSig])
+
   const athleteNames = useMemo(() => athletes.map((a) => ({ id: a.id, name: athleteDisplayName(a) })), [athletes])
 
   return {
@@ -180,6 +253,7 @@ export function useSessionData(sessionId) {
     loading,
     error,
     reload,
+    applyExercisePatch,
     athleteLoadsNoTeam,
     athleteLoadsMessage,
     rosterTeamId,

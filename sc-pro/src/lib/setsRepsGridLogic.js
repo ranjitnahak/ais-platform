@@ -23,6 +23,30 @@ export function mkEmptyRow(repsSeed) {
   return { reps: repsSeed != null ? String(repsSeed) : '' }
 }
 
+export function normPrescriptionScalar(v) {
+  if (v == null || v === '') return ''
+  const n = Number(v)
+  return Number.isFinite(n) ? String(n) : String(v)
+}
+
+/** Invalidate local grid cache when DB-backed prescription data changes (incl. cross-tab sync). */
+export function sessionExerciseFingerprint(ex) {
+  if (!ex?.id) return ''
+  return [
+    ex.reps ?? '',
+    ex.sets ?? '',
+    ex.prescription_type ?? '',
+    normPrescriptionScalar(ex.prescription_value),
+    ex.secondary_prescription_type ?? '',
+    normPrescriptionScalar(ex.secondary_prescription_value),
+    ex.tertiary_prescription_type ?? '',
+    normPrescriptionScalar(ex.tertiary_prescription_value),
+    ex.rest_seconds ?? '',
+    ex.tempo ?? '',
+    ex.updated_at ?? '',
+  ].join('|')
+}
+
 export function cascadeRows(prev, setIndex, field, value) {
   const u = [...prev]
   u[setIndex] = { ...u[setIndex], [field]: value }
@@ -164,6 +188,7 @@ export function hydrateGridFromExercise(ex, nSets) {
   return { activeColumns, rows }
 }
 
+/** Legacy: Session Builder grid no longer reads/writes LS bundles (hydrate from DB only). Kept for tooling / migration. */
 export function loadBundle(id, n) {
   try {
     const raw = localStorage.getItem(LS_PREFIX + id)
@@ -182,6 +207,14 @@ export function loadBundle(id, n) {
 export function saveBundle(id, rows, activeColumns) {
   try {
     localStorage.setItem(LS_PREFIX + id, JSON.stringify({ rows, activeColumns }))
+  } catch {
+    /* quota */
+  }
+}
+
+export function clearExerciseBundle(id) {
+  try {
+    localStorage.removeItem(LS_PREFIX + id)
   } catch {
     /* quota */
   }
