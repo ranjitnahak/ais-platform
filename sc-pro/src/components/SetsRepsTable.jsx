@@ -189,8 +189,13 @@ export default function SetsRepsTable({ exercise, orgId, canEdit, onReload, onCo
       }
       if (onColumnMenuAdd) await onColumnMenuAdd(menuKey)
     }
-    setActiveColumns((prev) => [...prev, key])
-    setSetsData((prev) => prev.map((r) => ({ ...r, [key]: '' })))
+    // After await, fingerprint hydration may already have appended this column (e.g. rest from rest_seconds).
+    setActiveColumns((prev) => (prev.includes(key) ? prev : [...prev, key]))
+    setSetsData((prev) =>
+      prev.length && prev[0] != null && Object.prototype.hasOwnProperty.call(prev[0], key)
+        ? prev
+        : prev.map((r) => ({ ...r, [key]: '' })),
+    )
     setMenuOpen(false)
   }
 

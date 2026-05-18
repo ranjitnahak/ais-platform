@@ -193,6 +193,9 @@ CREATE INDEX IF NOT EXISTS idx_programmes_org_phase
 ALTER TABLE public.programmes
   ADD COLUMN IF NOT EXISTS athlete_id uuid REFERENCES public.athletes (id) ON DELETE SET NULL;
 
+ALTER TABLE public.programmes
+  ADD COLUMN IF NOT EXISTS start_date date;
+
 -- -----------------------------------------------------------------------------
 -- programme_weeks — §3.1
 -- -----------------------------------------------------------------------------
