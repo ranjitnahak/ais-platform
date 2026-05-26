@@ -105,10 +105,11 @@ export default function Athletes() {
       const teamCounts = {}; // teamId → count
 
       if (athleteIds.length && teamRows?.length) {
+        const teamIds = teamRows.map((t) => t.id);
         const { data: atRows } = await supabase
           .from('athlete_teams')
           .select('athlete_id, team_id')
-          .eq('org_id', user.orgId)
+          .in('team_id', teamIds)
           .in('athlete_id', athleteIds);
 
         for (const r of atRows ?? []) {
@@ -446,9 +447,6 @@ export default function Athletes() {
                           <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tight mt-0.5 truncate">
                             {[athlete.position, athlete.gender, age ? `Age ${age}` : null].filter(Boolean).join(' · ')}
                           </p>
-                          {athlete.organisations?.name && (
-                            <p className="text-[10px] text-gray-600 mt-1 truncate">{athlete.organisations.name}</p>
-                          )}
                         </div>
 
                         <div className="flex items-center justify-end">
