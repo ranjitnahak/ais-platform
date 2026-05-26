@@ -3,6 +3,17 @@ import { supabase } from '../../lib/supabase';
 
 const EMPTY_FORM = { fullName: '', email: '', roleId: '', teamIds: [] };
 
+const ROLE_NAME_TO_ENUM = {
+  Superuser: 'superuser',
+  Admin: 'admin',
+  'S&C Coach': 'sc_coach',
+  Physio: 'physio',
+  'Head Coach': 'head_coach',
+  Analyst: 'analyst',
+  Nutritionist: 'analyst', // closest match
+  Athlete: 'athlete',
+};
+
 export default function InviteUserModal({ user, onClose, onCreated }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [roles, setRoles] = useState([]);
@@ -53,13 +64,15 @@ export default function InviteUserModal({ user, onClose, onCreated }) {
     setMessage(null);
     try {
       const selectedRole = roles.find((role) => role.id === form.roleId);
+      const selectedRoleName = selectedRole?.name;
+      const roleEnum = ROLE_NAME_TO_ENUM[selectedRoleName] ?? 'sc_coach';
       const { data: createdUser, error: userError } = await supabase
         .from('users')
         .insert({
           org_id: user.orgId,
           full_name: form.fullName.trim(),
           email: form.email.trim(),
-          role: selectedRole?.name ?? null,
+          role: roleEnum,
           is_active: false,
         })
         .select('id')
