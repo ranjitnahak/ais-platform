@@ -6,6 +6,7 @@ import Athletes from './pages/Athletes';
 import AthleteProfile from './pages/AthleteProfile';
 import Periodisation from './pages/Periodisation';
 import Settings from './pages/Settings';
+import Admin from './pages/Admin';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import { supabase } from './lib/supabase';
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="/periodisation"  element={<Periodisation />} />
           <Route path="/assess"         element={<Placeholder title="Assessment" />} />
           <Route path="/settings"       element={<Settings />} />
+          <Route path="/admin"          element={<Admin />} />
         </Routes>
       </AuthGate>
     </BrowserRouter>
