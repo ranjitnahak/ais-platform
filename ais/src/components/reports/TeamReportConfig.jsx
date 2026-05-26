@@ -101,6 +101,13 @@ export default function TeamReportConfig({ teamId, teamName, onReportGenerated }
           <p className="text-sm text-[var(--color-on-surface-variant)]">Select which data to include in the report</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="flex items-start gap-3 rounded-xl bg-[var(--color-surface-container-high)] border border-[var(--color-outline-variant)] px-4 py-3">
+            <input type="checkbox" checked disabled className="mt-1 h-4 w-4 accent-[var(--color-primary-container)] opacity-70" />
+            <span>
+              <span className="block text-sm font-bold text-[var(--color-on-surface)]">Staff Notes & Observations</span>
+              <span className="block text-xs text-[var(--color-on-surface-variant)]">Always included when available</span>
+            </span>
+          </label>
           {sources.map((source) => (
             <label key={source.feature_key} className="flex items-center gap-3 rounded-xl bg-[var(--color-surface-container-high)] border border-[var(--color-outline-variant)] px-4 py-3">
               <input type="checkbox" checked={enabledSources.includes(source.feature_key)} onChange={() => toggleSource(source.feature_key)} className="h-4 w-4 accent-[var(--color-primary-container)]" />
