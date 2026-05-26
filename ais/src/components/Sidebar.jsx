@@ -3,6 +3,7 @@ import { MAIN_NAV_ITEMS } from '../nav/mainNavItems';
 import { useCurrentUser } from '../lib/auth';
 
 const ADMIN_NAV_ITEM = { icon: 'admin_panel_settings', label: 'Admin', to: '/admin' };
+const WELLNESS_NAV_ITEM = { icon: 'favorite', label: 'Wellness', to: '/wellness' };
 const ADMIN_ROLES = ['Admin', 'Superuser'];
 
 /**
@@ -10,9 +11,12 @@ const ADMIN_ROLES = ['Admin', 'Superuser'];
  */
 export default function Sidebar() {
   const { user } = useCurrentUser();
-  const items = ADMIN_ROLES.includes(user?.role)
-    ? [...MAIN_NAV_ITEMS, ADMIN_NAV_ITEM]
+  const baseItems = user?.role && user.role !== 'Athlete'
+    ? [...MAIN_NAV_ITEMS, WELLNESS_NAV_ITEM]
     : MAIN_NAV_ITEMS;
+  const items = ADMIN_ROLES.includes(user?.role)
+    ? [...baseItems, ADMIN_NAV_ITEM]
+    : baseItems;
 
   return (
     <aside className="hidden md:flex flex-col h-full w-64 fixed left-0 top-0 bg-[var(--color-surface)] border-r border-[var(--color-outline-variant)] shadow-2xl py-6 z-50">
