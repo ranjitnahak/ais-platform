@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import { supabase } from '../../lib/supabase';
+import { getCurrentUser } from '../../lib/auth';
 import { classifyScore } from '../../lib/scoring';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../../lib/athleteName';
 
@@ -54,16 +55,20 @@ export default function SquadDashboard() {
 
   async function fetchDashboardData() {
     try {
+      const user = getCurrentUser();
+
       // 1. Fetch all athletes
       const { data: athleteRows, error: athErr } = await supabase
         .from('athletes')
-        .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, is_active, org_id, organisations(name, sport, logo_url)');
+        .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, is_active, org_id, organisations(name, sport, logo_url)')
+        .eq('org_id', user.orgId);
       if (athErr) throw athErr;
 
       // 2. Find the most recent assessment session
       const { data: sessions, error: sessErr } = await supabase
         .from('assessment_sessions')
         .select('id, assessed_on')
+        .eq('org_id', user.orgId)
         .order('assessed_on', { ascending: false })
         .limit(1);
       if (sessErr) throw sessErr;
@@ -96,13 +101,15 @@ export default function SquadDashboard() {
             direction
           )
         `)
+        .eq('org_id', user.orgId)
         .eq('session_id', latestSessionId);
       if (resErr) throw resErr;
 
       // 4. Fetch benchmarks (for gender-matched absolute classification)
       const { data: benchmarks, error: benchErr } = await supabase
         .from('benchmarks')
-        .select('*');
+        .select('*')
+        .eq('org_id', user.orgId);
       if (benchErr) throw benchErr;
 
       // 5. Build per-test squad value arrays

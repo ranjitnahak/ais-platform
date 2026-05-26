@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getCurrentUser } from '../lib/auth';
 import AthleteReport from '../components/reports/AthleteReport';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
@@ -47,7 +48,7 @@ export default function Reports() {
     const { data: teamRows } = await supabase
       .from('teams')
       .select('id, name')
-      .eq('org_id', 'a1000000-0000-0000-0000-000000000001')
+      .eq('org_id', getCurrentUser().orgId)
       .order('name');
     setTeams(teamRows ?? []);
 

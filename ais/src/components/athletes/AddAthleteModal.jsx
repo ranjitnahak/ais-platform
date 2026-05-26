@@ -5,8 +5,6 @@ import { canonicalFullName } from '../../lib/athleteName';
 import { BLOOD_GROUP_OPTIONS, normalizeGenderForDb, normalizePositionForDb } from '../../lib/athleteProfileFields';
 import ImageCropModal from './ImageCropModal';
 
-const ORG_ID = 'a1000000-0000-0000-0000-000000000001';
-
 const FIELD = {
   label: (l) => ({ fontSize: '9px', fontWeight: 700, color: '#a78b7d', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }),
   input: {
@@ -133,7 +131,7 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
       emergency_contact_phone: form.emergency_contact_phone?.trim() || null,
       blood_group:             form.blood_group?.trim() || null,
       address:                 form.address?.trim() || null,
-      org_id:         ORG_ID,
+      org_id:         getCurrentUser().orgId,
       is_active:      true,
       ...(photo_url ? { photo_url } : {}),
     };
