@@ -242,8 +242,8 @@ export function useAgentExecution({ pageKey, onRefreshProgramme }) {
       runningRef.current = true
 
       let stepCount = 0
-      // Requires can('sc_pro', 'use_ai_assistant')
       const user = await getCurrentUser()
+      if (!user?.teamIds?.length) return
       const teamId = user.teamIds?.[0] ?? null
 
       const addToSkipped = (item, reason) => {

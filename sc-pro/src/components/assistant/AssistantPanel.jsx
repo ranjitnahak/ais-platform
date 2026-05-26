@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useAssistant } from '../../hooks/useAssistant.js'
 import { useAgentExecution } from '../../hooks/useAgentExecution.js'
 import { canSync, useCurrentUser } from '../../lib/auth.js'
+import { isFeatureEnabled } from '../../lib/featureFlags.js'
 import { assistantPageKeyFromPath, assistantPageLabel } from '../../lib/assistantPageKeys.js'
 import AssistantMessage from './AssistantMessage.jsx'
 import AssistantActionCard from './AssistantActionCard.jsx'
@@ -106,7 +107,8 @@ function readFileAsBase64(file) {
 }
 
 export default function AssistantPanel() {
-  const { user } = useCurrentUser()
+  const { user, loading: userLoading } = useCurrentUser()
+  const [aiEnabled, setAiEnabled] = useState(false)
   const location = useLocation()
   const pageKey = assistantPageKeyFromPath(location.pathname)
   const { messages, pending, loading, error, sendMessage, confirmAction, cancelAction, clearHistory } =
@@ -124,6 +126,10 @@ export default function AssistantPanel() {
   const [attached, setAttached] = useState(null)
   const scrollRef = useRef(null)
   const fileRef = useRef(null)
+
+  useEffect(() => {
+    isFeatureEnabled('ai_assistant').then(setAiEnabled)
+  }, [])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -206,6 +212,8 @@ export default function AssistantPanel() {
   const agentBusy =
     agent.agentState === 'extracting' || agent.agentState === 'executing' || agent.agentState === 'paused'
   const inputDisabled = loading || agent.agentState === 'paused'
+  if (userLoading) return null
+  if (!aiEnabled) return null
   if (!canSync(user, 'sc_pro', 'view')) return null
 
   return (
