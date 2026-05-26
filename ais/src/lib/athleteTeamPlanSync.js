@@ -60,10 +60,12 @@ async function insertCellsBatched(supabase, rows) {
 
 async function deletePlanRowsAndCells(supabase, orgId, planId, rowIds) {
   const user = await getCurrentUser();
+  if (!user?.teamIds?.length) return;
   if (rowIds.length) {
     const { error: e1 } = await supabase.from('plan_cells').delete().eq('org_id', orgId).in('team_id', user.teamIds).in('row_id', rowIds);
     if (e1) throw e1;
   }
+  if (!user?.teamIds?.length) return;
   const { error: e2 } = await supabase.from('plan_rows').delete().eq('org_id', orgId).in('team_id', user.teamIds).eq('plan_id', planId);
   if (e2) throw e2;
 }
@@ -139,6 +141,7 @@ export async function replaceAthleteWithTeamPlan(supabase, params) {
   const user = await getCurrentUser();
   if (!teamPlan?.id) throw new Error('No team plan to copy.');
   if (!teamRows?.length) throw new Error('Team plan has no rows.');
+  if (!user?.teamIds?.length) return;
 
   let athletePlan = params.athletePlan;
   if (!athletePlan?.id) {
@@ -156,6 +159,7 @@ export async function replaceAthleteWithTeamPlan(supabase, params) {
     .eq('org_id', orgId);
   if (pe) throw pe;
 
+  if (!user?.teamIds?.length) return;
   const { data: existingRows, error: rErr } = await supabase
     .from('plan_rows')
     .select('id')
@@ -209,6 +213,7 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
   const user = await getCurrentUser();
   if (!teamPlan?.id) throw new Error('No team plan to sync from.');
   if (!teamRows?.length) throw new Error('Team plan has no rows.');
+  if (!user?.teamIds?.length) return;
 
   let athletePlan = params.athletePlan;
   if (!athletePlan?.id) {
@@ -217,6 +222,7 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
 
   const teamKeySet = new Set(teamRows.map((r) => rowSyncKey(r)));
 
+  if (!user?.teamIds?.length) return;
   const { data: athleteRows, error: arErr } = await supabase
     .from('plan_rows')
     .select('*')
@@ -232,12 +238,15 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
     const key = rowSyncKey(ar);
     const orphanKeyed = rk && !teamKeySet.has(key);
     if (!orphanKeyed) continue;
+    if (!user?.teamIds?.length) return;
     const { error: de } = await supabase.from('plan_cells').delete().eq('org_id', orgId).in('team_id', user.teamIds).eq('row_id', ar.id);
     if (de) throw de;
+    if (!user?.teamIds?.length) return;
     const { error: dr } = await supabase.from('plan_rows').delete().eq('org_id', orgId).in('team_id', user.teamIds).eq('id', ar.id);
     if (dr) throw dr;
   }
 
+  if (!user?.teamIds?.length) return;
   const { data: athleteRowsAfter, error: ar2Err } = await supabase
     .from('plan_rows')
     .select('*')
@@ -258,6 +267,7 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
     const k = rowSyncKey(tr);
     const existing = athleteByKey.get(k);
     if (existing) {
+      if (!user?.teamIds?.length) return;
       const { error: up } = await supabase
         .from('plan_rows')
         .update({
@@ -292,6 +302,7 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
     }
   }
 
+  if (!user?.teamIds?.length) return;
   const { data: freshRows, error: frErr } = await supabase
     .from('plan_rows')
     .select('*')
@@ -305,6 +316,7 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
   const rowIds = finalAthleteRows.map((r) => r.id);
   let freshCells = [];
   if (rowIds.length) {
+    if (!user?.teamIds?.length) return;
     const { data: fc, error: fcErr } = await supabase
       .from('plan_cells')
       .select('*')
