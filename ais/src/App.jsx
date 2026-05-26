@@ -6,6 +6,7 @@ import Athletes from './pages/Athletes';
 import AthleteProfile from './pages/AthleteProfile';
 import AthleteHome from './pages/AthleteHome';
 import WellnessDashboard from './components/wellness/WellnessDashboard';
+import StaffNotes from './pages/StaffNotes';
 import Periodisation from './pages/Periodisation';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="/athletes/:id"   element={<AthleteProfile />} />
           <Route path="/athlete-home"   element={<AthleteHome />} />
           <Route path="/wellness"       element={<WellnessDashboard />} />
+          <Route path="/staff-notes"    element={<StaffNotes />} />
           <Route path="/periodisation"  element={<Periodisation />} />
           <Route path="/assess"         element={<Placeholder title="Assessment" />} />
           <Route path="/settings"       element={<Settings />} />

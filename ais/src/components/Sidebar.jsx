@@ -4,7 +4,9 @@ import { useCurrentUser } from '../lib/auth';
 
 const ADMIN_NAV_ITEM = { icon: 'admin_panel_settings', label: 'Admin', to: '/admin' };
 const WELLNESS_NAV_ITEM = { icon: 'favorite', label: 'Wellness', to: '/wellness' };
+const STAFF_NOTES_NAV_ITEM = { icon: 'clinical_notes', label: 'Staff Notes', to: '/staff-notes' };
 const ADMIN_ROLES = ['Admin', 'Superuser'];
+const STAFF_NOTES_ROLES = ['Admin', 'Superuser', 'Head Coach', 'S&C Coach', 'Physio', 'Analyst', 'Nutritionist'];
 
 /**
  * Desktop primary navigation — matches AIS shell used across pages.
@@ -14,9 +16,12 @@ export default function Sidebar() {
   const baseItems = user?.role && user.role !== 'Athlete'
     ? [...MAIN_NAV_ITEMS, WELLNESS_NAV_ITEM]
     : MAIN_NAV_ITEMS;
-  const items = ADMIN_ROLES.includes(user?.role)
-    ? [...baseItems, ADMIN_NAV_ITEM]
+  const staffItems = STAFF_NOTES_ROLES.includes(user?.role)
+    ? [...baseItems, STAFF_NOTES_NAV_ITEM]
     : baseItems;
+  const items = ADMIN_ROLES.includes(user?.role)
+    ? [...staffItems, ADMIN_NAV_ITEM]
+    : staffItems;
 
   return (
     <aside className="hidden md:flex flex-col h-full w-64 fixed left-0 top-0 bg-[var(--color-surface)] border-r border-[var(--color-outline-variant)] shadow-2xl py-6 z-50">
