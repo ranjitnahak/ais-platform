@@ -149,65 +149,39 @@ export default function TeamReportView() {
   async function handleExportPDF() {
     setExporting(true)
     try {
-      const html2canvas = (await import('html2canvas')).default
-      const { jsPDF } = await import('jspdf')
+      // Add print styles dynamically
+      const style = document.createElement('style')
+      style.id = 'print-pdf-style'
+      style.textContent = `
+        @media print {
+          body * { visibility: hidden; }
+          #report-content, #report-content * {
+            visibility: visible;
+          }
+          #report-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white !important;
+            color: black !important;
+          }
+          .no-print { display: none !important; }
+          img { max-width: 100%; }
+        }
+      `
+      document.head.appendChild(style)
 
-      const element = document.getElementById('report-content')
-      if (!element) return
+      // Trigger browser print dialog
+      window.print()
 
-      // Clone and inline computed styles to resolve CSS variables
-      const clone = element.cloneNode(true)
-      clone.style.position = 'absolute'
-      clone.style.left = '-9999px'
-      clone.style.background = '#1C1C1E'
-      clone.style.color = '#FFFFFF'
-      clone.style.fontFamily = 'Inter, sans-serif'
-      document.body.appendChild(clone)
-
-      // Walk all elements and inline computed colors
-      const allEls = clone.querySelectorAll('*')
-      allEls.forEach(el => {
-        const computed = window.getComputedStyle(el)
-        el.style.color = computed.color
-        el.style.backgroundColor = computed.backgroundColor
-        el.style.borderColor = computed.borderColor
-      })
-
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#1C1C1E',
-        windowWidth: clone.scrollWidth,
-        windowHeight: clone.scrollHeight,
-      })
-
-      document.body.removeChild(clone)
-
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      })
-      const pdfWidth = pdf.internal.pageSize.getWidth()
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width
-      let heightLeft = pdfHeight
-      let position = 0
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-      heightLeft -= 297
-      while (heightLeft > 0) {
-        position -= 297
-        pdf.addPage()
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight)
-        heightLeft -= 297
-      }
-      const teamName = report?.teams?.name ?? 'team'
-      const today = new Date().toISOString().split('T')[0]
-      pdf.save(`report-${teamName}-${today}.pdf`)
+      // Remove style after print
+      setTimeout(() => {
+        const el = document.getElementById('print-pdf-style')
+        if (el) el.remove()
+      }, 1000)
     } catch (err) {
       console.error('[PDF export]', err)
-      alert('PDF export failed: ' + err.message)
     } finally {
       setExporting(false)
     }
@@ -244,7 +218,7 @@ export default function TeamReportView() {
           </div>
           <div className="no-print flex gap-3">
             <button onClick={handleExportPDF} disabled={exporting} className="rounded-xl bg-[var(--color-primary-container)] px-4 py-3 text-xs font-black uppercase tracking-widest text-[var(--color-on-primary)] disabled:opacity-60">
-              {exporting ? 'Exporting...' : 'Export PDF'}
+              {exporting ? 'Exporting...' : 'Print / Save as PDF'}
             </button>
             <button onClick={() => navigate(-1)} className="rounded-xl border border-[var(--color-outline-variant)] px-4 py-3 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface)]">Back</button>
           </div>
