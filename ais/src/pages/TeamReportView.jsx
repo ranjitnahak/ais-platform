@@ -147,23 +147,49 @@ export default function TeamReportView() {
   }, [reportId, user])
 
   async function handleExportPDF() {
-    const element = document.getElementById('report-content')
-    if (!element) return
     setExporting(true)
     try {
-      setExportError(null)
       const html2canvas = (await import('html2canvas')).default
       const { jsPDF } = await import('jspdf')
-      const canvas = await html2canvas(element, {
+
+      const element = document.getElementById('report-content')
+      if (!element) return
+
+      // Clone and inline computed styles to resolve CSS variables
+      const clone = element.cloneNode(true)
+      clone.style.position = 'absolute'
+      clone.style.left = '-9999px'
+      clone.style.background = '#1C1C1E'
+      clone.style.color = '#FFFFFF'
+      clone.style.fontFamily = 'Inter, sans-serif'
+      document.body.appendChild(clone)
+
+      // Walk all elements and inline computed colors
+      const allEls = clone.querySelectorAll('*')
+      allEls.forEach(el => {
+        const computed = window.getComputedStyle(el)
+        el.style.color = computed.color
+        el.style.backgroundColor = computed.backgroundColor
+        el.style.borderColor = computed.borderColor
+      })
+
+      const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#1C1C1E',
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
+        windowWidth: clone.scrollWidth,
+        windowHeight: clone.scrollHeight,
       })
+
+      document.body.removeChild(clone)
+
       const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      })
       const pdfWidth = pdf.internal.pageSize.getWidth()
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width
       let heightLeft = pdfHeight
@@ -176,12 +202,12 @@ export default function TeamReportView() {
         pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight)
         heightLeft -= 297
       }
-      const teamName = relation(report?.teams)?.name ?? 'team'
+      const teamName = report?.teams?.name ?? 'team'
       const today = new Date().toISOString().split('T')[0]
-      pdf.save(`report-${fileName(teamName)}-${today}.pdf`)
+      pdf.save(`report-${teamName}-${today}.pdf`)
     } catch (err) {
       console.error('[PDF export]', err)
-      setExportError(err.message)
+      alert('PDF export failed: ' + err.message)
     } finally {
       setExporting(false)
     }
