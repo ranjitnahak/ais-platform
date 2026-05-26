@@ -98,25 +98,21 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
         setGhostPlan(ghostPlanData ?? null);
 
         if (ghostPlanData) {
-          if (!user?.teamIds?.length) return;
           const { data: ghostRowData } = await supabase
             .from('plan_rows')
             .select('*')
             .eq('plan_id', ghostPlanData.id)
             .eq('org_id', user.orgId)
-            .in('team_id', user.teamIds)
             .order('sort_order');
 
           setGhostRows(ghostRowData || []);
 
           if (ghostRowData?.length) {
             const ghostRowIds = ghostRowData.map((r) => r.id);
-            if (!user?.teamIds?.length) return;
             const { data: ghostCellData } = await supabase
               .from('plan_cells')
               .select('*')
               .eq('org_id', user.orgId)
-              .in('team_id', user.teamIds)
               .in('row_id', ghostRowIds);
             setGhostCells(ghostCellData || []);
           } else {
@@ -141,13 +137,11 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
 
     setPlan(planData);
 
-    if (!user?.teamIds?.length) return;
     const { data: rowData, error: rowErr } = await supabase
       .from('plan_rows')
       .select('*')
       .eq('plan_id', planData.id)
       .eq('org_id', user.orgId)
-      .in('team_id', user.teamIds)
       .order('sort_order');
 
     if (rowErr) {
@@ -178,13 +172,11 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
           .maybeSingle();
 
         if (teamPlanData) {
-          if (!user?.teamIds?.length) return;
           const { data: teamRowData } = await supabase
             .from('plan_rows')
             .select('*')
             .eq('plan_id', teamPlanData.id)
             .eq('org_id', user.orgId)
-            .in('team_id', user.teamIds)
             .order('sort_order');
 
           if (teamRowData?.length) {
@@ -214,12 +206,10 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
 
     if (effectiveRows.length) {
       const rowIds = effectiveRows.map((r) => r.id);
-      if (!user?.teamIds?.length) return;
       const { data: cellData, error: cellErr } = await supabase
         .from('plan_cells')
         .select('*')
         .eq('org_id', user.orgId)
-        .in('team_id', user.teamIds)
         .in('row_id', rowIds);
       if (cellErr) console.error(cellErr);
       setCells(cellData || []);
@@ -242,25 +232,21 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
       if (ghostPlanData) {
         setGhostPlan(ghostPlanData);
 
-        if (!user?.teamIds?.length) return;
         const { data: ghostRowData } = await supabase
           .from('plan_rows')
           .select('*')
           .eq('plan_id', ghostPlanData.id)
           .eq('org_id', user.orgId)
-          .in('team_id', user.teamIds)
           .order('sort_order');
 
         setGhostRows(ghostRowData || []);
 
         if (ghostRowData?.length) {
           const ghostRowIds = ghostRowData.map((r) => r.id);
-          if (!user?.teamIds?.length) return;
           const { data: ghostCellData } = await supabase
             .from('plan_cells')
             .select('*')
             .eq('org_id', user.orgId)
-            .in('team_id', user.teamIds)
             .in('row_id', ghostRowIds);
           setGhostCells(ghostCellData || []);
         } else {
@@ -421,8 +407,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     try {
       const user = await getCurrentUser();
       if (!user) return;
-      if (!user?.teamIds?.length) return;
-      const { error } = await supabase.from('plan_cells').delete().eq('id', id).eq('org_id', user.orgId).in('team_id', user.teamIds);
+      const { error } = await supabase.from('plan_cells').delete().eq('id', id).eq('org_id', user.orgId);
       if (error) throw error;
     } catch (e) {
       await fetchPlan();
@@ -470,8 +455,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     try {
       const user = await getCurrentUser();
       if (!user) return;
-      if (!user?.teamIds?.length) return;
-      const { error } = await supabase.from('plan_rows').delete().eq('id', rowId).eq('org_id', user.orgId).in('team_id', user.teamIds);
+      const { error } = await supabase.from('plan_rows').delete().eq('id', rowId).eq('org_id', user.orgId);
       if (error) throw error;
     } catch (e) {
       await fetchPlan();
@@ -488,13 +472,11 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     try {
       const user = await getCurrentUser();
       if (!user) return;
-      if (!user?.teamIds?.length) return;
       const { data, error } = await supabase
         .from('plan_rows')
         .update(patch)
         .eq('id', rowId)
         .eq('org_id', user.orgId)
-        .in('team_id', user.teamIds)
         .select()
         .single();
       if (error) throw error;
@@ -516,9 +498,8 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     try {
       const user = await getCurrentUser();
       if (!user) return;
-      if (!user?.teamIds?.length) return;
       const updates = orderedIds.map((id, i) =>
-        supabase.from('plan_rows').update({ sort_order: i }).eq('id', id).eq('org_id', user.orgId).in('team_id', user.teamIds)
+        supabase.from('plan_rows').update({ sort_order: i }).eq('id', id).eq('org_id', user.orgId)
       );
       await Promise.all(updates);
     } catch (e) {
@@ -541,14 +522,12 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     try {
       const user = await getCurrentUser();
       if (!user) return;
-      if (!user?.teamIds?.length) return;
       const updates = ordered.map((r, i) =>
         supabase
           .from('plan_rows')
           .update({ sort_order: i, row_group: r.row_group })
           .eq('id', r.id)
           .eq('org_id', user.orgId)
-          .in('team_id', user.teamIds)
       );
       await Promise.all(updates);
     } catch (e) {
@@ -565,13 +544,11 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     try {
       const user = await getCurrentUser();
       if (!user) return;
-      if (!user?.teamIds?.length) return;
       const { error } = await supabase
         .from('plan_rows')
         .update({ display_label: value })
         .eq('plan_id', plan.id)
         .eq('org_id', user.orgId)
-        .in('team_id', user.teamIds)
         .eq('row_group', rowGroup);
       if (error) throw error;
     } catch (e) {
