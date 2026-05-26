@@ -47,7 +47,7 @@ export function useRPELog() {
         .select('id')
         .eq('org_id', user.orgId)
         .eq('email', user.email)  
-        .single()
+        .maybeSingle()
       
       // If no athlete found, use user.id as fallback
       const athleteId = athlete?.id ?? user.id

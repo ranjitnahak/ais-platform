@@ -28,13 +28,13 @@ export function useWellness() {
 
       // Check if already submitted today
       // Get athlete linked to this user
-      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', user.orgId).eq('email', user.email).single()
+      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', user.orgId).eq('email', user.email).maybeSingle()
       const athleteId = athlete?.id ?? user.id
 
       const { data: existing } = await supabase
         .from('wellness_logs')
         .select('id, responses, composite_score, logged_at')
-        .eq('org_id', user.orgId).eq('athlete_id', athleteId).eq('log_date', today).single()
+        .eq('org_id', user.orgId).eq('athlete_id', athleteId).eq('log_date', today).maybeSingle()
 
       setFormItems(items ?? [])
       setTodayLog(existing ?? null)
@@ -55,7 +55,7 @@ export function useWellness() {
       if (!user) throw new Error('Not authenticated')
       const today = new Date().toISOString().split('T')[0]
 
-      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', user.orgId).eq('email', user.email).single()
+      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', user.orgId).eq('email', user.email).maybeSingle()
       const athleteId = athlete?.id ?? user.id
 
       // Compute composite score
