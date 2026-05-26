@@ -154,23 +154,116 @@ export default function TeamReportView() {
       style.id = 'print-pdf-style'
       style.textContent = `
         @media print {
-          body * { visibility: hidden; }
-          #report-content, #report-content * {
-            visibility: visible;
-          }
+          /* Hide everything except report */
+          body > * { display: none !important; }
+          #print-wrapper { display: block !important; }
+
+          /* Reset colors for print */
           #report-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+            position: static !important;
             background: white !important;
-            color: black !important;
+            color: #111111 !important;
+            font-family: Inter, sans-serif !important;
+            padding: 0 !important;
           }
+          #report-content * {
+            color: #111111 !important;
+            border-color: #dddddd !important;
+            background: white !important;
+          }
+
+          /* Athlete photos keep their appearance */
+          #report-content img {
+            border-radius: 50%;
+          }
+
+          /* Hide buttons */
           .no-print { display: none !important; }
-          img { max-width: 100%; }
+
+          #print-footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            border-top: 1px solid #ddd;
+            font-size: 10px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            padding-top: 4px;
+          }
+
+          /* Page margins */
+          @page {
+            margin: 15mm 15mm 20mm 15mm;
+          }
         }
       `
       document.head.appendChild(style)
+
+      const team = relation(report?.teams)
+      const logoUrl = team?.logo_url ?? org?.logo_url
+      const generatedDate = formatDate(report?.generated_at ?? report?.created_at)
+      const dateRange = `${report?.date_range_start} to ${report?.date_range_end}`
+      const content = document.getElementById('report-content')
+      if (!content) return
+
+      const wrapper = document.createElement('div')
+      wrapper.id = 'print-wrapper'
+      wrapper.style.display = 'none'
+      wrapper.style.background = 'white'
+      wrapper.style.color = '#111111'
+      wrapper.style.fontFamily = 'Inter, sans-serif'
+
+      const header = document.createElement('div')
+      header.style.display = 'flex'
+      header.style.alignItems = 'center'
+      header.style.justifyContent = 'space-between'
+      header.style.gap = '16px'
+      header.style.marginBottom = '16px'
+      header.style.paddingBottom = '10px'
+      header.style.borderBottom = '1px solid #dddddd'
+      if (logoUrl) {
+        const logo = document.createElement('img')
+        logo.src = logoUrl
+        logo.height = 50
+        logo.style.objectFit = 'contain'
+        header.appendChild(logo)
+      }
+      const title = document.createElement('h1')
+      title.textContent = team?.name ?? 'Team Report'
+      title.style.flex = '1'
+      title.style.margin = '0'
+      title.style.fontSize = '22px'
+      title.style.fontWeight = '800'
+      title.style.color = '#111111'
+      title.style.textAlign = 'center'
+      header.appendChild(title)
+      const meta = document.createElement('div')
+      meta.style.textAlign = 'right'
+      meta.style.fontSize = '11px'
+      meta.style.color = '#111111'
+      meta.innerHTML = `<p style="margin:0;">Report period: ${dateRange}</p><p style="margin:2px 0 0;">Generated: ${generatedDate}</p>`
+      header.appendChild(meta)
+
+      const body = document.createElement('div')
+      body.id = 'print-body'
+      const clone = content.cloneNode(true)
+      const allEls = [clone, ...clone.querySelectorAll('*')]
+      allEls.forEach(el => {
+        el.style.color = '#111111'
+        el.style.backgroundColor = 'white'
+        el.style.borderColor = '#dddddd'
+      })
+      body.appendChild(clone)
+
+      const footer = document.createElement('div')
+      footer.id = 'print-footer'
+      footer.innerHTML = `<span>AIS — Athlete Intelligence System</span><span>ais-platform.com</span><span>${team?.name ?? 'Team'} · ${generatedDate}</span>`
+
+      wrapper.appendChild(header)
+      wrapper.appendChild(body)
+      wrapper.appendChild(footer)
+      document.body.appendChild(wrapper)
 
       // Trigger browser print dialog
       window.print()
@@ -179,6 +272,8 @@ export default function TeamReportView() {
       setTimeout(() => {
         const el = document.getElementById('print-pdf-style')
         if (el) el.remove()
+        const wrapperEl = document.getElementById('print-wrapper')
+        if (wrapperEl) wrapperEl.remove()
       }, 1000)
     } catch (err) {
       console.error('[PDF export]', err)
