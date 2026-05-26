@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
-import { can, getCurrentUser } from '../lib/auth.js'
+import { canSync, getCurrentUser } from '../lib/auth.js'
 import { weekDays, isoLocal, weekOneMondayIso, diffCalendarDaysIso } from '../lib/weekDates.js'
 import { shiftProgrammeSessionsByDelta } from '../lib/shiftProgrammeSessionDates.js'
 import { athleteDisplayName } from '../lib/programmeUi.js'
@@ -49,7 +49,8 @@ function applySameDaySessionReorder(prevLinks, dayIso, orderedSessionIds) {
 export function useProgrammeDetailPage(programmeId) {
   const [searchParams] = useSearchParams()
   const weekParam = searchParams.get('week')
-  const user = getCurrentUser()
+  const [user, setUser] = useState(null)
+  const userTeamIds = useMemo(() => user?.teamIds ?? [], [user])
   const [programme, setProgramme] = useState(null)
   const [weeks, setWeeks] = useState([])
   const [weekId, setWeekId] = useState(null)
@@ -69,7 +70,17 @@ export function useProgrammeDetailPage(programmeId) {
   const [clipboardToast, setClipboardToast] = useState(null)
   const toastTimer = useRef(null)
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const currentUser = await getCurrentUser()
+      if (!cancelled) setUser(currentUser)
+    })()
+    return () => { cancelled = true }
+  }, [])
+
   const load = useCallback(async () => {
+    if (!user?.orgId) return
     setLoading(true)
     setError(null)
     setAssignTargets({ teams: [], athletes: [] })
@@ -79,6 +90,7 @@ export function useProgrammeDetailPage(programmeId) {
         .select('*')
         .eq('id', programmeId)
         .eq('org_id', user.orgId)
+        .in('team_id', userTeamIds)
         .maybeSingle()
       if (e1) throw e1
       if (!p) throw new Error('Programme not found')
@@ -88,6 +100,7 @@ export function useProgrammeDetailPage(programmeId) {
         .select('*')
         .eq('programme_id', programmeId)
         .eq('org_id', user.orgId)
+        .in('team_id', userTeamIds)
         .order('week_number')
       if (e2) throw e2
       setWeeks(w ?? [])
@@ -158,7 +171,7 @@ export function useProgrammeDetailPage(programmeId) {
     } finally {
       setLoading(false)
     }
-  }, [programmeId, user.orgId])
+  }, [programmeId, user?.orgId, userTeamIds])
 
   useEffect(() => {
     void load()
@@ -172,6 +185,7 @@ export function useProgrammeDetailPage(programmeId) {
   }, [weeks, weekParam])
 
   const refreshWeek = useCallback(async () => {
+    if (!user?.orgId) return
     if (!weekId) {
       setLinks([])
       setCounts({})
@@ -191,7 +205,7 @@ export function useProgrammeDetailPage(programmeId) {
         else next.delete(weekId)
         return Array.from(next)
       })
-      const rows = (ps ?? []).filter((r) => r.sessions && user.teamIds.includes(r.sessions.team_id))
+      const rows = (ps ?? []).filter((r) => r.sessions && userTeamIds.includes(r.sessions.team_id))
       setLinks(rows)
       const sids = rows.map((r) => r.session_id).filter(Boolean)
       if (!sids.length) {
@@ -226,7 +240,7 @@ export function useProgrammeDetailPage(programmeId) {
       console.error('[ProgrammeDetail] week', e)
       setCounts({})
     }
-  }, [weekId, user.orgId, user.teamIds])
+  }, [weekId, user?.orgId, userTeamIds])
 
   useEffect(() => {
     void refreshWeek()
@@ -282,14 +296,14 @@ export function useProgrammeDetailPage(programmeId) {
         if (wid && byWeek.has(wid)) byWeek.get(wid).push(r)
       }
       const targets = weeks.filter(
-        (w) => w.id !== weekId && countVisibleProgrammeSessionLinks(byWeek.get(w.id) ?? [], user.teamIds) === 0,
+        (w) => w.id !== weekId && countVisibleProgrammeSessionLinks(byWeek.get(w.id) ?? [], userTeamIds) === 0,
       )
       if (!cancelled) setEmptyWeekTargets(targets)
     })()
     return () => {
       cancelled = true
     }
-  }, [copyOpen, weekId, weeks, user.orgId, user.teamIds])
+  }, [copyOpen, weekId, weeks, user?.orgId, userTeamIds])
 
   const selectedWeek = useMemo(() => weeks.find((w) => w.id === weekId), [weeks, weekId])
   const dayCols = useMemo(
@@ -312,7 +326,7 @@ export function useProgrammeDetailPage(programmeId) {
 
   async function saveTemplate() {
     try {
-      const { error } = await supabase.from('programmes').update({ is_template: true }).eq('id', programmeId).eq('org_id', user.orgId)
+      const { error } = await supabase.from('programmes').update({ is_template: true }).eq('id', programmeId).eq('org_id', user.orgId).in('team_id', userTeamIds)
       if (error) throw error
       setToast('Saved as template')
       void load()
@@ -323,7 +337,7 @@ export function useProgrammeDetailPage(programmeId) {
   }
 
   async function updateProgrammeDetails(payload) {
-    if (!can('programme', 'edit') || !programme) return
+    if (!canSync(user, 'programme', 'edit') || !programme) return
     const trimmed = String(payload.name || '').trim()
     if (!trimmed) return
 
@@ -366,7 +380,7 @@ export function useProgrammeDetailPage(programmeId) {
           deltaDays: delta,
         })
       }
-      const { error } = await supabase.from('programmes').update(patch).eq('id', programmeId).eq('org_id', user.orgId)
+      const { error } = await supabase.from('programmes').update(patch).eq('id', programmeId).eq('org_id', user.orgId).in('team_id', userTeamIds)
       if (error) {
         if (delta !== 0) {
           await shiftProgrammeSessionsByDelta({
@@ -401,6 +415,7 @@ export function useProgrammeDetailPage(programmeId) {
         .update({ name: trimmed })
         .eq('id', programmeId)
         .eq('org_id', user.orgId)
+        .in('team_id', userTeamIds)
       if (error) throw error
       setProgramme((prev) => (prev ? { ...prev, name: trimmed } : prev))
       setToast('Programme name updated')
@@ -416,7 +431,7 @@ export function useProgrammeDetailPage(programmeId) {
       if (d1) throw d1
       const { error: d2 } = await supabase.from('programme_athletes').delete().eq('programme_id', programmeId).eq('org_id', user.orgId)
       if (d2) throw d2
-      const { error: e2 } = await supabase.from('programmes').update({ athlete_id: null }).eq('id', programmeId).eq('org_id', user.orgId)
+      const { error: e2 } = await supabase.from('programmes').update({ athlete_id: null }).eq('id', programmeId).eq('org_id', user.orgId).in('team_id', userTeamIds)
       if (e2) throw e2
       setToast('Assignments cleared')
       await load()
@@ -428,7 +443,7 @@ export function useProgrammeDetailPage(programmeId) {
 
   const moveSessionToDay = useCallback(
     (sessionId, targetIso) => {
-      if (!can('programme', 'edit')) return
+      if (!canSync(user, 'programme', 'edit')) return
       const allowed = new Set((dayCols ?? []).map((d) => d.iso))
       if (!targetIso || !allowed.has(targetIso)) return
 
@@ -469,12 +484,12 @@ export function useProgrammeDetailPage(programmeId) {
         }
       })()
     },
-    [dayCols, user.orgId, refreshWeek],
+    [dayCols, user?.orgId, refreshWeek],
   )
 
   const reorderSessionsForDay = useCallback(
     (dayIso, orderedSessionIds) => {
-      if (!can('programme', 'edit')) return
+      if (!canSync(user, 'programme', 'edit')) return
       const allowed = new Set((dayCols ?? []).map((d) => d.iso))
       if (!dayIso || !allowed.has(dayIso) || !orderedSessionIds?.length) return
 
@@ -516,12 +531,12 @@ export function useProgrammeDetailPage(programmeId) {
         }
       })()
     },
-    [dayCols, user.orgId, refreshWeek],
+    [dayCols, user?.orgId, refreshWeek],
   )
 
   const toggleSessionPublish = useCallback(
     (sessionId) => {
-      if (!can('programme', 'edit')) return
+      if (!canSync(user, 'programme', 'edit')) return
       void (async () => {
         try {
           const row = links.find((r) => (r.session_id ?? r.sessions?.id) === sessionId)
@@ -558,7 +573,7 @@ export function useProgrammeDetailPage(programmeId) {
         }
       })()
     },
-    [links, user.orgId, refreshWeek, setToast],
+    [links, user?.orgId, refreshWeek, setToast],
   )
 
   const saveSessionToLibraryStub = useCallback(() => {
@@ -567,7 +582,7 @@ export function useProgrammeDetailPage(programmeId) {
 
   const repeatSessionToDate = useCallback(
     (sessionId, newIso) => {
-      if (!can('programme', 'edit')) return
+      if (!canSync(user, 'programme', 'edit')) return
       const allowed = new Set((dayCols ?? []).map((d) => d.iso))
       if (!newIso || !allowed.has(newIso)) {
         setToast('Choose a day in this programme week')
@@ -591,7 +606,7 @@ export function useProgrammeDetailPage(programmeId) {
         }
       })()
     },
-    [links, dayCols, user.orgId, weekId, refreshWeek, setToast],
+    [links, dayCols, user?.orgId, weekId, refreshWeek, setToast],
   )
 
   const dismissSessionClipboard = useCallback(() => {
@@ -601,7 +616,7 @@ export function useProgrammeDetailPage(programmeId) {
 
   const copySessionToClipboard = useCallback(
     (sessionId) => {
-      if (!can('programme', 'edit')) return
+      if (!canSync(user, 'programme', 'edit')) return
       void (async () => {
         try {
           const payload = await fetchSessionForClipboard(supabase, user.orgId, sessionId)
@@ -614,12 +629,12 @@ export function useProgrammeDetailPage(programmeId) {
         }
       })()
     },
-    [user.orgId, setToast],
+    [user?.orgId, setToast],
   )
 
   const pasteCopiedSessionToDate = useCallback(
     (targetDateIso) => {
-      if (!can('programme', 'edit')) return
+      if (!canSync(user, 'programme', 'edit')) return
       const allowed = new Set((dayCols ?? []).map((d) => d.iso))
       if (!targetDateIso || !allowed.has(targetDateIso)) return
       const clip = copiedSession
@@ -653,12 +668,12 @@ export function useProgrammeDetailPage(programmeId) {
         }
       })()
     },
-    [copiedSession, dayCols, user.orgId, weekId, refreshWeek, setToast],
+    [copiedSession, dayCols, user?.orgId, weekId, refreshWeek, setToast],
   )
 
   const deleteSession = useCallback(
     (sessionId) => {
-      if (!can('programme', 'edit')) return
+      if (!canSync(user, 'programme', 'edit')) return
       void (async () => {
         let revertSnapshot = null
         flushSync(() => {
@@ -683,11 +698,11 @@ export function useProgrammeDetailPage(programmeId) {
         }
       })()
     },
-    [user.orgId, refreshWeek, setToast],
+    [user?.orgId, refreshWeek, setToast],
   )
 
   async function createSession(payload) {
-    const teamId = user.teamIds[0]
+    const teamId = userTeamIds[0]
     try {
       const { data: sess, error } = await supabase
         .from('sessions')

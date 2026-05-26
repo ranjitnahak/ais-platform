@@ -13,11 +13,21 @@ import {
 import { supabase } from '../lib/supabaseClient.js'
 
 export function useProgressionView({ programmeId, weeks, activeSessionName, orgId }) {
-  const user = getCurrentUser()
+  const [user, setUser] = useState(null)
+  const userTeamIds = useMemo(() => user?.teamIds ?? [], [user])
   const [matrixData, setMatrixData] = useState({ columns: [], rows: [], visibleVars: [] })
   const [matrixReloadSeq, setMatrixReloadSeq] = useState(0)
   const [sessionNames, setSessionNames] = useState([])
   const weekIds = useMemo(() => (weeks ?? []).map((w) => w.id).filter(Boolean), [weeks])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const currentUser = await getCurrentUser()
+      if (!cancelled) setUser(currentUser)
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (!weekIds.length || !orgId) {
@@ -53,7 +63,7 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
     return () => {
       cancelled = true
     }
-  }, [weekIds, orgId, user.teamIds])
+  }, [weekIds, orgId, userTeamIds])
 
   useEffect(() => {
     if (!weeks?.length || !orgId || !activeSessionName) {
@@ -107,12 +117,12 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
 
           const visibleRows = (psRows ?? []).filter((r) => {
             const s = embeddedSession(r.sessions)
-            return s && user.teamIds?.includes(s.team_id)
+            return s && userTeamIds?.includes(s.team_id)
           })
           const target = pickProgrammeSessionForProgressionColumn(psRows, {
             activeSessionName,
             selectedName,
-            teamIds: user.teamIds,
+            teamIds: userTeamIds,
           })
           let chosen = target ?? null
           if (!chosen?.session_id && visibleRows.length) chosen = visibleRows[0]
@@ -242,7 +252,7 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
       }
     })()
     return () => { cancelled = true }
-  }, [programmeId, weeks, activeSessionName, orgId, sessionNames, matrixReloadSeq, user.teamIds])
+  }, [programmeId, weeks, activeSessionName, orgId, sessionNames, matrixReloadSeq, userTeamIds])
   const getOrCreateExerciseRow = useCallback(async ({
       orgId: scopeOrgId,
       weekId,
@@ -353,9 +363,10 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
       const column = colMap[field]
       if (!column) return
       try {
+        const currentUser = await getCurrentUser()
         let patch
         if (field === '%1RM') {
-          const { data: row, error: selErr } = await supabase.from('session_exercises').select('prescription_type, secondary_prescription_type, tertiary_prescription_type').eq('id', exerciseRowId).maybeSingle()
+          const { data: row, error: selErr } = await supabase.from('session_exercises').select('prescription_type, secondary_prescription_type, tertiary_prescription_type').eq('id', exerciseRowId).eq('org_id', currentUser.orgId).maybeSingle()
           if (selErr) throw selErr
           patch = row?.prescription_type === 'pct_1rm' ? { prescription_value: value, prescription_type: 'pct_1rm' } : row?.secondary_prescription_type === 'pct_1rm' ? { secondary_prescription_value: value, secondary_prescription_type: 'pct_1rm' } : row?.tertiary_prescription_type === 'pct_1rm' ? { tertiary_prescription_value: value, tertiary_prescription_type: 'pct_1rm' } : { prescription_value: value, prescription_type: 'pct_1rm' }
         } else {
@@ -367,6 +378,7 @@ export function useProgressionView({ programmeId, weeks, activeSessionName, orgI
           .from('session_exercises')
           .update(patch)
           .eq('id', exerciseRowId)
+          .eq('org_id', currentUser.orgId)
           .select('id, block_id, session_blocks(session_id)')
         if (error) throw error
         if (!updatedRows?.length) throw new Error(`saveCell matched 0 rows — exerciseRowId=${exerciseRowId}`)

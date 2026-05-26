@@ -16,6 +16,7 @@ function dedupeById(rows) {
 
 async function fetchCategoriesByType(supabase, type, orgId, regionId = null) {
   // Omit is_active — seeded system rows often have is_active NULL/false and would vanish with .eq(true).
+  // Approved exception: system exercise categories use null org_id by design.
   const visibilityOr = `and(type.eq.${type},org_id.is.null),and(type.eq.${type},org_id.eq.${orgId})`
   let q = supabase
     .from('exercise_categories')
@@ -30,6 +31,7 @@ async function fetchCategoriesByType(supabase, type, orgId, regionId = null) {
       .from('exercise_categories')
       .select(CATEGORY_FIELDS)
       .eq('type', type)
+      // Approved exception: system exercise categories use null org_id by design.
       .or(`org_id.is.null,org_id.eq.${orgId}`)
       .order('sort_order', { ascending: true })
     if (regionId) q2 = q2.eq('parent_id', regionId)
@@ -72,6 +74,7 @@ export async function fetchTags(supabase, orgId) {
  * @returns {Promise<Array<{ category_id: string, name: string }>>}
  */
 export async function fetchExerciseTags(supabase, exerciseId) {
+  // Approved exception: exercise_tags are a system-level taxonomy link table.
   const { data, error } = await supabase
     .from('exercise_tags')
     .select('category_id, exercise_categories(id, name)')

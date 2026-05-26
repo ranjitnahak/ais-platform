@@ -24,14 +24,15 @@ function useTeamUsageMap(programmeIds, refreshKey) {
       setMap({})
       return
     }
-    const user = getCurrentUser()
     let cancelled = false
     ;(async () => {
       try {
+        const user = await getCurrentUser()
         const { data: weeks, error: wErr } = await supabase
           .from('programme_weeks')
           .select('id, programme_id')
           .eq('org_id', user.orgId)
+          .in('team_id', user.teamIds)
           .in('programme_id', programmeIds)
         if (wErr) throw wErr
         if (!weeks?.length) {
@@ -71,7 +72,8 @@ function useTeamUsageMap(programmeIds, refreshKey) {
 }
 
 export function useProgrammesLibrary() {
-  const user = getCurrentUser()
+  const [user, setUser] = useState(null)
+  const userTeamIds = useMemo(() => user?.teamIds ?? [], [user])
   const navigate = useNavigate()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -86,10 +88,20 @@ export function useProgrammesLibrary() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [onlyTemplates, setOnlyTemplates] = useState(false)
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const currentUser = await getCurrentUser()
+      if (!cancelled) setUser(currentUser)
+    })()
+    return () => { cancelled = true }
+  }, [])
+
   const programmeIds = useMemo(() => rows.map((r) => r.id), [rows])
   const teamUsage = useTeamUsageMap(programmeIds, refreshKey)
 
   const load = useCallback(async () => {
+    if (!user?.orgId) return
     setLoading(true)
     setError(null)
     try {
@@ -97,6 +109,7 @@ export function useProgrammesLibrary() {
         .from('programmes')
         .select('*')
         .eq('org_id', user.orgId)
+        .in('team_id', userTeamIds)
         .order('created_at', { ascending: false })
       if (error) throw error
       setRows(data ?? [])
@@ -107,7 +120,7 @@ export function useProgrammesLibrary() {
     } finally {
       setLoading(false)
     }
-  }, [user.orgId])
+  }, [user?.orgId, userTeamIds])
 
   useEffect(() => {
     void load()
@@ -201,6 +214,7 @@ export function useProgrammesLibrary() {
         .select('*')
         .eq('programme_id', source.id)
         .eq('org_id', user.orgId)
+        .in('team_id', userTeamIds)
         .order('week_number')
       if (w0) throw w0
       if (weeks?.length) {
@@ -219,6 +233,7 @@ export function useProgrammesLibrary() {
           .select('id, week_number')
           .eq('programme_id', copy.id)
           .eq('org_id', user.orgId)
+          .in('team_id', userTeamIds)
           .order('week_number')
         if (w2) throw w2
 
@@ -258,7 +273,7 @@ export function useProgrammesLibrary() {
 
   async function deleteProgramme(id) {
     try {
-      const { error } = await supabase.from('programmes').delete().eq('id', id).eq('org_id', user.orgId)
+      const { error } = await supabase.from('programmes').delete().eq('id', id).eq('org_id', user.orgId).in('team_id', userTeamIds)
       if (error) throw error
       setRefreshKey((k) => k + 1)
     } catch (e) {
@@ -274,6 +289,7 @@ export function useProgrammesLibrary() {
         .update({ is_template: true })
         .eq('id', source.id)
         .eq('org_id', user.orgId)
+        .in('team_id', userTeamIds)
       if (error) throw error
       setRefreshKey((k) => k + 1)
     } catch (e) {

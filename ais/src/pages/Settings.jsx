@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser, can } from '../lib/auth';
+import { getCurrentUser, canSync, useCurrentUser } from '../lib/auth';
 import Sidebar from '../components/Sidebar';
 import TeamDetailModal from '../components/settings/TeamDetailModal';
 
@@ -61,14 +61,14 @@ function TeamsTab() {
   async function loadTeams() {
     setLoadingTeams(true);
     try {
-      const user = getCurrentUser();
+      const user = await getCurrentUser();
 
       const { data: teamRows, error: teamErr } = await supabase
         .from('teams')
         .select('id, name, sport, gender, logo_url')
         .eq('org_id', user.orgId)
         .order('name');
-      console.log('orgId:', getCurrentUser().orgId)
+      console.log('orgId:', user.orgId)
       console.log('teams data:', teamRows)
       console.log('teams error:', teamErr)
       if (teamErr) throw teamErr;
@@ -76,6 +76,7 @@ function TeamsTab() {
       const { data: memberRows } = await supabase
         .from('athlete_teams')
         .select('team_id')
+        .eq('org_id', user.orgId)
         .in('team_id', (teamRows ?? []).map(t => t.id));
 
       const countMap = {};
@@ -212,7 +213,7 @@ function TestSetupTab() {
     async function load() {
       setLoading(true);
       try {
-        const user = getCurrentUser();
+        const user = await getCurrentUser();
         const { data, error } = await supabase
           .from('test_definitions')
           .select('id, name, unit, direction')
@@ -288,8 +289,17 @@ function TestSetupTab() {
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('teams');
+  const { user, loading } = useCurrentUser();
 
-  if (!can('adminConfig', 'admin')) {
+  if (loading) {
+    return (
+      <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
+        <Sidebar />
+      </div>
+    );
+  }
+
+  if (!canSync(user, 'adminConfig', 'admin')) {
     return (
       <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
         <Sidebar />

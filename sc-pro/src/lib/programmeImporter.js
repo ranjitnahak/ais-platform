@@ -512,6 +512,7 @@ function collectExerciseNames(plan) {
 
 /** Visibility OR matching SessionExerciseSearch / assistantActions patterns */
 function libraryVisibilityOr(orgId, userId) {
+  // Approved exception: system default exercises use null org_id by design.
   return `org_id.is.null,and(org_id.eq.${orgId},or(status.eq.approved,created_by.eq.${userId}))`
 }
 

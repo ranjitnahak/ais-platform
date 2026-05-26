@@ -41,7 +41,6 @@ export default function AthleteProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  const user = getCurrentUser();
 
   const [athlete, setAthlete]         = useState(null);
   const [form, setForm]               = useState(null);
@@ -59,10 +58,13 @@ export default function AthleteProfile() {
 
   async function loadAthlete() {
     setLoading(true);
+    const user = await getCurrentUser();
+    if (!user) { setLoading(false); return; }
     const { data, error } = await supabase
       .from('athletes')
       .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, org_id, is_active, jersey_number, email, phone, emergency_contact_phone, blood_group, address, organisations(name, sport, logo_url)')
       .eq('id', id)
+      .eq('org_id', user.orgId)
       .single();
 
     if (!error && data) {
@@ -80,16 +82,17 @@ export default function AthleteProfile() {
         blood_group:              data.blood_group ?? '',
         address:                  data.address ?? '',
       });
-      await loadLatestScores(data.id, data.gender);
+      await loadLatestScores(data.id, data.gender, user);
     }
     setLoading(false);
   }
 
-  async function loadLatestScores(athleteId, gender) {
+  async function loadLatestScores(athleteId, gender, user) {
     // Latest session containing this athlete
     const { data: links } = await supabase
       .from('assessment_results')
       .select('session_id')
+      .eq('org_id', user.orgId)
       .eq('athlete_id', athleteId);
 
     const sessionIds = [...new Set((links ?? []).map((r) => r.session_id))];
@@ -98,6 +101,7 @@ export default function AthleteProfile() {
     const { data: sessions } = await supabase
       .from('assessment_sessions')
       .select('id, assessed_on, name')
+      .eq('org_id', user.orgId)
       .in('id', sessionIds)
       .order('assessed_on', { ascending: false })
       .limit(1);
@@ -109,6 +113,7 @@ export default function AthleteProfile() {
     const { data: results } = await supabase
       .from('assessment_results')
       .select('test_id, value, classification, percentile_rank, test_definitions(name, unit, direction)')
+      .eq('org_id', user.orgId)
       .eq('athlete_id', athleteId)
       .eq('session_id', session.id);
 
@@ -136,6 +141,8 @@ export default function AthleteProfile() {
     }
     setSaving(true);
     setSaveMsg(null);
+    const user = await getCurrentUser();
+    if (!user) { setSaving(false); return; }
     const first_name = form.first_name.trim();
     const last_name = form.last_name.trim();
     const full_name = canonicalFullName(first_name, last_name);
@@ -156,7 +163,8 @@ export default function AthleteProfile() {
         blood_group:             form.blood_group?.trim() || null,
         address:                 form.address?.trim() || null,
       })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('org_id', user.orgId);
     setSaving(false);
     if (error) {
       setSaveMsg({ type: 'error', text: error.message });
@@ -189,6 +197,8 @@ export default function AthleteProfile() {
     setPendingFile(null);
     setUploading(true);
     setSaveMsg(null);
+    const user = await getCurrentUser();
+    if (!user) { setUploading(false); return; }
 
     const sanitizedName = pendingFile.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
     const path = `${id}/${Date.now()}-${sanitizedName}`;
@@ -209,7 +219,8 @@ export default function AthleteProfile() {
     const { error: updateErr } = await supabase
       .from('athletes')
       .update({ photo_url: publicUrl })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('org_id', user.orgId);
 
     if (updateErr) {
       setSaveMsg({ type: 'error', text: updateErr.message });
@@ -224,6 +235,8 @@ export default function AthleteProfile() {
   async function handleArchive() {
     setDangerWorking(true);
     try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error('No authenticated user found.');
       const { error } = await supabase
         .from('athletes')
         .update({ is_archived: true, is_active: false })
@@ -241,6 +254,8 @@ export default function AthleteProfile() {
   async function handleDelete() {
     setDangerWorking(true);
     try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error('No authenticated user found.');
       const { error } = await supabase
         .from('athletes')
         .delete()

@@ -1,4 +1,5 @@
 /** Fetch session + blocks + exercises for clipboard copy (weekly programme paste). */
+import { getCurrentUser } from './auth.js'
 
 function sortExercises(block) {
   return [...(block.session_exercises ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -14,7 +15,8 @@ const BLOCK_SELECT = `
 `
 
 export async function fetchSessionForClipboard(supabase, orgId, sessionId) {
-  const { data: session, error } = await supabase.from('sessions').select('*').eq('id', sessionId).eq('org_id', orgId).single()
+  const user = await getCurrentUser()
+  const { data: session, error } = await supabase.from('sessions').select('*').eq('id', sessionId).eq('org_id', orgId).in('team_id', user.teamIds).single()
   if (error) throw error
   if (!session) throw new Error('Session not found')
 

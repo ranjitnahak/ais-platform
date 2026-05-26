@@ -88,6 +88,7 @@ export async function deepCopyWeek({ supabase, user, programme, sourceWeekId, ta
       .select('*')
       .eq('session_id', oldSid)
       .eq('org_id', user.orgId)
+      .in('team_id', user.teamIds)
       .order('sort_order')
     if (bErr) throw bErr
     for (const b of blocks ?? []) {
@@ -110,6 +111,7 @@ export async function deepCopyWeek({ supabase, user, programme, sourceWeekId, ta
         .select('*')
         .eq('block_id', b.id)
         .eq('org_id', user.orgId)
+        .in('team_id', user.teamIds)
         .order('sort_order')
       if (exErr) throw exErr
       if (exList?.length) {

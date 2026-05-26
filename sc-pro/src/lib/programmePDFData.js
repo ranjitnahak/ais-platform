@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient.js'
+import { getCurrentUser } from './auth.js'
 
 export function libRow(ex) {
   const el = ex.exercise_library
@@ -119,13 +120,14 @@ function sessionIsPublishedForExport(s) {
 }
 
 async function fetchSessionsByIdsBatched(ids, orgId) {
+  const user = await getCurrentUser()
   const uniq = [...new Set(ids.filter(Boolean))]
   if (!uniq.length) return []
   const chunk = 120
   const rows = []
   for (let i = 0; i < uniq.length; i += chunk) {
     const slice = uniq.slice(i, i + chunk)
-    const { data, error } = await supabase.from('sessions').select('*').in('id', slice).eq('org_id', orgId)
+    const { data, error } = await supabase.from('sessions').select('*').in('id', slice).eq('org_id', orgId).in('team_id', user.teamIds)
     if (error) throw error
     rows.push(...(data || []))
   }
@@ -138,11 +140,13 @@ async function fetchSessionsByIdsBatched(ids, orgId) {
  * to published only.
  */
 export async function fetchWeeksAndSessions(programmeId, orgId) {
+  const user = await getCurrentUser()
   const { data: weeks, error: wErr } = await supabase
     .from('programme_weeks')
     .select('*')
     .eq('programme_id', programmeId)
     .eq('org_id', orgId)
+    .in('team_id', user.teamIds)
     .order('week_number', { ascending: true })
   if (wErr) throw wErr
   const out = []
@@ -186,6 +190,7 @@ export async function fetchWeeksAndSessions(programmeId, orgId) {
       .select('*')
       .eq('programme_week_id', w.id)
       .eq('org_id', orgId)
+      .in('team_id', user.teamIds)
     if (dErr) throw dErr
     for (const s of direct || []) {
       if (!s?.id) continue
@@ -206,6 +211,7 @@ export async function fetchWeeksAndSessions(programmeId, orgId) {
         .select('id, is_published')
         .in('id', slice)
         .eq('org_id', orgId)
+        .in('team_id', user.teamIds)
       if (cErr) throw cErr
       for (const row of canonical || []) {
         if (!row?.id) continue
@@ -231,11 +237,13 @@ export async function fetchWeeksAndSessions(programmeId, orgId) {
 }
 
 export async function fetchBlocks(sessionId, orgId) {
+  const user = await getCurrentUser()
   const { data, error } = await supabase
     .from('session_blocks')
     .select('*')
     .eq('session_id', sessionId)
     .eq('org_id', orgId)
+    .in('team_id', user.teamIds)
     .order('sort_order', { ascending: true })
   if (error) throw error
   return data || []

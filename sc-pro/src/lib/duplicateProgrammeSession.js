@@ -1,4 +1,5 @@
 import { weekDays } from './weekDates.js'
+import { getCurrentUser } from './auth.js'
 
 /** Map a session’s calendar day to the same weekday slot in another programme week. */
 export function mapSessionDateToTargetWeek(sessionDateIso, sourceWeekNumber, targetWeekNumber, programme) {
@@ -22,7 +23,8 @@ function sortBlocks(blocks) {
  * Inserts `sessions`, `programme_sessions`, `session_blocks`, `session_exercises`.
  */
 export async function duplicateProgrammeSessionDeep(supabase, { orgId, sourceSessionId, targetWeekId, newSessionDate, nextSortOrder }) {
-  const { data: src, error: e0 } = await supabase.from('sessions').select('*').eq('id', sourceSessionId).eq('org_id', orgId).single()
+  const user = await getCurrentUser()
+  const { data: src, error: e0 } = await supabase.from('sessions').select('*').eq('id', sourceSessionId).eq('org_id', orgId).in('team_id', user.teamIds).single()
   if (e0) throw e0
   if (!src) throw new Error('Session not found')
 

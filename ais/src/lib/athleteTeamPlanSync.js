@@ -2,6 +2,7 @@
  * Team ↔ individual periodisation sync helpers.
  * Used for "Replace with team plan" and "Update from team plan".
  */
+import { getCurrentUser } from './auth';
 import { weekStartsBetween } from './periodisationUtils';
 
 const CELL_INSERT_CHUNK = 250;
@@ -58,11 +59,12 @@ async function insertCellsBatched(supabase, rows) {
 }
 
 async function deletePlanRowsAndCells(supabase, orgId, planId, rowIds) {
+  const user = await getCurrentUser();
   if (rowIds.length) {
-    const { error: e1 } = await supabase.from('plan_cells').delete().eq('org_id', orgId).in('row_id', rowIds);
+    const { error: e1 } = await supabase.from('plan_cells').delete().eq('org_id', orgId).in('team_id', user.teamIds).in('row_id', rowIds);
     if (e1) throw e1;
   }
-  const { error: e2 } = await supabase.from('plan_rows').delete().eq('org_id', orgId).eq('plan_id', planId);
+  const { error: e2 } = await supabase.from('plan_rows').delete().eq('org_id', orgId).in('team_id', user.teamIds).eq('plan_id', planId);
   if (e2) throw e2;
 }
 
@@ -134,6 +136,7 @@ async function ensureAthletePlan(supabase, { orgId, teamId, athleteId, teamPlan 
  */
 export async function replaceAthleteWithTeamPlan(supabase, params) {
   const { orgId, teamId, athleteId, teamPlan, teamRows, teamCells } = params;
+  const user = await getCurrentUser();
   if (!teamPlan?.id) throw new Error('No team plan to copy.');
   if (!teamRows?.length) throw new Error('Team plan has no rows.');
 
@@ -157,7 +160,8 @@ export async function replaceAthleteWithTeamPlan(supabase, params) {
     .from('plan_rows')
     .select('id')
     .eq('plan_id', athletePlan.id)
-    .eq('org_id', orgId);
+    .eq('org_id', orgId)
+    .in('team_id', user.teamIds);
   if (rErr) throw rErr;
   const oldIds = (existingRows || []).map((r) => r.id);
   await deletePlanRowsAndCells(supabase, orgId, athletePlan.id, oldIds);
@@ -202,6 +206,7 @@ function buildTeamToAthleteRowMap(teamRows, athleteRows) {
  */
 export async function updateAthleteFromTeamPlan(supabase, params) {
   const { orgId, teamId, athleteId, teamPlan, teamRows, teamCells } = params;
+  const user = await getCurrentUser();
   if (!teamPlan?.id) throw new Error('No team plan to sync from.');
   if (!teamRows?.length) throw new Error('Team plan has no rows.');
 
@@ -217,6 +222,7 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
     .select('*')
     .eq('plan_id', athletePlan.id)
     .eq('org_id', orgId)
+    .in('team_id', user.teamIds)
     .order('sort_order');
   if (arErr) throw arErr;
   const aRows = athleteRows || [];
@@ -226,9 +232,9 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
     const key = rowSyncKey(ar);
     const orphanKeyed = rk && !teamKeySet.has(key);
     if (!orphanKeyed) continue;
-    const { error: de } = await supabase.from('plan_cells').delete().eq('org_id', orgId).eq('row_id', ar.id);
+    const { error: de } = await supabase.from('plan_cells').delete().eq('org_id', orgId).in('team_id', user.teamIds).eq('row_id', ar.id);
     if (de) throw de;
-    const { error: dr } = await supabase.from('plan_rows').delete().eq('org_id', orgId).eq('id', ar.id);
+    const { error: dr } = await supabase.from('plan_rows').delete().eq('org_id', orgId).in('team_id', user.teamIds).eq('id', ar.id);
     if (dr) throw dr;
   }
 
@@ -237,6 +243,7 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
     .select('*')
     .eq('plan_id', athletePlan.id)
     .eq('org_id', orgId)
+    .in('team_id', user.teamIds)
     .order('sort_order');
   if (ar2Err) throw ar2Err;
   const curAthleteRows = athleteRowsAfter || [];
@@ -262,7 +269,8 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
           display_label: tr.display_label ?? null,
         })
         .eq('id', existing.id)
-        .eq('org_id', orgId);
+        .eq('org_id', orgId)
+        .in('team_id', user.teamIds);
       if (up) throw up;
     } else {
       const { data: ins, error: insE } = await supabase
@@ -289,6 +297,7 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
     .select('*')
     .eq('plan_id', athletePlan.id)
     .eq('org_id', orgId)
+    .in('team_id', user.teamIds)
     .order('sort_order');
   if (frErr) throw frErr;
   const finalAthleteRows = freshRows || [];
@@ -300,6 +309,7 @@ export async function updateAthleteFromTeamPlan(supabase, params) {
       .from('plan_cells')
       .select('*')
       .eq('org_id', orgId)
+      .in('team_id', user.teamIds)
       .in('row_id', rowIds);
     if (fcErr) throw fcErr;
     freshCells = fc || [];

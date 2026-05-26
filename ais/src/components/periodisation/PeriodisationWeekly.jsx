@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { getCurrentUser, canEditSessionLibrary } from '../../lib/auth';
+import { getCurrentUser, canSync } from '../../lib/auth';
 import { useSessions } from '../../hooks/useSessions';
 import { addDays, formatRange, rowMetricKey, weekStartsBetween, computeAcwrSeries, acwrStyle } from '../../lib/periodisationUtils';
 import WeekNotesEditor from '../ui/WeekNotesEditor';
@@ -152,7 +152,7 @@ export default function PeriodisationWeekly({
   onPrev,
   onNext,
 }) {
-  const user = getCurrentUser();
+  const [user, setUser] = useState(null);
   const { sessions, loading: initialLoading, upsertSession, deleteSession } = useSessions(teamId, plan.id, weekStartIso, weekEndIso);
   const [drawer, setDrawer] = useState(null);
   const [libraryItems, setLibraryItems] = useState([]);
@@ -173,15 +173,26 @@ export default function PeriodisationWeekly({
   const days = useMemo(() => weekDays(weekStartIso), [weekStartIso]);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const currentUser = await getCurrentUser();
+      if (!cancelled) setUser(currentUser);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!user?.orgId) return;
     (async () => {
       const { data } = await supabase
         .from('session_library_items')
         .select('*')
+        // Approved exception: system default session items have no org.
         .or(`is_system.eq.true,org_id.eq.${user.orgId}`)
         .order('name');
       setLibraryItems(data ?? []);
     })();
-  }, [user.orgId]);
+  }, [user?.orgId]);
 
   const activeHours = useMemo(() => {
     const hours = new Set();
@@ -718,6 +729,7 @@ export default function PeriodisationWeekly({
           drawer={drawer}
           sessions={sessions}
           libraryItems={libraryItems}
+          canLib={canSync(user, 'sessionLibrary', 'admin')}
           onClose={() => setDrawer(null)}
           upsertSession={upsertSession}
         />
@@ -776,7 +788,7 @@ function TimePicker({ value, onChange }) {
   );
 }
 
-function SessionDrawer({ drawer, sessions, libraryItems, onClose, upsertSession }) {
+function SessionDrawer({ drawer, sessions, libraryItems, canLib, onClose, upsertSession }) {
   const existing = drawer.sessionId ? sessions.find((s) => s.id === drawer.sessionId) : null;
   const [sessionType, setSessionType] = useState('strength');
   const [startTime, setStartTime] = useState(DEFAULT_AM_TIME);
@@ -838,7 +850,6 @@ function SessionDrawer({ drawer, sessions, libraryItems, onClose, upsertSession 
     }
   }
 
-  const canLib = canEditSessionLibrary();
   const typeLabel = SESSION_TYPES.find((t) => t.value === sessionType)?.label ?? 'Session';
   const venueOptions = venue && !VENUES.includes(venue) ? [...VENUES, venue] : VENUES;
 

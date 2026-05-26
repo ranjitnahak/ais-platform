@@ -48,7 +48,7 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
   async function loadAthletesAndMembers() {
     setLoadingAthletes(true);
     try {
-      const { orgId } = getCurrentUser();
+      const { orgId } = await getCurrentUser();
 
       const { data: athRows, error: athErr } = await supabase
         .from('athletes')
@@ -62,6 +62,7 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
       const { data: memberRows, error: memErr } = await supabase
         .from('athlete_teams')
         .select('athlete_id')
+        .eq('org_id', orgId)
         .eq('team_id', team.id);
       if (memErr) throw memErr;
 
@@ -102,7 +103,7 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
         return;
       }
 
-      const { orgId } = getCurrentUser();
+      const { orgId } = await getCurrentUser();
       let finalLogoUrl = existingLogoUrl;
 
       if (logoFile) {
@@ -131,7 +132,8 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
             gender: gender || null,
             logo_url: finalLogoUrl,
           })
-          .eq('id', team.id);
+          .eq('id', team.id)
+          .eq('org_id', orgId);
         if (updErr) throw updErr;
 
         const added   = [...memberIds].filter((id) => !originalMemberIds.has(id));
@@ -140,7 +142,7 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
         if (added.length > 0) {
           const { error: addErr } = await supabase
             .from('athlete_teams')
-            .insert(added.map((athleteId) => ({ athlete_id: athleteId, team_id: team.id })));
+            .insert(added.map((athleteId) => ({ org_id: orgId, athlete_id: athleteId, team_id: team.id })));
           if (addErr) throw addErr;
         }
 
@@ -148,6 +150,7 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
           const { error: delErr } = await supabase
             .from('athlete_teams')
             .delete()
+            .eq('org_id', orgId)
             .eq('team_id', team.id)
             .in('athlete_id', removed);
           if (delErr) throw delErr;

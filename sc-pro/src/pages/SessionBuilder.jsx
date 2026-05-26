@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
-import { can, getCurrentUser } from '../lib/auth.js'
+import { canSync, getCurrentUser, useCurrentUser } from '../lib/auth.js'
 import { useSessionData } from '../hooks/useSessionData.js'
 import { useSessionBuilderRemoteRefresh } from '../hooks/useSessionBuilderRemoteRefresh.js'
 import { useSessionBuilderCrumb } from '../hooks/useSessionBuilderCrumb.js'
@@ -60,7 +60,7 @@ function resolvePrescriptionType(raw) {
 export default function SessionBuilder() {
   const { programmeId, sessionId } = useParams()
   const navigate = useNavigate()
-  const user = getCurrentUser()
+  const { user, loading: userLoading } = useCurrentUser()
   const {
     session,
     blocks,
@@ -88,14 +88,14 @@ export default function SessionBuilder() {
     return () => window.removeEventListener('sc-pro-session-exercise-patch', onPatch)
   }, [sessionId, applyExercisePatch])
 
-  const crumb = useSessionBuilderCrumb(session, user.orgId)
+  const crumb = useSessionBuilderCrumb(session, user?.orgId)
   const [title, setTitle] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [addForBlockId, setAddForBlockId] = useState(null)
   const [selectedExerciseId, setSelectedExerciseId] = useState(null)
   const [toast, setToast] = useState(null)
   const [coachInstructions, setCoachInstructions] = useState('')
-  const canManageProgramme = can('programme', 'edit')
+  const canManageProgramme = canSync(user, 'programme', 'edit')
   const canEditSession = canManageProgramme && !session?.is_published
 
   useEffect(() => {
@@ -144,7 +144,7 @@ export default function SessionBuilder() {
     } catch (e) {
       console.error('[SessionBuilder]', e)
     }
-  }, [session, title, user.orgId, reload, canEditSession])
+  }, [session, title, user?.orgId, reload, canEditSession])
 
   const togglePublish = useCallback(async () => {
     if (!session || !canManageProgramme) return
@@ -160,7 +160,7 @@ export default function SessionBuilder() {
     } catch (e) {
       console.error('[SessionBuilder]', e)
     }
-  }, [session, user.orgId, reload, canManageProgramme])
+  }, [session, user?.orgId, reload, canManageProgramme])
 
   const addBlock = useCallback(async () => {
     if (!session || !canEditSession) return
@@ -180,7 +180,7 @@ export default function SessionBuilder() {
     } catch (e) {
       console.error('[SessionBuilder]', e)
     }
-  }, [session, blocks, user.orgId, reload, canEditSession])
+  }, [session, blocks, user?.orgId, reload, canEditSession])
 
   const deleteExercise = useCallback(
     async (exerciseId) => {
@@ -206,7 +206,7 @@ export default function SessionBuilder() {
         setToast(null)
       }
     },
-    [blocks, selectedExerciseId, user.orgId, setBlocks, canEditSession],
+    [blocks, selectedExerciseId, user?.orgId, setBlocks, canEditSession],
   )
 
   const toggleSupersetLink = useCallback(
@@ -279,7 +279,7 @@ export default function SessionBuilder() {
         await reload()
       }
     },
-    [blocks, user.orgId, setBlocks, reload, canEditSession],
+    [blocks, user?.orgId, setBlocks, reload, canEditSession],
   )
 
   const applyExerciseLayout = useCallback(
@@ -301,7 +301,7 @@ export default function SessionBuilder() {
         console.error('[SessionBuilder]', e)
       }
     },
-    [user.orgId, reload, canEditSession],
+    [user?.orgId, reload, canEditSession],
   )
 
   const applyBlockOrder = useCallback(
@@ -321,7 +321,7 @@ export default function SessionBuilder() {
         console.error('[SessionBuilder] applyBlockOrder', e)
       }
     },
-    [user.orgId, reload, canEditSession],
+    [user?.orgId, reload, canEditSession],
   )
 
   const addExercise = useCallback(
@@ -347,13 +347,13 @@ export default function SessionBuilder() {
         console.error('[SessionBuilder]', e)
       }
     },
-    [addForBlockId, blocks, user.orgId, reload, canEditSession],
+    [addForBlockId, blocks, user?.orgId, reload, canEditSession],
   )
 
   useAssistantSessionBuilder({ session, blocks })
 
   useEffect(() => {
-    if (!session?.id) return
+    if (!session?.id || !user?.orgId) return
 
     registerPageContext('session_builder', () => ({
       orgId: user.orgId,
@@ -390,7 +390,7 @@ export default function SessionBuilder() {
     }))
 
     registerAction('add_exercise_to_block', async (payload) => {
-      const u = getCurrentUser()
+      const u = await getCurrentUser()
 
       const exercises =
         payload.exercises ??
@@ -423,6 +423,7 @@ export default function SessionBuilder() {
           const { data: found, error: lookupErr } = await supabase
             .from('exercise_library')
             .select('id')
+            // Approved exception: system default exercises use null org_id by design.
             .or(`org_id.is.null,org_id.eq.${u.orgId}`)
             .ilike('name', String(ex.exercise_name).trim())
             .limit(1)
@@ -469,7 +470,7 @@ export default function SessionBuilder() {
     })
 
     registerAction('change_prescription', async (payload) => {
-      const u = getCurrentUser()
+      const u = await getCurrentUser()
 
       const displayName = (ex) => {
         const lib = ex.exercise_library
@@ -547,7 +548,7 @@ export default function SessionBuilder() {
     })
 
     registerAction('add_block', async (payload) => {
-      const u = getCurrentUser()
+      const u = await getCurrentUser()
       const nextLabel = String.fromCharCode(65 + (blocks?.length ?? 0))
       const sort = blocks?.length ? Math.max(...blocks.map((b) => b.sort_order ?? 0)) + 1 : 0
 
@@ -577,6 +578,7 @@ export default function SessionBuilder() {
           const { data: found, error: lookupErr } = await supabase
             .from('exercise_library')
             .select('id')
+            // Approved exception: system default exercises use null org_id by design.
             .or(`org_id.is.null,org_id.eq.${u.orgId}`)
             .ilike('name', String(ex.exercise_name).trim())
             .limit(1)
@@ -620,7 +622,7 @@ export default function SessionBuilder() {
       if (!canEditSession) {
         throw new Error('This session cannot be edited (published or insufficient permission).')
       }
-      const u = getCurrentUser()
+      const u = await getCurrentUser()
       const { error } = await supabase
         .from('session_blocks')
         .delete()
@@ -635,7 +637,7 @@ export default function SessionBuilder() {
       unregisterAction('add_block')
       unregisterAction('clear_session_blocks')
     }
-  }, [session, blocks, user.orgId, canEditSession])
+  }, [session, blocks, user?.orgId, canEditSession])
 
   useEffect(() => {
     const h = (e) => {
@@ -646,7 +648,7 @@ export default function SessionBuilder() {
     return () => window.removeEventListener(ASSISTANT_ACTION_COMPLETE, h)
   }, [reload])
 
-  if (loading) return <div style={{ padding: 24, color: 'var(--color-text-muted)' }}>Loading session…</div>
+  if (loading || userLoading) return <div style={{ padding: 24, color: 'var(--color-text-muted)' }}>Loading session…</div>
   if (error || !session) {
     return (
       <div style={{ padding: 24 }}>

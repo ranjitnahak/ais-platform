@@ -60,7 +60,8 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
 
   useEffect(() => {
     async function loadTeams() {
-      const user = getCurrentUser()
+      const user = await getCurrentUser()
+      if (!user) return
       const { data } = await supabase
         .from('teams')
         .select('id, name, sport, gender')
@@ -102,6 +103,8 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
 
     setSaving(true);
     setError(null);
+    const user = await getCurrentUser();
+    if (!user) { setSaving(false); setError('No authenticated user found.'); return; }
 
     let photo_url = null;
     if (photoBlob) {
@@ -131,7 +134,7 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
       emergency_contact_phone: form.emergency_contact_phone?.trim() || null,
       blood_group:             form.blood_group?.trim() || null,
       address:                 form.address?.trim() || null,
-      org_id:         getCurrentUser().orgId,
+      org_id:         user.orgId,
       is_active:      true,
       ...(photo_url ? { photo_url } : {}),
     };
@@ -143,6 +146,7 @@ export default function AddAthleteModal({ onClose, onSuccess }) {
 
     if (selectedTeamIds.length > 0) {
       const teamRows = selectedTeamIds.map(teamId => ({
+        org_id: user.orgId,
         athlete_id: newAthleteId,
         team_id: teamId,
       }))

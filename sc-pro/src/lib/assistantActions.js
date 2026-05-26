@@ -5,6 +5,7 @@
 
 /** Matches exercise_library visibility used in SessionExerciseSearch (global + org-approved/custom). */
 function exerciseLibraryVisibilityOr(orgId, userId) {
+  // Approved exception: system default exercises use null org_id by design.
   return `org_id.is.null,and(org_id.eq.${orgId},or(status.eq.approved,created_by.eq.${userId}))`
 }
 

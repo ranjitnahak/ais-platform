@@ -157,7 +157,7 @@ export function useAgentExecution({ pageKey, onRefreshProgramme }) {
       const plan = await extractProgramme(input)
       extractedPlanRef.current = plan
       setExtractedPlan(plan)
-      const user = getCurrentUser()
+      const user = await getCurrentUser()
       const m = await matchExercises(plan, supabase, user.orgId, user.id)
       setMatchMap(m)
       matchMapRef.current = m
@@ -206,7 +206,7 @@ export function useAgentExecution({ pageKey, onRefreshProgramme }) {
           setExtractedPlan(nextPlan)
           weekData = JSON.parse(JSON.stringify(nextPlan.weeks[i]))
 
-          const user = getCurrentUser()
+          const user = await getCurrentUser()
           const m = await matchExercises(nextPlan, supabase, user.orgId, user.id)
           setMatchMap(m)
           matchMapRef.current = m
@@ -242,7 +242,8 @@ export function useAgentExecution({ pageKey, onRefreshProgramme }) {
       runningRef.current = true
 
       let stepCount = 0
-      const user = getCurrentUser()
+      // Requires can('sc_pro', 'use_ai_assistant')
+      const user = await getCurrentUser()
       const teamId = user.teamIds?.[0] ?? null
 
       const addToSkipped = (item, reason) => {
@@ -339,6 +340,7 @@ export function useAgentExecution({ pageKey, onRefreshProgramme }) {
               .select('*')
               .eq('id', prog.id)
               .eq('org_id', user.orgId)
+              .in('team_id', user.teamIds)
               .single()
             if (fpErr) throw fpErr
 

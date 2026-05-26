@@ -1,4 +1,5 @@
 import { pasteClipboardSession } from './sessionClipboardPaste.js'
+import { getCurrentUser } from './auth.js'
 
 const BULK_SESSION_SELECT = `
   *,
@@ -26,11 +27,13 @@ function rowToClipboardPayload(row) {
 
 export async function fetchSessionsForBulkCopy(supabase, orgId, sessionIdsOrdered) {
   if (!sessionIdsOrdered.length) return []
+  const user = await getCurrentUser()
   const { data, error } = await supabase
     .from('sessions')
     .select(BULK_SESSION_SELECT)
     .in('id', sessionIdsOrdered)
     .eq('org_id', orgId)
+    .in('team_id', user.teamIds)
   if (error) throw error
   const byId = new Map((data ?? []).map((r) => [r.id, rowToClipboardPayload(r)]))
   return sessionIdsOrdered.map((id) => byId.get(id)).filter(Boolean)

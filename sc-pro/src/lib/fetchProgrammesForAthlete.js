@@ -1,10 +1,12 @@
 import { supabase } from './supabaseClient.js'
+import { getCurrentUser } from './auth.js'
 
 /**
  * All programme rows assigned to an athlete (direct, programme_athletes, programme_teams,
  * legacy programmes.athlete_id). Same union as ProgrammeExportModal.
  */
 export async function fetchProgrammesForAthlete(athlete, orgId) {
+  const user = await getCurrentUser()
   const idSet = new Set()
   for (const p of athlete.programmes || []) {
     if (p?.id) idSet.add(p.id)
@@ -35,7 +37,7 @@ export async function fetchProgrammesForAthlete(athlete, orgId) {
     }
   }
   try {
-    const { data: leg, error: e3 } = await supabase.from('programmes').select('id').eq('athlete_id', athlete.id).eq('org_id', orgId)
+    const { data: leg, error: e3 } = await supabase.from('programmes').select('id').eq('athlete_id', athlete.id).eq('org_id', orgId).in('team_id', user.teamIds)
     if (e3) throw e3
     for (const r of leg || []) if (r.id) idSet.add(r.id)
   } catch (err) {
@@ -47,6 +49,7 @@ export async function fetchProgrammesForAthlete(athlete, orgId) {
     .from('programmes')
     .select('*')
     .eq('org_id', orgId)
+    .in('team_id', user.teamIds)
     .in('id', ids)
     .order('created_at', { ascending: false })
   if (error) throw error

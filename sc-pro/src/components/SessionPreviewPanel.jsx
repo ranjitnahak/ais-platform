@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { SESSION_PREVIEW_SELECT } from '../lib/sessionPreviewQuery.js'
+import { getCurrentUser } from '../lib/auth.js'
 import SessionPreviewPanelBody from './programme-detail/SessionPreviewPanelBody.jsx'
 import { CAT_SOFT, badgePill, btnPrimary } from '../lib/programmeSessionUi.js'
 
@@ -29,11 +30,13 @@ export default function SessionPreviewPanel({ sessionId, programmeId, orgId, onC
     setError(null)
     setSession(null)
     try {
+      const user = await getCurrentUser()
       const { data, error: err } = await supabase
         .from('sessions')
         .select(SESSION_PREVIEW_SELECT)
         .eq('id', sessionId)
         .eq('org_id', orgId)
+        .in('team_id', user.teamIds)
         .single()
       if (err) throw err
       setSession(data)

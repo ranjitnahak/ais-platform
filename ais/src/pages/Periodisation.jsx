@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { getCurrentUser, canEditPlan, can } from '../lib/auth';
+import { getCurrentUser, canSync } from '../lib/auth';
 import Sidebar from '../components/Sidebar';
 import { MAIN_NAV_ITEMS } from '../nav/mainNavItems';
 import { usePeriodisationPlan } from '../hooks/usePeriodisationPlan';
@@ -47,10 +47,10 @@ const DEFAULT_TEMPLATE_ROWS = [
 
 export default function Periodisation() {
   const navigate = useNavigate();
-  const user = getCurrentUser();
+  const [user, setUser] = useState(null);
 
   const [teams, setTeams] = useState([]);
-  const [selectedTeamId, setSelectedTeamId] = useState(user.teamIds[0] ?? null);
+  const [selectedTeamId, setSelectedTeamId] = useState(null);
   const [viewMode, setViewMode] = useState('team');
   const [selectedAthleteId, setSelectedAthleteId] = useState(null);
   const [athletes, setAthletes] = useState([]);
@@ -111,15 +111,16 @@ export default function Periodisation() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const user = getCurrentUser();
-      if (!user?.orgId) {
+      const currentUser = await getCurrentUser();
+      if (!currentUser?.orgId) {
         if (!cancelled) setTeams([]);
         return;
       }
+      if (!cancelled) setUser(currentUser);
       const { data: teamList, error } = await supabase
         .from('teams')
         .select('id, name, logo_url')
-        .eq('org_id', user.orgId)
+        .eq('org_id', currentUser.orgId)
         .order('name');
       if (cancelled) return;
       if (error) {
@@ -142,18 +143,19 @@ export default function Periodisation() {
   }, []);
 
   useEffect(() => {
+    if (!user?.orgId) return;
     (async () => {
       const { data } = await supabase
         .from('plan_templates')
         .select('id, name, rows_config')
-        .or(`is_system.eq.true,org_id.eq.${user.orgId}`)
+        .eq('org_id', user.orgId)
         .order('name');
       setTemplates(data ?? []);
     })();
-  }, [user.orgId]);
+  }, [user?.orgId]);
 
   useEffect(() => {
-    if (viewMode !== 'individual' || !selectedTeamId) {
+    if (viewMode !== 'individual' || !selectedTeamId || !user?.orgId) {
       setAthletes([]);
       return;
     }
@@ -161,6 +163,7 @@ export default function Periodisation() {
       const { data: links } = await supabase
         .from('athlete_teams')
         .select('athlete_id')
+        .eq('org_id', user.orgId)
         .eq('team_id', selectedTeamId);
       const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
       if (!ids.length) {
@@ -185,7 +188,7 @@ export default function Periodisation() {
   );
 
   const handleReplaceWithTeamPlan = useCallback(async () => {
-    const u = getCurrentUser();
+    const u = await getCurrentUser();
     if (!u?.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
     await replaceAthleteWithTeamPlan(supabase, {
       orgId: u.orgId,
@@ -200,7 +203,7 @@ export default function Periodisation() {
   }, [selectedTeamId, selectedAthleteId, ghostPlan, ghostRows, ghostCells, plan, fetchPlan]);
 
   const handleUpdateFromTeamPlan = useCallback(async () => {
-    const u = getCurrentUser();
+    const u = await getCurrentUser();
     if (!u?.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
     await updateAthleteFromTeamPlan(supabase, {
       orgId: u.orgId,
@@ -226,11 +229,17 @@ export default function Periodisation() {
     return null;
   }, [plan, viewMode, selectedAthleteId, ghostPlan]);
 
-  const canEdit = plan ? canEditPlan(plan) : can('periodisation', 'edit');
+  const canEdit = plan
+    ? canSync(user, 'periodisation', 'edit') && user?.teamIds?.includes(plan.team_id)
+    : canSync(user, 'periodisation', 'edit');
 
   async function handleCreatePlan(e) {
     e.preventDefault();
     setCreateError(null);
+    if (!user?.orgId) {
+      setCreateError('No authenticated user found.');
+      return;
+    }
     if (!selectedTeamId || !createForm.name || !createForm.start_date || !createForm.end_date) {
       setCreateError('Please fill plan name and dates.');
       return;

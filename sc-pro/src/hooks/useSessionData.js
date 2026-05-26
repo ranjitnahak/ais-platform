@@ -56,8 +56,8 @@ async function resolveProgrammeRosterTeamId(supabase, orgId, session) {
 }
 
 export function useSessionData(sessionId) {
-  const user = getCurrentUser()
-  const orgId = user.orgId
+  const [authUser, setAuthUser] = useState(null)
+  const orgId = authUser?.orgId
   const [session, setSession] = useState(null)
   const [blocks, setBlocks] = useState([])
   const [athletes, setAthletes] = useState([])
@@ -67,6 +67,15 @@ export function useSessionData(sessionId) {
   const [rosterTeamId, setRosterTeamId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const user = await getCurrentUser()
+      if (!cancelled) setAuthUser(user)
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const load = useCallback(async (opts = {}) => {
     const silent = opts.silent === true
@@ -79,6 +88,10 @@ export function useSessionData(sessionId) {
       setAthleteLoadsMessage('')
       setRosterTeamId(null)
       setError(null)
+      setLoading(false)
+      return
+    }
+    if (!orgId) {
       setLoading(false)
       return
     }
@@ -113,6 +126,7 @@ export function useSessionData(sessionId) {
         const { data: at, error: e3 } = await supabase
           .from('athlete_teams')
           .select('athlete_id, athletes(id, org_id, full_name, first_name, last_name)')
+          .eq('org_id', orgId)
           .eq('team_id', resolvedRosterTeamId)
         if (e3) throw e3
         for (const r of at ?? []) {

@@ -3,6 +3,7 @@ import { athleteDisplayName } from '../lib/programmeUi.js'
 import { btnOutline, btnPrimary } from '../lib/programmeSessionUi.js'
 import { useProgrammeAssignment } from '../hooks/useProgrammeAssignment.js'
 import { supabase } from '../lib/supabaseClient.js'
+import { getCurrentUser } from '../lib/auth.js'
 
 const overlay = {
   position: 'fixed',
@@ -92,9 +93,11 @@ export default function AssignProgrammeModal({ programmeId, orgId, onClose, onSu
     ;(async () => {
       setRosterLoading(true)
       try {
+        const user = await getCurrentUser()
         const { data, error } = await supabase
           .from('athlete_teams')
           .select('athlete_id, athletes(id, org_id, full_name, first_name, last_name)')
+          .eq('org_id', user.orgId)
           .eq('team_id', filterTeamId)
         if (error) throw error
         const rows = []

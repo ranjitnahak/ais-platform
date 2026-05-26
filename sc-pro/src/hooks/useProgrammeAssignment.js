@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 import { getCurrentUser } from '../lib/auth.js'
 
@@ -21,14 +21,24 @@ export async function getProgrammeSessionIds(programmeId, orgId) {
 }
 
 export function useProgrammeAssignment(programmeId, orgId) {
-  const user = getCurrentUser()
-  const teamScope = user.teamIds ?? []
+  const [authUser, setAuthUser] = useState(null)
+  const teamScope = useMemo(() => authUser?.teamIds ?? [], [authUser])
   const [teams, setTeams] = useState([])
   const [athletes, setAthletes] = useState([])
   const [loading, setLoading] = useState(true)
   const teamsLoadGen = useRef(0)
 
   useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const user = await getCurrentUser()
+      if (!cancelled) setAuthUser(user)
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!authUser) return
     const gen = ++teamsLoadGen.current
     ;(async () => {
       setLoading(true)
@@ -59,7 +69,7 @@ export function useProgrammeAssignment(programmeId, orgId) {
         if (teamsLoadGen.current === gen) setLoading(false)
       }
     })()
-  }, [programmeId, orgId, teamScope])
+  }, [programmeId, orgId, teamScope, authUser])
 
   const syncTeamAssignments = useCallback(
     async (teamIds) => {
@@ -101,7 +111,8 @@ export function useProgrammeAssignment(programmeId, orgId) {
         const { error: e1 } = await supabase.from('programmes').update({ athlete_id: null }).eq('id', programmeId).eq('org_id', orgId)
         if (e1) throw e1
         if (ids.length === 1) {
-          const { data: atRows, error: e0 } = await supabase.from('athlete_teams').select('team_id').eq('athlete_id', ids[0]).limit(20)
+          const currentUser = await getCurrentUser()
+          const { data: atRows, error: e0 } = await supabase.from('athlete_teams').select('team_id').eq('org_id', currentUser.orgId).eq('athlete_id', ids[0]).limit(20)
           if (e0) throw e0
           let teamId = null
           for (const r of atRows ?? []) {
