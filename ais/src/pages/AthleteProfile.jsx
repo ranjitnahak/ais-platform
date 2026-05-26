@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser } from '../lib/auth';
+import { getCurrentUser, useCurrentUser, canSync } from '../lib/auth';
+import { generateAthleteReport } from '../lib/generateAthleteReport';
 import { athleteDisplayName, athleteInitialsFromAthlete, canonicalFullName } from '../lib/athleteName';
 import { BLOOD_GROUP_OPTIONS, normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
 import ImageCropModal from '../components/athletes/ImageCropModal';
@@ -35,11 +36,19 @@ const FIELD_STYLE = {
   select: 'w-full px-3 py-2.5 bg-[#2a2a2c] text-[#e4e2e4] text-sm rounded-lg outline-none focus:ring-1 focus:ring-[#F97316]/50 appearance-none',
 };
 
+const todayInput = () => new Date().toISOString().split('T')[0];
+const ninetyDaysAgoInput = () => {
+  const date = new Date();
+  date.setDate(date.getDate() - 90);
+  return date.toISOString().split('T')[0];
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function AthleteProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useCurrentUser();
   const fileInputRef = useRef(null);
 
   const [athlete, setAthlete]         = useState(null);
@@ -53,6 +62,11 @@ export default function AthleteProfile() {
   const [pendingFile, setPendingFile] = useState(null);     // raw file → triggers crop modal
   const [dangerDialog, setDangerDialog] = useState(null);
   const [dangerWorking, setDangerWorking] = useState(false);
+  const [reportPickerOpen, setReportPickerOpen] = useState(false);
+  const [reportStart, setReportStart] = useState(ninetyDaysAgoInput());
+  const [reportEnd, setReportEnd] = useState(todayInput());
+  const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportError, setReportError] = useState(null);
 
   useEffect(() => { loadAthlete(); }, [id]);
 
@@ -270,6 +284,26 @@ export default function AthleteProfile() {
     }
   }
 
+  async function handleGenerateReport() {
+    try {
+      setReportGenerating(true);
+      setReportError(null);
+      const savedReport = await generateAthleteReport({
+        athleteId: id,
+        orgId: user.orgId,
+        user,
+        dateRangeStart: reportStart,
+        dateRangeEnd: reportEnd,
+      });
+      navigate(`/reports/athlete/${savedReport.id}`);
+    } catch (err) {
+      console.error('[AthleteProfile:handleGenerateReport] failed:', err);
+      setReportError(err.message);
+    } finally {
+      setReportGenerating(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="bg-[#131315] min-h-screen flex items-center justify-center">
@@ -365,6 +399,28 @@ export default function AthleteProfile() {
             <p className="text-sm text-gray-500 mt-2 uppercase font-bold tracking-tight">
               {[athlete.position, athlete.gender].filter(Boolean).join(' · ')}
             </p>
+            {canSync(user, 'unified_reports', 'create') && (
+              <div className="mt-5 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setReportPickerOpen(true)}
+                  disabled={reportGenerating}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--color-primary-container)] px-5 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-primary)] disabled:opacity-50"
+                >
+                  {reportGenerating && <span className="material-symbols-outlined animate-spin text-base">refresh</span>}
+                  {reportGenerating ? 'Generating...' : 'Generate Report'}
+                </button>
+                {reportError && <p className="text-sm font-bold text-[var(--color-error)]">{reportError}</p>}
+                {reportPickerOpen && (
+                  <div className="grid gap-3 rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4 sm:grid-cols-[1fr_1fr_auto_auto]">
+                    <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="min-h-10 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-on-surface)] outline-none" />
+                    <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="min-h-10 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-3 text-sm text-[var(--color-on-surface)] outline-none" />
+                    <button type="button" onClick={handleGenerateReport} disabled={reportGenerating} className="rounded-xl bg-[var(--color-primary-container)] px-4 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-primary)] disabled:opacity-50">Generate</button>
+                    <button type="button" onClick={() => setReportPickerOpen(false)} disabled={reportGenerating} className="rounded-xl border border-[var(--color-outline-variant)] px-4 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)] disabled:opacity-50">Cancel</button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
