@@ -4,6 +4,7 @@ import SquadDashboard from './components/dashboard/SquadDashboard';
 import Reports from './pages/Reports';
 import Athletes from './pages/Athletes';
 import AthleteProfile from './pages/AthleteProfile';
+import AthleteHome from './pages/AthleteHome';
 import Periodisation from './pages/Periodisation';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="/reports"        element={<Reports />} />
           <Route path="/athletes"       element={<Athletes />} />
           <Route path="/athletes/:id"   element={<AthleteProfile />} />
+          <Route path="/athlete-home"   element={<AthleteHome />} />
           <Route path="/periodisation"  element={<Periodisation />} />
           <Route path="/assess"         element={<Placeholder title="Assessment" />} />
           <Route path="/settings"       element={<Settings />} />
