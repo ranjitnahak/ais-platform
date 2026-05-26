@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAssistant } from '../../hooks/useAssistant.js'
 import { useAgentExecution } from '../../hooks/useAgentExecution.js'
+import { canSync, useCurrentUser } from '../../lib/auth.js'
 import { assistantPageKeyFromPath, assistantPageLabel } from '../../lib/assistantPageKeys.js'
 import AssistantMessage from './AssistantMessage.jsx'
 import AssistantActionCard from './AssistantActionCard.jsx'
@@ -105,6 +106,7 @@ function readFileAsBase64(file) {
 }
 
 export default function AssistantPanel() {
+  const { user } = useCurrentUser()
   const location = useLocation()
   const pageKey = assistantPageKeyFromPath(location.pathname)
   const { messages, pending, loading, error, sendMessage, confirmAction, cancelAction, clearHistory } =
@@ -204,6 +206,7 @@ export default function AssistantPanel() {
   const agentBusy =
     agent.agentState === 'extracting' || agent.agentState === 'executing' || agent.agentState === 'paused'
   const inputDisabled = loading || agent.agentState === 'paused'
+  if (!canSync(user, 'sc_pro', 'view')) return null
 
   return (
     <>

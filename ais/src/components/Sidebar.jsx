@@ -3,6 +3,7 @@ import { MAIN_NAV_ITEMS } from '../nav/mainNavItems';
 import { useCurrentUser } from '../lib/auth';
 
 const ADMIN_NAV_ITEM = { icon: 'admin_panel_settings', label: 'Admin', to: '/admin' };
+const SUPERUSER_NAV_ITEM = { icon: 'shield', label: 'Superuser', to: '/superuser' };
 const WELLNESS_NAV_ITEM = { icon: 'favorite', label: 'Wellness', to: '/wellness' };
 const STAFF_NOTES_NAV_ITEM = { icon: 'clinical_notes', label: 'Staff Notes', to: '/staff-notes' };
 const ADMIN_ROLES = ['Admin', 'Superuser'];
@@ -22,6 +23,9 @@ export default function Sidebar() {
   const items = ADMIN_ROLES.includes(user?.role)
     ? [...staffItems, ADMIN_NAV_ITEM]
     : staffItems;
+  const visibleItems = user?.role === 'Superuser'
+    ? [...items, SUPERUSER_NAV_ITEM]
+    : items;
 
   return (
     <aside className="hidden md:flex flex-col h-full w-64 fixed left-0 top-0 bg-[var(--color-surface)] border-r border-[var(--color-outline-variant)] shadow-2xl py-6 z-50">
@@ -29,7 +33,7 @@ export default function Sidebar() {
         <span className="text-2xl font-black tracking-tighter text-[var(--color-on-surface)] uppercase">AIS</span>
       </div>
       <nav className="flex-1 space-y-1">
-        {items.map(({ icon, label, to }) => (
+        {visibleItems.map(({ icon, label, to }) => (
           <NavLink
             key={label}
             to={to}
