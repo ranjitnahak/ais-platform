@@ -1,0 +1,198 @@
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import { canSync, useCurrentUser } from '../lib/auth'
+
+const SOURCE_LABELS = {
+  assessments: 'Assessments',
+  wellness: 'Wellness',
+  rpe_logging: 'RPE',
+  sc_pro: 'S&C Pro',
+  injury_surveillance: 'Injury',
+}
+
+function Spinner() {
+  return (
+    <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">
+      <div className="h-8 w-8 rounded-full border-2 border-[var(--color-primary-container)] border-t-transparent animate-spin" />
+    </div>
+  )
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div className="rounded-2xl bg-[var(--color-surface-container-high)] border border-[var(--color-outline-variant)] p-4">
+      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">{label}</p>
+      <p className="mt-2 text-2xl font-black text-[var(--color-on-surface)]">{value}</p>
+    </div>
+  )
+}
+
+function paragraphs(text) {
+  return String(text ?? '').split('\n').filter((line) => line.trim())
+}
+
+function athleteInitials(name) {
+  return String(name ?? 'A').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+}
+
+export default function TeamReportView() {
+  const { reportId } = useParams()
+  const navigate = useNavigate()
+  const { user, loading: userLoading } = useCurrentUser()
+  const [report, setReport] = useState(null)
+  const [athleteReports, setAthleteReports] = useState([])
+  const [expanded, setExpanded] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!user) return
+    async function loadReport() {
+      try {
+        setLoading(true)
+        setError(null)
+        const { data, error: reportError } = await supabase
+          .from('team_reports')
+          .select('*, teams(name, sport)')
+          .eq('id', reportId)
+          .eq('org_id', user.orgId)
+          .single()
+        if (reportError) throw reportError
+
+        const { data: recentAthleteReports, error: athleteError } = await supabase
+          .from('athlete_reports')
+          .select('*, athletes(full_name, photo_url, position)')
+          .eq('org_id', user.orgId)
+          .order('generated_at', { ascending: false })
+          .limit(5)
+        if (athleteError) throw athleteError
+        setReport(data)
+        setAthleteReports(recentAthleteReports ?? [])
+      } catch (err) {
+        console.error('[TeamReportView] loadReport failed:', err)
+        setError('Report not found')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadReport()
+  }, [reportId, user])
+
+  if (userLoading || loading) return <Spinner />
+  if (!canSync(user, 'unified_reports', 'view')) {
+    return (
+      <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-on-background)] flex items-center justify-center">
+        <p className="text-lg font-black">Access Denied</p>
+      </div>
+    )
+  }
+  if (error || !report) {
+    return (
+      <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-on-background)] flex items-center justify-center">
+        <p className="text-lg font-black">Report not found</p>
+      </div>
+    )
+  }
+
+  const team = Array.isArray(report.teams) ? report.teams[0] : report.teams
+  const overview = report.section_squad_overview ?? {}
+  const synthesis = report.section_ai_synthesis?.text ?? ''
+  const flagged = overview.flaggedAthletes ?? []
+  const sources = overview.dataSources ?? []
+
+  return (
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-on-background)] font-['Inter']">
+      <main className="max-w-6xl mx-auto px-4 py-8 md:px-8 space-y-8">
+        <header className="rounded-3xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] p-5 md:p-7">
+          <button onClick={() => navigate('/reports')} className="mb-5 text-xs font-black uppercase tracking-widest text-[var(--color-primary)]">
+            Back to Reports
+          </button>
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl md:text-4xl font-black tracking-tight text-[var(--color-on-surface)]">{team?.name ?? 'Team Report'}</h1>
+                {team?.sport && (
+                  <span className="rounded-full bg-[var(--color-primary-container)] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-primary)]">{team.sport}</span>
+                )}
+              </div>
+              <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
+                {report.date_range_start} to {report.date_range_end}
+              </p>
+              <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
+                Generated by {report.generated_by ?? 'Staff'} on {new Date(report.generated_at ?? report.created_at).toLocaleString()}
+              </p>
+            </div>
+            <button className="rounded-xl border border-[var(--color-outline-variant)] px-4 py-3 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface)]">
+              Export PDF
+            </button>
+          </div>
+        </header>
+
+        <section className="space-y-4">
+          <h2 className="text-xl font-black text-[var(--color-on-surface)]">Squad Overview</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Total Athletes" value={overview.athleteCount ?? 0} />
+            <StatCard label="Avg Wellness Score" value={overview.avgWellness ?? 'n/a'} />
+            <StatCard label="Flagged Athletes" value={flagged.length} />
+            <StatCard label="Assessment Coverage" value={`${overview.assessmentCoverage ?? 0}%`} />
+          </div>
+          <div className="rounded-2xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] p-4">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">Data Sources Used</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {sources.map((source) => (
+                <span key={source} className="rounded-full bg-[var(--color-surface-container-high)] border border-[var(--color-outline-variant)] px-3 py-1 text-xs font-bold text-[var(--color-on-surface)]">
+                  {SOURCE_LABELS[source] ?? source}
+                </span>
+              ))}
+              {sources.length === 0 && <span className="text-sm text-[var(--color-on-surface-variant)]">No source metadata stored.</span>}
+            </div>
+            {flagged.length > 0 && (
+              <p className="mt-4 text-sm text-[var(--color-error)]">Flagged athletes: {flagged.join(', ')}</p>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-3xl bg-[var(--color-primary-fixed)] border border-[var(--color-primary-container)] p-5 md:p-7 text-[var(--color-on-primary-fixed)]">
+          <h2 className="text-2xl font-black">Team Intelligence Report</h2>
+          <div className="mt-4 space-y-4 text-sm leading-7">
+            {paragraphs(synthesis).map((line, index) => <p key={index}>{line}</p>)}
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-xl font-black text-[var(--color-on-surface)]">Individual Athlete Summaries</h2>
+          {athleteReports.map((item) => {
+            const athlete = Array.isArray(item.athletes) ? item.athletes[0] : item.athletes
+            const isOpen = expanded === item.id
+            const text = item.section_ai_synthesis?.text ?? 'No synthesis stored for this athlete report.'
+            return (
+              <div key={item.id} className="rounded-2xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] overflow-hidden">
+                <button onClick={() => setExpanded(isOpen ? null : item.id)} className="w-full flex items-center gap-4 p-4 text-left">
+                  {athlete?.photo_url ? (
+                    <img src={athlete.photo_url} alt={athlete.full_name} className="h-12 w-12 rounded-full object-cover" />
+                  ) : (
+                    <div className="h-12 w-12 rounded-full bg-[var(--color-surface-container-high)] flex items-center justify-center text-sm font-black text-[var(--color-on-surface)]">{athleteInitials(athlete?.full_name)}</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-[var(--color-on-surface)]">{athlete?.full_name ?? 'Athlete'}</p>
+                    <p className="text-xs text-[var(--color-on-surface-variant)]">{athlete?.position ?? 'Position not set'}</p>
+                  </div>
+                  <span className="material-symbols-outlined text-[var(--color-on-surface-variant)]">{isOpen ? 'expand_less' : 'expand_more'}</span>
+                </button>
+                {isOpen && (
+                  <div className="border-t border-[var(--color-outline-variant)] p-4 space-y-3 text-sm leading-7 text-[var(--color-on-surface)]">
+                    {paragraphs(text).map((line, index) => <p key={index}>{line}</p>)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {athleteReports.length === 0 && (
+            <p className="rounded-2xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] p-5 text-sm text-[var(--color-on-surface-variant)]">No recent athlete reports found.</p>
+          )}
+        </section>
+      </main>
+    </div>
+  )
+}

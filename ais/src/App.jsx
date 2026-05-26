@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-ro
 import SquadDashboard from './components/dashboard/SquadDashboard';
 import Reports from './pages/Reports';
 import AthleteReportView from './pages/AthleteReportView';
+import TeamReportView from './pages/TeamReportView';
 import Athletes from './pages/Athletes';
 import AthleteProfile from './pages/AthleteProfile';
 import AthleteHome from './pages/AthleteHome';
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="/"               element={<SquadDashboard />} />
           <Route path="/reports"        element={<Reports />} />
           <Route path="/reports/athlete/:reportId" element={<AthleteReportView />} />
+          <Route path="/reports/team/:reportId" element={<TeamReportView />} />
           <Route path="/athletes"       element={<Athletes />} />
           <Route path="/athletes/:id"   element={<AthleteProfile />} />
           <Route path="/athlete-home"   element={<AthleteHome />} />

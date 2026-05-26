@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser } from '../lib/auth';
+import { getCurrentUser, useCurrentUser } from '../lib/auth';
 import AthleteReport from '../components/reports/AthleteReport';
+import TeamReportConfig from '../components/reports/TeamReportConfig';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 
@@ -22,8 +23,14 @@ export default function Reports() {
   const [teamFilter, setTeamFilter]         = useState('All');
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState(null);
+  const [activeTab, setActiveTab]           = useState('individual');
+  const [teamReportTeams, setTeamReportTeams] = useState([]);
+  const [teamReportLoading, setTeamReportLoading] = useState(false);
+  const [teamReportError, setTeamReportError] = useState(null);
+  const [selectedTeamReportTeamId, setSelectedTeamReportTeamId] = useState('');
 
   const navigate = useNavigate();
+  const { user } = useCurrentUser();
 
   const [selectedAthlete, setSelectedAthlete] = useState(null);
   const [reportData, setReportData] = useState(null);
@@ -34,36 +41,82 @@ export default function Reports() {
     loadAthletes();
   }, []);
 
+  useEffect(() => {
+    if (activeTab === 'team' && user) loadTeamReportTeams();
+  }, [activeTab, user]);
+
   async function loadAthletes() {
     setLoading(true);
-    const { data, error: err } = await supabase
-      .from('athletes')
-      .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, email, is_active, org_id, organisations(name, sport, logo_url, secondary_logo_url, report_signatory_name, report_signatory_title)')
-      .eq('is_active', true)
-      .order('full_name');
-    if (err) { setError(err.message); setLoading(false); return; }
-    setAthletes(data ?? []);
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) return;
+      const { data, error: err } = await supabase
+        .from('athletes')
+        .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, email, is_active, org_id, organisations(name, sport, logo_url, secondary_logo_url, report_signatory_name, report_signatory_title)')
+        .eq('org_id', currentUser.orgId)
+        .eq('is_active', true)
+        .order('full_name');
+      if (err) throw err;
+      setAthletes(data ?? []);
 
-    // Fetch teams for this org
-    const { data: teamRows } = await supabase
-      .from('teams')
-      .select('id, name')
-      .eq('org_id', getCurrentUser().orgId)
-      .order('name');
-    setTeams(teamRows ?? []);
+      // Fetch teams for this org
+      const { data: teamRows, error: teamErr } = await supabase
+        .from('teams')
+        .select('id, name')
+        .eq('org_id', currentUser.orgId)
+        .order('name');
+      if (teamErr) throw teamErr;
+      setTeams(teamRows ?? []);
 
-    // Fetch athlete-team memberships
-    const { data: atRows } = await supabase
-      .from('athlete_teams')
-      .select('athlete_id, team_id');
-    const atMap = {};
-    for (const r of atRows ?? []) {
-      if (!atMap[r.athlete_id]) atMap[r.athlete_id] = [];
-      atMap[r.athlete_id].push(r.team_id);
+      const teamIds = (teamRows ?? []).map((team) => team.id);
+      if (!teamIds.length) {
+        setAthleteTeamsMap({});
+        return;
+      }
+
+      // Fetch athlete-team memberships
+      const { data: atRows, error: atErr } = await supabase
+        .from('athlete_teams')
+        .select('athlete_id, team_id')
+        .in('team_id', teamIds);
+      if (atErr) throw atErr;
+      const atMap = {};
+      for (const r of atRows ?? []) {
+        if (!atMap[r.athlete_id]) atMap[r.athlete_id] = [];
+        atMap[r.athlete_id].push(r.team_id);
+      }
+      setAthleteTeamsMap(atMap);
+    } catch (err) {
+      console.error('[Reports] loadAthletes failed:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setAthleteTeamsMap(atMap);
+  }
 
-    setLoading(false);
+  async function loadTeamReportTeams() {
+    try {
+      setTeamReportLoading(true);
+      setTeamReportError(null);
+      if (!user?.teamIds?.length) {
+        setTeamReportTeams([]);
+        return;
+      }
+      const { data, error: teamsError } = await supabase
+        .from('teams')
+        .select('id, name, sport')
+        .eq('org_id', user.orgId)
+        .in('id', user.teamIds)
+        .order('name');
+      if (teamsError) throw teamsError;
+      setTeamReportTeams(data ?? []);
+      setSelectedTeamReportTeamId((current) => current || data?.[0]?.id || '');
+    } catch (err) {
+      console.error('[Reports] loadTeamReportTeams failed:', err);
+      setTeamReportError(err.message);
+    } finally {
+      setTeamReportLoading(false);
+    }
   }
 
   async function generateReport(athlete) {
@@ -73,10 +126,13 @@ export default function Reports() {
     setReportData(null);
 
     try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) throw new Error('Not authenticated');
       // Find sessions containing this athlete's results
       const { data: sessionLinks, error: slErr } = await supabase
         .from('assessment_results')
         .select('session_id')
+        .eq('org_id', currentUser.orgId)
         .eq('athlete_id', athlete.id);
       if (slErr) throw slErr;
 
@@ -87,6 +143,7 @@ export default function Reports() {
       const { data: sessions, error: sessErr } = await supabase
         .from('assessment_sessions')
         .select('id, assessed_on, name, notes, org_id, team_id')
+        .eq('org_id', currentUser.orgId)
         .in('id', sessionIds)
         .order('assessed_on', { ascending: false })
         .limit(1);
@@ -109,6 +166,7 @@ export default function Reports() {
             unit
           )
         `)
+        .eq('org_id', currentUser.orgId)
         .eq('athlete_id', athlete.id)
         .eq('session_id', session.id);
       if (arErr) throw arErr;
@@ -117,6 +175,7 @@ export default function Reports() {
       const { data: squadResults, error: sqErr } = await supabase
         .from('assessment_results')
         .select('athlete_id, value, test_id, athletes(gender)')
+        .eq('org_id', currentUser.orgId)
         .eq('session_id', session.id);
       if (sqErr) throw sqErr;
 
@@ -136,6 +195,7 @@ export default function Reports() {
         ? await supabase
             .from('benchmarks')
             .select('*')
+            .eq('org_id', currentUser.orgId)
             .in('test_id', testIds)
         : { data: [], error: null };
       if (bmErr) throw bmErr;
@@ -168,6 +228,8 @@ export default function Reports() {
     if (teamFilter === 'All') return athletes;
     return athletes.filter((a) => (athleteTeamsMap[a.id] ?? []).includes(teamFilter));
   }, [athletes, teamFilter, athleteTeamsMap]);
+
+  const selectedTeamReportTeam = teamReportTeams.find((team) => team.id === selectedTeamReportTeamId);
 
   return (
     <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
@@ -206,22 +268,43 @@ export default function Reports() {
       {/* Main Content */}
       <main className="pt-24 pb-32 px-6 md:pl-72 max-w-7xl mx-auto">
 
+        {!selectedAthlete && !reportLoading && (
+          <div className="mb-6 flex flex-wrap gap-2 rounded-2xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] p-2">
+            {[
+              { id: 'individual', label: 'Individual Reports' },
+              { id: 'team', label: 'Team Reports' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
+                    : 'text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Loading */}
-        {loading && (
+        {activeTab === 'individual' && loading && (
           <div className="flex items-center justify-center py-20">
             <span className="material-symbols-outlined text-[#F97316] animate-spin text-4xl">refresh</span>
           </div>
         )}
 
         {/* Error */}
-        {error && (
+        {activeTab === 'individual' && error && (
           <div className="bg-[#93000a]/20 border border-[#93000a]/40 p-4 rounded-lg text-[#EF4444] text-sm">
             Failed to load athletes: {error}
           </div>
         )}
 
         {/* Athlete List */}
-        {!loading && !error && !selectedAthlete && (
+        {activeTab === 'individual' && !loading && !error && !selectedAthlete && (
           <div className="space-y-6">
 
             {/* Team filter pills */}
@@ -315,6 +398,51 @@ export default function Reports() {
                   );
                 })}
               </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'team' && !selectedAthlete && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
+                  Select a squad and choose report data sources
+                </p>
+                <h2 className="text-3xl font-black tracking-tighter text-[var(--color-on-surface)] uppercase">Team Reports</h2>
+              </div>
+              <select
+                value={selectedTeamReportTeamId}
+                onChange={(event) => setSelectedTeamReportTeamId(event.target.value)}
+                className="min-w-64 rounded-xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] px-4 py-3 text-sm font-bold text-[var(--color-on-surface)]"
+              >
+                {teamReportTeams.map((team) => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {teamReportLoading && (
+              <div className="flex items-center justify-center py-16">
+                <span className="material-symbols-outlined text-[var(--color-primary)] animate-spin text-4xl">refresh</span>
+              </div>
+            )}
+            {teamReportError && (
+              <div className="rounded-xl bg-[var(--color-error-container)]/20 border border-[var(--color-error-container)] p-4 text-sm text-[var(--color-error)]">
+                Failed to load teams: {teamReportError}
+              </div>
+            )}
+            {!teamReportLoading && !teamReportError && teamReportTeams.length === 0 && (
+              <div className="rounded-xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] p-8 text-center text-sm text-[var(--color-on-surface-variant)]">
+                No teams available for team reports.
+              </div>
+            )}
+            {!teamReportLoading && selectedTeamReportTeam && (
+              <TeamReportConfig
+                teamId={selectedTeamReportTeam.id}
+                teamName={selectedTeamReportTeam.name}
+                onReportGenerated={(id) => navigate(`/reports/team/${id}`)}
+              />
             )}
           </div>
         )}
