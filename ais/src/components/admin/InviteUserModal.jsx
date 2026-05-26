@@ -66,22 +66,23 @@ export default function InviteUserModal({ user, onClose, onCreated }) {
       const selectedRole = roles.find((role) => role.id === form.roleId);
       const selectedRoleName = selectedRole?.name;
       const roleEnum = ROLE_NAME_TO_ENUM[selectedRoleName] ?? 'sc_coach';
-      const { data: createdUser, error: userError } = await supabase
-        .from('users')
-        .insert({
-          org_id: user.orgId,
-          full_name: form.fullName.trim(),
-          email: form.email.trim(),
-          role: roleEnum,
-          is_active: false,
-        })
-        .select('id')
-        .single();
-      if (userError) throw userError;
+      const emailValue = form.email.trim();
+      const fullNameValue = form.fullName.trim();
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
+        body: {
+          email: emailValue,
+          fullName: fullNameValue,
+          orgId: user.orgId,
+          roleEnum,
+        },
+      });
+      if (fnError) throw new Error(fnError.message);
+      if (fnData?.error) throw new Error(fnData.error);
+      const newUserId = fnData.userId;
 
       const { error: roleError } = await supabase
         .from('user_roles')
-        .insert({ org_id: user.orgId, user_id: createdUser.id, role_id: form.roleId });
+        .insert({ org_id: user.orgId, user_id: newUserId, role_id: form.roleId });
       if (roleError) throw roleError;
 
       setMessage('User created. Share the login link with them to set their password.');
