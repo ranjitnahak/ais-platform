@@ -111,16 +111,20 @@ export default function Periodisation() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const currentUser = await getCurrentUser();
-      if (!currentUser?.orgId) {
+      const user = await getCurrentUser();
+      if (!user) {
         if (!cancelled) setTeams([]);
         return;
       }
-      if (!cancelled) setUser(currentUser);
+      if (!user.orgId) {
+        if (!cancelled) setTeams([]);
+        return;
+      }
+      if (!cancelled) setUser(user);
       const { data: teamList, error } = await supabase
         .from('teams')
         .select('id, name, logo_url')
-        .eq('org_id', currentUser.orgId)
+        .eq('org_id', user.orgId)
         .order('name');
       if (cancelled) return;
       if (error) {
@@ -178,7 +182,7 @@ export default function Periodisation() {
         .order('full_name');
       setAthletes(ath ?? []);
     })();
-  }, [viewMode, selectedTeamId, user.orgId]);
+  }, [viewMode, selectedTeamId, user?.orgId]);
 
   const selectedTeam = useMemo(() => teams.find((t) => t.id === selectedTeamId), [teams, selectedTeamId]);
 
@@ -188,10 +192,11 @@ export default function Periodisation() {
   );
 
   const handleReplaceWithTeamPlan = useCallback(async () => {
-    const u = await getCurrentUser();
-    if (!u?.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
+    const user = await getCurrentUser();
+    if (!user) return;
+    if (!user.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
     await replaceAthleteWithTeamPlan(supabase, {
-      orgId: u.orgId,
+      orgId: user.orgId,
       teamId: selectedTeamId,
       athleteId: selectedAthleteId,
       teamPlan: ghostPlan,
@@ -203,10 +208,11 @@ export default function Periodisation() {
   }, [selectedTeamId, selectedAthleteId, ghostPlan, ghostRows, ghostCells, plan, fetchPlan]);
 
   const handleUpdateFromTeamPlan = useCallback(async () => {
-    const u = await getCurrentUser();
-    if (!u?.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
+    const user = await getCurrentUser();
+    if (!user) return;
+    if (!user.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
     await updateAthleteFromTeamPlan(supabase, {
-      orgId: u.orgId,
+      orgId: user.orgId,
       teamId: selectedTeamId,
       athleteId: selectedAthleteId,
       teamPlan: ghostPlan,

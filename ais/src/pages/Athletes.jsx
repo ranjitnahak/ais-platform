@@ -85,7 +85,7 @@ export default function Athletes() {
       // ── Athletes ──────────────────────────────────────────────────────────
       const { data: rows, error: athErr } = await supabase
         .from('athletes')
-        .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, is_active, org_id, organisations(name, sport, logo_url)')
+        .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, is_active, org_id')
         .eq('org_id', user.orgId)
         .eq('is_active', true)
         .order('full_name');

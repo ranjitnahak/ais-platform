@@ -20,6 +20,16 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     const enabledNow = enabledRef.current;
     const athleteIdNow = athleteIdRef.current;
     const user = await getCurrentUser();
+    if (!user) {
+      setPlan(null);
+      setRows([]);
+      setCells([]);
+      setGhostPlan(null);
+      setGhostRows([]);
+      setGhostCells([]);
+      setInitialLoading(false);
+      return;
+    }
 
     if (!enabledNow) {
       setPlan(null);
@@ -279,14 +289,15 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     // Auto-create athlete plan if it doesn't exist yet
     if (!plan?.id && athleteIdRef.current) {
       try {
-        const u = await getCurrentUser();
+        const user = await getCurrentUser();
+        if (!user) return;
 
         // 1. Create the individual plan using ghost plan dates
         const ghostPlanNow = ghostPlan;
         const { data: newPlan, error: planErr } = await supabase
           .from('periodisation_plans')
           .insert({
-            org_id: u.orgId,
+            org_id: user.orgId,
             team_id: teamId,
             athlete_id: athleteIdRef.current,
             name: 'Individual Plan',
@@ -334,7 +345,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
 
         // 5. Retry the upsert with the remapped row_id
         const remappedCellData = { ...cellData, row_id: remappedRowId };
-        const payload = { ...remappedCellData, org_id: u.orgId };
+        const payload = { ...remappedCellData, org_id: user.orgId };
         const { data, error } = await supabase
           .from('plan_cells')
           .upsert(payload)
@@ -351,8 +362,9 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     }
 
     const tempId = cellData.id ? null : `temp-cell-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const u = await getCurrentUser();
-    const payload = { ...cellData, org_id: u.orgId };
+    const user = await getCurrentUser();
+    if (!user) return;
+    const payload = { ...cellData, org_id: user.orgId };
 
     setCells((prev) => {
       const idx = cellData.id
@@ -365,7 +377,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
         ...base,
         ...cellData,
         id: cellData.id || tempId,
-        org_id: u.orgId,
+        org_id: user.orgId,
       };
       if (idx >= 0) {
         const next = [...prev];
@@ -408,6 +420,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     setCells((prev) => prev.filter((c) => c.id !== id));
     try {
       const user = await getCurrentUser();
+      if (!user) return;
       if (!user?.teamIds?.length) return;
       const { error } = await supabase.from('plan_cells').delete().eq('id', id).eq('org_id', user.orgId).in('team_id', user.teamIds);
       if (error) throw error;
@@ -419,13 +432,14 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
 
   const insertPlanRow = async (rowPayload) => {
     if (!plan?.id) return null;
-    const u = await getCurrentUser();
+    const user = await getCurrentUser();
+    if (!user) return null;
     const tempId = `temp-row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const optimisticRow = {
       ...rowPayload,
       id: tempId,
       plan_id: plan.id,
-      org_id: u.orgId,
+      org_id: user.orgId,
     };
     setRows((prev) =>
       [...prev, optimisticRow].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -434,7 +448,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     try {
       const { data, error } = await supabase
         .from('plan_rows')
-        .insert({ ...rowPayload, org_id: u.orgId, plan_id: plan.id })
+        .insert({ ...rowPayload, org_id: user.orgId, plan_id: plan.id })
         .select()
         .single();
       if (error) throw error;
@@ -455,6 +469,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     setCells((prev) => prev.filter((c) => c.row_id !== rowId));
     try {
       const user = await getCurrentUser();
+      if (!user) return;
       if (!user?.teamIds?.length) return;
       const { error } = await supabase.from('plan_rows').delete().eq('id', rowId).eq('org_id', user.orgId).in('team_id', user.teamIds);
       if (error) throw error;
@@ -472,6 +487,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     );
     try {
       const user = await getCurrentUser();
+      if (!user) return;
       if (!user?.teamIds?.length) return;
       const { data, error } = await supabase
         .from('plan_rows')
@@ -499,6 +515,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     });
     try {
       const user = await getCurrentUser();
+      if (!user) return;
       if (!user?.teamIds?.length) return;
       const updates = orderedIds.map((id, i) =>
         supabase.from('plan_rows').update({ sort_order: i }).eq('id', id).eq('org_id', user.orgId).in('team_id', user.teamIds)
@@ -523,6 +540,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     });
     try {
       const user = await getCurrentUser();
+      if (!user) return;
       if (!user?.teamIds?.length) return;
       const updates = ordered.map((r, i) =>
         supabase
@@ -546,6 +564,7 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     setRows((prev) => prev.map((r) => (r.row_group === rowGroup ? { ...r, display_label: value } : r)));
     try {
       const user = await getCurrentUser();
+      if (!user) return;
       if (!user?.teamIds?.length) return;
       const { error } = await supabase
         .from('plan_rows')
@@ -565,12 +584,13 @@ export const usePeriodisationPlan = (teamId, { athleteId = null, enabled = true 
     if (!plan?.id) return;
     setPlan((prev) => ({ ...prev, start_date: startDate, end_date: endDate }));
     try {
-      const u = await getCurrentUser();
+      const user = await getCurrentUser();
+      if (!user) return;
       const { data, error } = await supabase
         .from('periodisation_plans')
         .update({ start_date: startDate, end_date: endDate })
         .eq('id', plan.id)
-        .eq('org_id', u.orgId)
+        .eq('org_id', user.orgId)
         .select()
         .single();
       if (error) throw error;
