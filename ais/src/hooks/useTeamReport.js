@@ -19,6 +19,14 @@ export function useTeamReport() {
       if (!teamId) throw new Error('Select a team')
       if (!enabledSources?.length) throw new Error('Select at least one data source')
 
+      const { data: team, error: teamError } = await supabase
+        .from('teams')
+        .select('name')
+        .eq('id', teamId)
+        .eq('org_id', user.orgId)
+        .single()
+      if (teamError) throw teamError
+
       const { data: rows, error: rosterError } = await supabase
         .from('athlete_teams')
         .select('athlete_id, athletes!inner(id, full_name, gender, position)')
@@ -36,7 +44,7 @@ export function useTeamReport() {
       }
 
       const teamSummary = buildTeamSummary(contexts, enabledSources)
-      const contextText = buildTeamContextText(contexts, teamSummary)
+      const contextText = buildTeamContextText(contexts, team?.name ?? 'Team')
       const { data: fnData, error: fnError } = await supabase.functions.invoke('generate-report', { body: { contextText } })
       if (fnError) throw new Error(fnError.message)
       if (fnData?.error) throw new Error(fnData.error)
@@ -94,13 +102,20 @@ function buildTeamSummary(contexts, dataSources) {
   }
 }
 
-function buildTeamContextText(contexts, summary) {
-  const athleteSummaries = contexts.map(({ athlete, context }) => [
-    `ATHLETE: ${athlete.full_name} (${athlete.position ?? 'Position not set'})`,
-    context.assessments ? `Assessment: ${context.assessments.sessionName}` : null,
-    context.rpe ? `RPE: avg ${context.rpe.averageActualRpe}, load ${context.rpe.totalLoad}` : null,
-    context.wellness ? `Wellness: avg ${context.wellness.averageScore}, trend ${context.wellness.trend}` : null,
-    context.staffNotes ? `Staff notes domains: ${Object.keys(context.staffNotes).join(', ')}` : null,
-  ].filter(Boolean).join('\n')).join('\n\n')
-  return `TEAM SUMMARY:\nAthletes: ${summary.athleteCount}\nAvg wellness: ${summary.avgWellness ?? 'n/a'}\nFlagged: ${summary.flaggedAthletes.join(', ') || 'none'}\nAssessment coverage: ${summary.assessmentCoverage}%\nSources: ${summary.dataSources.join(', ')}\n\n${athleteSummaries}`
+function buildTeamContextText(athleteContexts, teamName) {
+  const athleteSummaries = athleteContexts.map(({ athlete, context }) => {
+    const parts = []
+    if (context.assessments) {
+      const topResults = context.assessments.results.slice(0, 3).map((r) => `${r.test_definitions?.name}: ${r.value} (${r.classification ?? ''})`).join(', ')
+      parts.push(`Assessment: ${topResults}`)
+    }
+    if (context.rpe) parts.push(`Training: ${context.rpe.totalSessions} sessions, avg RPE ${context.rpe.averageActualRpe}`)
+    if (context.wellness) parts.push(`Wellness: avg score ${context.wellness.averageScore}/5, trend ${context.wellness.trend}`)
+    if (context.staffNotes) {
+      const notes = Object.entries(context.staffNotes).map(([domain, noteList]) => `${domain}: ${noteList[0]?.note}`).join('; ')
+      parts.push(`Staff notes: ${notes}`)
+    }
+    return `ATHLETE: ${athlete.full_name} (${athlete.position ?? 'unknown position'})\n${parts.join(' | ')}`
+  }).join('\n\n')
+  return `TEAM: ${teamName}\n\nGenerate a brief 2-3 sentence paragraph for each athlete below, followed by one team summary paragraph. Keep each athlete paragraph under 60 words. Be specific, evidence-based, and actionable.\n\n${athleteSummaries}`
 }
