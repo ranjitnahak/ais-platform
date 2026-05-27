@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
-import AddAthleteModal from '../components/athletes/AddAthleteModal';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 
@@ -58,7 +57,6 @@ export default function Athletes() {
   const [athleteTeamsMap, setAthleteTeamsMap] = useState({});       // athleteId → [teamId]
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState(null);
-  const [showModal, setShowModal]           = useState(false);
   const [search, setSearch]                 = useState('');
   const [teamFilter, setTeamFilter]         = useState('All');
   const [genderFilter, setGenderFilter]     = useState('All');
@@ -246,18 +244,8 @@ export default function Athletes() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-black uppercase tracking-widest text-[10px] text-[#552100] active:scale-95 transition-transform"
-            style={{ background: 'linear-gradient(135deg, #FFB690, #F97316)' }}
-          >
-            <span className="material-symbols-outlined text-sm">person_add</span>
-            Add Athlete
-          </button>
-          <div className="w-8 h-8 rounded-full bg-[#353437] flex items-center justify-center" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-            <span className="material-symbols-outlined text-sm text-gray-400">person</span>
-          </div>
+        <div className="w-8 h-8 rounded-full bg-[#353437] flex items-center justify-center" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+          <span className="material-symbols-outlined text-sm text-gray-400">person</span>
         </div>
       </header>
 
@@ -541,13 +529,6 @@ export default function Athletes() {
         </div>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <AddAthleteModal
-          onClose={() => setShowModal(false)}
-          onSuccess={() => { setShowModal(false); load(); }}
-        />
-      )}
     </div>
   );
 }

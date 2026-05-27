@@ -12,6 +12,7 @@ import StaffNotes from './pages/StaffNotes';
 import Periodisation from './pages/Periodisation';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
+import UserDetailPage from './pages/UserDetailPage';
 import SuperuserPanel from './pages/SuperuserPanel';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
@@ -100,6 +101,7 @@ export default function App() {
           <Route path="/assess"         element={<Placeholder title="Assessment" />} />
           <Route path="/settings"       element={<Settings />} />
           <Route path="/admin"          element={<Admin />} />
+          <Route path="/admin/users/:userId" element={<UserDetailPage />} />
           <Route path="/superuser"      element={<SuperuserPanel />} />
         </Routes>
       </AuthGate>

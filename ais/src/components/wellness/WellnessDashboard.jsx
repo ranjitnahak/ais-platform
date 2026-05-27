@@ -28,6 +28,7 @@ export default function WellnessDashboard() {
           .from('athletes')
           .select('id, full_name, photo_url, athlete_teams!inner(team_id)')
           .eq('org_id', currentUser.orgId)
+          .eq('is_active', true)
           .in('athlete_teams.team_id', currentUser.teamIds)
           .order('full_name', { ascending: true })
         if (athleteError) throw athleteError

@@ -2,6 +2,26 @@ import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
 const ACTION_MAP = { view: 'canView', create: 'canCreate', edit: 'canEdit', delete: 'canDelete', admin: 'canEdit' };
+const PERMISSION_COLUMN = { canView: 'can_view', canCreate: 'can_create', canEdit: 'can_edit', canDelete: 'can_delete' };
+
+function applyPermissionOverrides(permissions, overrideRows) {
+  const merged = { ...permissions };
+  for (const row of overrideRows ?? []) {
+    if (!merged[row.resource]) {
+      merged[row.resource] = { canView: false, canCreate: false, canEdit: false, canDelete: false };
+    }
+    for (const [key, col] of Object.entries(PERMISSION_COLUMN)) {
+      if (row[col] != null) merged[row.resource][key] = Boolean(row[col]);
+    }
+  }
+  return merged;
+}
+
+function resolvePermission(user, resource, action) {
+  if (!user) return false;
+  const permKey = ACTION_MAP[action];
+  return Boolean(user?.permissions?.[resource]?.[permKey]);
+}
 
 export async function getCurrentUser() {
   try {
@@ -44,8 +64,18 @@ export async function getCurrentUser() {
         canEdit: Boolean(row.can_edit), canDelete: Boolean(row.can_delete),
       };
     }
+
+    const { data: overrideRows, error: overridesError } = await supabase
+      .from('user_permission_overrides')
+      .select('resource, can_view, can_create, can_edit, can_delete')
+      .eq('user_id', user.id)
+      .eq('org_id', user.org_id);
+    if (overridesError) throw overridesError;
+
+    const resolvedPermissions = applyPermissionOverrides(permissions, overrideRows);
+
     return {
-      id: user.id, orgId: user.org_id, role: roleName, permissions,
+      id: user.id, orgId: user.org_id, role: roleName, permissions: resolvedPermissions,
       teamIds: (teamRows ?? []).map((team) => team.id),
     };
   } catch (err) {
@@ -57,14 +87,27 @@ export async function getCurrentUser() {
 // Use canSync() in JSX/components with user from useCurrentUser()
 // Use can() in async lib functions and hooks
 export function canSync(user, resource, action) {
-  if (!user) return false;
-  return Boolean(user?.permissions?.[resource]?.[ACTION_MAP[action]]);
+  return resolvePermission(user, resource, action);
 }
 
 export async function can(resource, action) {
   try {
     const user = await getCurrentUser();
-    return Boolean(user?.permissions?.[resource]?.[ACTION_MAP[action]]);
+    if (!user?.id || !user?.orgId) return false;
+
+    const permKey = ACTION_MAP[action];
+    const column = PERMISSION_COLUMN[permKey];
+    const { data: overrideRow, error: overrideError } = await supabase
+      .from('user_permission_overrides')
+      .select('can_view, can_create, can_edit, can_delete')
+      .eq('user_id', user.id)
+      .eq('org_id', user.orgId)
+      .eq('resource', resource)
+      .maybeSingle();
+    if (overrideError) throw overrideError;
+    if (overrideRow && overrideRow[column] != null) return Boolean(overrideRow[column]);
+
+    return resolvePermission(user, resource, action);
   } catch (err) {
     console.error('[auth.js] permission check failed:', err);
     return false;

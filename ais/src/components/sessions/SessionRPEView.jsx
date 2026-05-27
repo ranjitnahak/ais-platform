@@ -41,9 +41,10 @@ export default function SessionRPEView({ sessionId, sessionName, plannedRpe }) {
       try {
         const { data, error: logError } = await supabase
           .from('session_athlete_logs')
-          .select('athlete_id, actual_rpe, actual_duration_min, session_load, logged_at, athletes(full_name, photo_url)')
+          .select('athlete_id, actual_rpe, actual_duration_min, session_load, logged_at, athletes!inner(full_name, photo_url, is_active)')
           .eq('session_id', sessionId)
           .eq('org_id', user.orgId)
+          .eq('athletes.is_active', true)
           .order('logged_at', { ascending: false })
         if (logError) throw logError
         if (mounted) setLogs(data ?? [])

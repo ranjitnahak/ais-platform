@@ -55,13 +55,15 @@ export default function SquadDashboard() {
 
   async function fetchDashboardData() {
     try {
-      const user = getCurrentUser();
+      const user = await getCurrentUser();
+      if (!user?.orgId) throw new Error('No authenticated user found.');
 
       // 1. Fetch all athletes
       const { data: athleteRows, error: athErr } = await supabase
         .from('athletes')
         .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, is_active, org_id, organisations(name, sport, logo_url)')
-        .eq('org_id', user.orgId);
+        .eq('org_id', user.orgId)
+        .eq('is_active', true);
       if (athErr) throw athErr;
 
       // 2. Find the most recent assessment session
