@@ -131,13 +131,13 @@ function AuthGate({ children }) {
 
 function HomeRedirect({ user }) {
   if (!user) return <RoleLoading />;
-  if (user.role === 'athlete') return <Navigate to="/athlete-home" replace />;
+  if (user.role?.toLowerCase() === 'athlete') return <Navigate to="/athlete-home" replace />;
   return <Navigate to="/dashboard" replace />;
 }
 
 function AthleteRouteGuard({ user }) {
   if (!user) return <RoleLoading />;
-  if (user.role !== 'athlete') return <Navigate to="/dashboard" replace />;
+  if (user.role?.toLowerCase() !== 'athlete') return <Navigate to="/dashboard" replace />;
   return (
     <AthleteLayout>
       <Outlet />
@@ -147,7 +147,7 @@ function AthleteRouteGuard({ user }) {
 
 function StaffRouteGuard({ user }) {
   if (!user) return <RoleLoading />;
-  if (user.role === 'athlete') return <Navigate to="/athlete-home" replace />;
+  if (user.role?.toLowerCase() === 'athlete') return <Navigate to="/athlete-home" replace />;
   return <Outlet />;
 }
 

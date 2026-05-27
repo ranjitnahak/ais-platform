@@ -6,7 +6,7 @@ import TeamManagement from '../components/admin/TeamManagement';
 import { useCurrentUser } from '../lib/auth';
 
 const TABS = ['Users', 'Roles', 'Teams'];
-const ADMIN_ROLES = ['Admin', 'Superuser'];
+const ADMIN_ROLES = ['admin', 'superuser'];
 
 export default function Admin() {
   const { user, loading } = useCurrentUser();

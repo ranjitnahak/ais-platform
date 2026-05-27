@@ -6,7 +6,7 @@ export function filterReportContext(context, user) {
   // filtered.injury = canSync(user, 'injury_surveillance', 'view') ? context.injury : null
 
   if (context.staffNotes) {
-    const isAdminLevel = ['Admin', 'Superuser', 'Head Coach'].includes(user?.role)
+    const isAdminLevel = ['admin', 'superuser', 'head coach'].includes(user?.role)
     if (isAdminLevel) {
       filtered.staffNotes = context.staffNotes
     } else {
@@ -22,11 +22,11 @@ export function filterReportContext(context, user) {
 
 function getRoleDomain(roleName) {
   const map = {
-    'S&C Coach': 's_and_c',
-    Physio: 'physio',
-    Analyst: 'analysis',
-    Nutritionist: 'nutrition',
-    'Head Coach': 'coaching',
+    's&c coach': 's_and_c',
+    physio: 'physio',
+    analyst: 'analysis',
+    nutritionist: 'nutrition',
+    'head coach': 'coaching',
   }
   return map[roleName] ?? null
 }

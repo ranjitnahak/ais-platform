@@ -6,15 +6,15 @@ const ADMIN_NAV_ITEM = { icon: 'admin_panel_settings', label: 'Admin', to: '/adm
 const SUPERUSER_NAV_ITEM = { icon: 'shield', label: 'Superuser', to: '/superuser' };
 const WELLNESS_NAV_ITEM = { icon: 'favorite', label: 'Wellness', to: '/wellness' };
 const STAFF_NOTES_NAV_ITEM = { icon: 'clinical_notes', label: 'Staff Notes', to: '/staff-notes' };
-const ADMIN_ROLES = ['Admin', 'Superuser'];
-const STAFF_NOTES_ROLES = ['Admin', 'Superuser', 'Head Coach', 'S&C Coach', 'Physio', 'Analyst', 'Nutritionist'];
+const ADMIN_ROLES = ['admin', 'superuser'];
+const STAFF_NOTES_ROLES = ['admin', 'superuser', 'head coach', 's&c coach', 'physio', 'analyst', 'nutritionist'];
 
 /**
  * Desktop primary navigation — matches AIS shell used across pages.
  */
 export default function Sidebar() {
   const { user } = useCurrentUser();
-  const baseItems = user?.role && user.role !== 'Athlete'
+  const baseItems = user?.role && user.role?.toLowerCase() !== 'athlete'
     ? [...MAIN_NAV_ITEMS, WELLNESS_NAV_ITEM]
     : MAIN_NAV_ITEMS;
   const staffItems = STAFF_NOTES_ROLES.includes(user?.role)
@@ -23,7 +23,7 @@ export default function Sidebar() {
   const items = ADMIN_ROLES.includes(user?.role)
     ? [...staffItems, ADMIN_NAV_ITEM]
     : staffItems;
-  const visibleItems = user?.role === 'Superuser'
+  const visibleItems = user?.role === 'superuser'
     ? [...items, SUPERUSER_NAV_ITEM]
     : items;
 

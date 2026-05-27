@@ -111,7 +111,7 @@ export default function ResetPassword() {
         navigate('/login', { replace: true });
         return;
       }
-      if (user.role === 'athlete') {
+      if (user.role?.toLowerCase() === 'athlete') {
         navigate('/athlete-home', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });

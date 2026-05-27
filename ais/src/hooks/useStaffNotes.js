@@ -3,15 +3,15 @@ import { supabase } from '../lib/supabase'
 import { getCurrentUser } from '../lib/auth'
 
 const ROLE_DOMAINS = {
-  'S&C Coach': 's_and_c',
-  Physio: 'physio',
-  Analyst: 'analysis',
-  Nutritionist: 'nutrition',
-  'Head Coach': 'coaching',
+  's&c coach': 's_and_c',
+  physio: 'physio',
+  analyst: 'analysis',
+  nutritionist: 'nutrition',
+  'head coach': 'coaching',
 }
 
 export function getStaffDomain(role) {
-  if (role === 'Admin' || role === 'Superuser') return null
+  if (role === 'admin' || role === 'superuser') return null
   return ROLE_DOMAINS[role] ?? null
 }
 

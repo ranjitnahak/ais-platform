@@ -4,7 +4,7 @@ import { canSync, getCurrentUser, useCurrentUser } from '../lib/auth'
 import { getStaffDomain, useStaffNotes } from '../hooks/useStaffNotes'
 
 const DOMAINS = ['s_and_c', 'physio', 'nutrition', 'psychology', 'analysis', 'coaching']
-const STAFF_ROLES = ['Admin', 'Superuser', 'Head Coach', 'S&C Coach', 'Physio', 'Analyst', 'Nutritionist']
+const STAFF_ROLES = ['admin', 'superuser', 'head coach', 's&c coach', 'physio', 'analyst', 'nutritionist']
 const DOMAIN_VARS = {
   s_and_c: 'var(--color-primary)',
   physio: 'var(--color-secondary)',

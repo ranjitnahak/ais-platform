@@ -79,7 +79,7 @@ export async function getCurrentUser() {
     const resolvedPermissions = applyPermissionOverrides(permissions, overrideRows);
 
     return {
-      id: user.id, orgId: user.org_id, role: roleName, permissions: resolvedPermissions,
+      id: user.id, orgId: user.org_id, role: roleName?.toLowerCase(), permissions: resolvedPermissions,
       teamIds: (teamRows ?? []).map((team) => team.id),
       athleteId: user.athlete_id ?? null,
     };
