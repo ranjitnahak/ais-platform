@@ -48,9 +48,14 @@ function RoleLoading() {
   return <LoadingScreen />;
 }
 
+const ACCOUNT_SETUP_MESSAGE =
+  'Account setup incomplete. Please contact your administrator.';
+
 function AuthGate({ children }) {
   const [session, setSession] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [checkingProfile, setCheckingProfile] = useState(false);
+  const [profileOk, setProfileOk] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const isPublicPath = PUBLIC_PATHS.includes(location.pathname);
@@ -79,12 +84,47 @@ function AuthGate({ children }) {
   }, []);
 
   useEffect(() => {
+    if (checkingSession) return;
+
+    if (!session || isPublicPath) {
+      setCheckingProfile(false);
+      setProfileOk(true);
+      return;
+    }
+
+    let mounted = true;
+    setCheckingProfile(true);
+    setProfileOk(false);
+
+    async function verifyProfile() {
+      const appUser = await getCurrentUser();
+      if (!mounted) return;
+
+      if (!appUser) {
+        await supabase.auth.signOut();
+        navigate('/login', { replace: true, state: { message: ACCOUNT_SETUP_MESSAGE } });
+        setProfileOk(false);
+      } else {
+        setProfileOk(true);
+      }
+      setCheckingProfile(false);
+    }
+
+    void verifyProfile();
+    return () => {
+      mounted = false;
+    };
+  }, [checkingSession, session, isPublicPath, navigate]);
+
+  useEffect(() => {
     if (!checkingSession && !session && !isPublicPath) {
       navigate('/login', { replace: true });
     }
   }, [checkingSession, isPublicPath, navigate, session]);
 
-  if (checkingSession || (!session && !isPublicPath)) return <LoadingScreen />;
+  if (checkingSession || checkingProfile) return <LoadingScreen />;
+  if (!session && !isPublicPath) return <LoadingScreen />;
+  if (session && !isPublicPath && !profileOk) return <LoadingScreen />;
 
   return children;
 }

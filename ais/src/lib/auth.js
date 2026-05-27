@@ -33,8 +33,9 @@ export async function getCurrentUser() {
       .from('users')
       .select('id, org_id, role, athlete_id')
       .eq('auth_id', session.user.id)
-      .single();
+      .maybeSingle();
     if (userError) throw userError;
+    if (!user) return null;
 
     const { data: roleRows, error: rolesError } = await supabase
       .from('user_roles')
@@ -44,7 +45,10 @@ export async function getCurrentUser() {
     if (rolesError) throw rolesError;
     const primaryRole = roleRows?.[0];
     const roleName = Array.isArray(primaryRole?.roles) ? primaryRole.roles[0]?.name : primaryRole?.roles?.name;
-    if (!primaryRole?.role_id || !roleName) throw new Error('No role found for current user.');
+    if (!primaryRole?.role_id || !roleName) {
+      console.error('[auth.js] no role found for current user');
+      return null;
+    }
     const { data: teamRows, error: teamsError } = await supabase
       .from('teams')
       .select('id')
