@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser, useCurrentUser } from '../lib/auth';
+import { getCurrentUser } from '../lib/auth';
+import { useUser } from '../context/UserContext';
 import AthleteReport from '../components/reports/AthleteReport';
 import TeamReportConfig from '../components/reports/TeamReportConfig';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
@@ -30,7 +31,7 @@ export default function Reports() {
   const [selectedTeamReportTeamId, setSelectedTeamReportTeamId] = useState('');
 
   const navigate = useNavigate();
-  const { user } = useCurrentUser();
+  const { user } = useUser();
 
   const [selectedAthlete, setSelectedAthlete] = useState(null);
   const [reportData, setReportData] = useState(null);

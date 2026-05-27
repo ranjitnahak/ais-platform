@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser, canSync, useCurrentUser } from '../lib/auth';
+import { getCurrentUser, canSync } from '../lib/auth';
+import { useUser } from '../context/UserContext';
 import Sidebar from '../components/Sidebar';
 import TeamDetailModal from '../components/settings/TeamDetailModal';
 
@@ -289,7 +290,7 @@ function TestSetupTab() {
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('teams');
-  const { user, loading } = useCurrentUser();
+  const { user, loading } = useUser();
 
   if (loading) {
     return (

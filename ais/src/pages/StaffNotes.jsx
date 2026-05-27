@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { canSync, getCurrentUser, useCurrentUser } from '../lib/auth'
+import { canSync, getCurrentUser } from '../lib/auth'
+import { useUser } from '../context/UserContext'
 import { getStaffDomain, useStaffNotes } from '../hooks/useStaffNotes'
 import Sidebar from '../components/Sidebar'
 
@@ -16,7 +17,7 @@ const DOMAIN_VARS = {
 }
 
 export default function StaffNotes() {
-  const { user, loading: userLoading } = useCurrentUser()
+  const { user, loading: userLoading } = useUser()
   const [teams, setTeams] = useState([])
   const [athletes, setAthletes] = useState([])
   const [counts, setCounts] = useState({})

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { canSync, useCurrentUser } from '../../lib/auth'
+import { canSync } from '../../lib/auth'
+import { useUser } from '../../context/UserContext'
 
 function athleteName(row) {
   const athlete = Array.isArray(row.athletes) ? row.athletes[0] : row.athletes
@@ -26,7 +27,7 @@ function deviationClass(value) {
 }
 
 export default function SessionRPEView({ sessionId, sessionName, plannedRpe }) {
-  const { user, loading: userLoading } = useCurrentUser()
+  const { user, loading: userLoading } = useUser()
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)

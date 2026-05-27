@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { canSync, useCurrentUser } from '../../lib/auth'
+import { canSync } from '../../lib/auth'
+import { useUser } from '../../context/UserContext'
 import { useTeamReport } from '../../hooks/useTeamReport'
 
 const LABELS = {
@@ -22,7 +23,7 @@ function isoDate(daysAgo = 0) {
 }
 
 export default function TeamReportConfig({ teamId, teamName, onReportGenerated }) {
-  const { user, loading: userLoading } = useCurrentUser()
+  const { user, loading: userLoading } = useUser()
   const { generating, error, generateTeamReport } = useTeamReport()
   const [from, setFrom] = useState(isoDate(30))
   const [to, setTo] = useState(isoDate())

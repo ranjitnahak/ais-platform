@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { getCurrentUser, canSync, useCurrentUser } from '../../lib/auth'
+import { getCurrentUser, canSync } from '../../lib/auth'
+import { useUser } from '../../context/UserContext'
 import WellnessTrend from './WellnessTrend'
 
 export default function WellnessDashboard() {
-  const { user } = useCurrentUser()
+  const { user } = useUser()
   const [athletes, setAthletes] = useState([])
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)

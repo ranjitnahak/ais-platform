@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import { supabase } from '../lib/supabase';
-import { useCurrentUser } from '../lib/auth';
+import { useUser } from '../context/UserContext';
 
 const TABS = ['Organisations', 'Feature Flags'];
 const FEATURE_LABELS = {
@@ -32,7 +32,7 @@ function AccessDenied() {
 }
 
 export default function SuperuserPanel() {
-  const { user, loading } = useCurrentUser();
+  const { user, loading } = useUser();
   const [activeTab, setActiveTab] = useState('Organisations');
   const [orgs, setOrgs] = useState([]);
   const [flags, setFlags] = useState([]);

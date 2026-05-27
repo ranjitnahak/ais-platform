@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { canSync, useCurrentUser } from '../lib/auth'
+import { canSync } from '../lib/auth'
+import { useUser } from '../context/UserContext'
 
 function Spinner() {
   return (
@@ -98,7 +99,7 @@ function AthleteCard({ athlete, paragraph }) {
 export default function TeamReportView() {
   const { reportId } = useParams()
   const navigate = useNavigate()
-  const { user, loading: userLoading } = useCurrentUser()
+  const { user, loading: userLoading } = useUser()
   const [report, setReport] = useState(null)
   const [org, setOrg] = useState(null)
   const [athletes, setAthletes] = useState([])

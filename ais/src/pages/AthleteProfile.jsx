@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser, useCurrentUser, canSync } from '../lib/auth';
+import { getCurrentUser, canSync } from '../lib/auth';
+import { useUser } from '../context/UserContext';
 import { generateAthleteReport } from '../lib/generateAthleteReport';
 import { athleteDisplayName, athleteInitialsFromAthlete, canonicalFullName } from '../lib/athleteName';
 import { BLOOD_GROUP_OPTIONS, normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
@@ -48,7 +49,7 @@ const ninetyDaysAgoInput = () => {
 export default function AthleteProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useCurrentUser();
+  const { user } = useUser();
   const fileInputRef = useRef(null);
 
   const [athlete, setAthlete]         = useState(null);

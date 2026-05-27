@@ -17,7 +17,7 @@ import SuperuserPanel from './pages/SuperuserPanel';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import { supabase } from './lib/supabase';
-import { getCurrentUser } from './lib/auth';
+import { useUser } from './context/UserContext';
 import AthleteLayout from './components/layout/AthleteLayout';
 import AthleteData from './pages/AthleteData';
 import AthleteProfileSelf from './pages/AthleteProfileSelf';
@@ -54,11 +54,13 @@ const ACCOUNT_SETUP_MESSAGE =
 function AuthGate({ children }) {
   const [session, setSession] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [checkingProfile, setCheckingProfile] = useState(false);
-  const [profileOk, setProfileOk] = useState(false);
+  const { user, loading: userLoading } = useUser();
   const location = useLocation();
   const navigate = useNavigate();
   const isPublicPath = PUBLIC_PATHS.includes(location.pathname);
+  const needsProfile = Boolean(session && !isPublicPath);
+  const profileChecking = needsProfile && userLoading;
+  const profileFailed = needsProfile && !userLoading && !user;
 
   useEffect(() => {
     let mounted = true;
@@ -84,37 +86,11 @@ function AuthGate({ children }) {
   }, []);
 
   useEffect(() => {
-    if (checkingSession) return;
-
-    if (!session || isPublicPath) {
-      setCheckingProfile(false);
-      setProfileOk(true);
-      return;
-    }
-
-    let mounted = true;
-    setCheckingProfile(true);
-    setProfileOk(false);
-
-    async function verifyProfile() {
-      const appUser = await getCurrentUser();
-      if (!mounted) return;
-
-      if (!appUser) {
-        await supabase.auth.signOut();
-        navigate('/login', { replace: true, state: { message: ACCOUNT_SETUP_MESSAGE } });
-        setProfileOk(false);
-      } else {
-        setProfileOk(true);
-      }
-      setCheckingProfile(false);
-    }
-
-    void verifyProfile();
-    return () => {
-      mounted = false;
-    };
-  }, [checkingSession, session, isPublicPath, navigate]);
+    if (!profileFailed) return;
+    void supabase.auth.signOut().then(() => {
+      navigate('/login', { replace: true, state: { message: ACCOUNT_SETUP_MESSAGE } });
+    });
+  }, [profileFailed, navigate]);
 
   useEffect(() => {
     if (!checkingSession && !session && !isPublicPath) {
@@ -122,9 +98,8 @@ function AuthGate({ children }) {
     }
   }, [checkingSession, isPublicPath, navigate, session]);
 
-  if (checkingSession || checkingProfile) return <LoadingScreen />;
+  if (checkingSession || profileChecking || profileFailed) return <LoadingScreen />;
   if (!session && !isPublicPath) return <LoadingScreen />;
-  if (session && !isPublicPath && !profileOk) return <LoadingScreen />;
 
   return children;
 }
@@ -152,25 +127,7 @@ function StaffRouteGuard({ user }) {
 }
 
 export default function App() {
-  const [resolvedUser, setResolvedUser] = useState(null);
-  const [checkingUser, setCheckingUser] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    async function resolve() {
-      try {
-        setCheckingUser(true);
-        const user = await getCurrentUser();
-        if (mounted) setResolvedUser(user);
-      } catch (err) {
-        console.error('[App] resolve user', err);
-      } finally {
-        if (mounted) setCheckingUser(false);
-      }
-    }
-    void resolve();
-    return () => { mounted = false; };
-  }, []);
+  const { user: resolvedUser, loading: checkingUser } = useUser();
 
   return (
     <BrowserRouter>

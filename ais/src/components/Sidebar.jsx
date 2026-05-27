@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { MAIN_NAV_ITEMS } from '../nav/mainNavItems';
-import { useCurrentUser } from '../lib/auth';
+import { useUser } from '../context/UserContext';
 
 const ADMIN_NAV_ITEM = { icon: 'admin_panel_settings', label: 'Admin', to: '/admin' };
 const SUPERUSER_NAV_ITEM = { icon: 'shield', label: 'Superuser', to: '/superuser' };
@@ -13,7 +13,7 @@ const STAFF_NOTES_ROLES = ['admin', 'superuser', 'head coach', 's&c coach', 'phy
  * Desktop primary navigation — matches AIS shell used across pages.
  */
 export default function Sidebar() {
-  const { user } = useCurrentUser();
+  const { user } = useUser();
   const baseItems = user?.role && user.role?.toLowerCase() !== 'athlete'
     ? [...MAIN_NAV_ITEMS, WELLNESS_NAV_ITEM]
     : MAIN_NAV_ITEMS;

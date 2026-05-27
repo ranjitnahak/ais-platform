@@ -3,13 +3,13 @@ import Sidebar from '../components/Sidebar';
 import UserList from '../components/admin/UserList';
 import RolePermissionsGrid from '../components/admin/RolePermissionsGrid';
 import TeamManagement from '../components/admin/TeamManagement';
-import { useCurrentUser } from '../lib/auth';
+import { useUser } from '../context/UserContext';
 
 const TABS = ['Users', 'Roles', 'Teams'];
 const ADMIN_ROLES = ['admin', 'superuser'];
 
 export default function Admin() {
-  const { user, loading } = useCurrentUser();
+  const { user, loading } = useUser();
   const [activeTab, setActiveTab] = useState('Users');
   const canAccess = ADMIN_ROLES.includes(user?.role);
 

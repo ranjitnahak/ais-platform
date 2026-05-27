@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { canSync, useCurrentUser } from '../lib/auth'
+import { canSync } from '../lib/auth'
+import { useUser } from '../context/UserContext'
 import { generateAthleteReport } from '../lib/generateAthleteReport'
 
 const DOMAIN_COLORS = {
@@ -23,7 +24,7 @@ const CLASS_COLORS = {
 export default function AthleteReportView() {
   const { reportId } = useParams()
   const navigate = useNavigate()
-  const { user, loading: userLoading } = useCurrentUser()
+  const { user, loading: userLoading } = useUser()
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)

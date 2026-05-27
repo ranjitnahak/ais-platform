@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import UserPermissionsTab from '../components/admin/UserPermissionsTab';
-import { getCurrentUser, useCurrentUser } from '../lib/auth';
+import { getCurrentUser } from '../lib/auth';
+import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
 import { setUserActive } from '../lib/adminUserActions';
 import { useUserPermissions } from '../hooks/useUserPermissions';
@@ -15,7 +16,7 @@ function formatDate(value) {
 export default function UserDetailPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const { loading: authLoading } = useCurrentUser();
+  const { loading: authLoading } = useUser();
   const [profile, setProfile] = useState(null);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);

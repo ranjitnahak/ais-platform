@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
 const ACTION_MAP = { view: 'canView', create: 'canCreate', edit: 'canEdit', delete: 'canDelete', admin: 'canEdit' };
@@ -49,18 +48,27 @@ export async function getCurrentUser() {
       console.error('[auth.js] no role found for current user');
       return null;
     }
-    const { data: teamRows, error: teamsError } = await supabase
-      .from('teams')
-      .select('id')
-      .eq('org_id', user.org_id);
-    if (teamsError) throw teamsError;
+    const [teamsResult, permissionsResult, overridesResult] = await Promise.all([
+      supabase.from('teams').select('id').eq('org_id', user.org_id),
+      supabase
+        .from('role_permissions')
+        .select('resource, can_view, can_create, can_edit, can_delete')
+        .eq('role_id', primaryRole.role_id)
+        .eq('org_id', user.org_id),
+      supabase
+        .from('user_permission_overrides')
+        .select('resource, can_view, can_create, can_edit, can_delete')
+        .eq('user_id', user.id)
+        .eq('org_id', user.org_id),
+    ]);
+    if (teamsResult.error) throw teamsResult.error;
+    if (permissionsResult.error) throw permissionsResult.error;
+    if (overridesResult.error) throw overridesResult.error;
 
-    const { data: permissionRows, error: permissionsError } = await supabase
-      .from('role_permissions')
-      .select('resource, can_view, can_create, can_edit, can_delete')
-      .eq('role_id', primaryRole.role_id)
-      .eq('org_id', user.org_id);
-    if (permissionsError) throw permissionsError;
+    const teamRows = teamsResult.data;
+    const permissionRows = permissionsResult.data;
+    const overrideRows = overridesResult.data;
+
     const permissions = {};
     for (const row of permissionRows ?? []) {
       permissions[row.resource] = {
@@ -68,13 +76,6 @@ export async function getCurrentUser() {
         canEdit: Boolean(row.can_edit), canDelete: Boolean(row.can_delete),
       };
     }
-
-    const { data: overrideRows, error: overridesError } = await supabase
-      .from('user_permission_overrides')
-      .select('resource, can_view, can_create, can_edit, can_delete')
-      .eq('user_id', user.id)
-      .eq('org_id', user.org_id);
-    if (overridesError) throw overridesError;
 
     const resolvedPermissions = applyPermissionOverrides(permissions, overrideRows);
 
@@ -89,7 +90,7 @@ export async function getCurrentUser() {
   }
 }
 
-// Use canSync() in JSX/components with user from useCurrentUser()
+// Use canSync() in JSX/components with user from useUser() (UserContext)
 // Use can() in async lib functions and hooks
 export function canSync(user, resource, action) {
   return resolvePermission(user, resource, action);
@@ -117,28 +118,6 @@ export async function can(resource, action) {
     console.error('[auth.js] permission check failed:', err);
     return false;
   }
-}
-
-export function useCurrentUser() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let mounted = true;
-    async function loadUser() {
-      try {
-        const currentUser = await getCurrentUser();
-        if (mounted) setUser(currentUser);
-      } catch (err) {
-        console.error('[auth.js] useCurrentUser failed:', err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-
-    loadUser();
-    return () => { mounted = false; };
-  }, []);
-  return { user, loading };
 }
 
 export async function getAccessibleTeams() { try { const user = await getCurrentUser(); return user?.teamIds ?? []; } catch (err) { console.error('[auth.js] accessible teams check failed:', err); return []; } }
