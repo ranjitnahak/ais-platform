@@ -296,13 +296,8 @@ export default function UserList({ user }) {
                           },
                         },
                         {
-                          label: 'Send Invite',
-                          hidden: row.kind !== 'athlete_pending',
-                          onClick: sendAthleteInvite,
-                        },
-                        {
                           label: 'Resend Invite',
-                          hidden: row.kind !== 'athlete_auth',
+                          hidden: row.kind !== 'athlete_pending' && row.kind !== 'athlete_auth',
                           onClick: sendAthleteInvite,
                         },
                         {

@@ -169,11 +169,12 @@ export function useAddUser({ onSuccess, onClose }) {
       console.error('[useAddUser] athlete team assignment', teamErr);
     }
 
+    const inviteFullName = `${first_name} ${last_name}`.trim();
     try {
       const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
         body: {
           email: emailValue,
-          fullName: canonicalFullName(first_name, last_name),
+          fullName: inviteFullName,
           orgId: user.orgId,
           userType: 'athlete',
           athleteId: athleteData.id,
@@ -184,7 +185,9 @@ export function useAddUser({ onSuccess, onClose }) {
       setSuccessMessage(`Athlete added and invite sent to ${emailValue}`);
     } catch (err) {
       console.error('[useAddUser] athlete invite', err);
-      setSuccessMessage('Athlete profile created but invite failed — use Send Invite from the athlete profile to retry');
+      setSuccessMessage(
+        'Athlete profile created but invite failed. Use Resend Invite from the Users tab to retry.',
+      );
     }
   };
 

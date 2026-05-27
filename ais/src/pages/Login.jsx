@@ -55,6 +55,12 @@ export default function Login() {
         </div>
 
         <div className="rounded-3xl bg-[var(--color-surface-container-low)] p-6 shadow-2xl ring-1 ring-[var(--color-outline-variant)] sm:p-8">
+          {error && (
+            <p className="mb-4 rounded-xl bg-[var(--color-error-container)]/20 px-4 py-3 text-sm text-[var(--color-error)]">
+              {error}
+            </p>
+          )}
+
           <div className="space-y-4" onKeyDown={handleKeyDown}>
             <label className="block">
               <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-[var(--color-outline)]">
@@ -93,12 +99,6 @@ export default function Login() {
               {loading ? 'Signing In...' : 'Sign In'}
             </button>
           </div>
-
-          {error && (
-            <p className="mt-4 rounded-xl bg-[var(--color-error-container)]/20 px-4 py-3 text-sm text-[var(--color-error)]">
-              {error}
-            </p>
-          )}
 
           <div className="mt-6 text-center">
             <Link
