@@ -135,8 +135,8 @@ export default function AddUserModal({ onClose, onCreated }) {
                   </div>
                 </div>
                 <div>
-                  <label className={labelClass}>Date of birth</label>
-                  <input type="date" className={inputClass} value={hook.athleteForm.date_of_birth} onChange={(e) => hook.setAthleteField('date_of_birth', e.target.value)} />
+                  <label className={labelClass}>Date of birth *</label>
+                  <input type="date" required className={inputClass} value={hook.athleteForm.date_of_birth} onChange={(e) => hook.setAthleteField('date_of_birth', e.target.value)} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -162,8 +162,8 @@ export default function AddUserModal({ onClose, onCreated }) {
                   <input type="number" className={inputClass} value={hook.athleteForm.jersey_number} onChange={(e) => hook.setAthleteField('jersey_number', e.target.value)} />
                 </div>
                 <div>
-                  <label className={labelClass}>Email</label>
-                  <input type="email" className={inputClass} value={hook.athleteForm.email} onChange={(e) => hook.setAthleteField('email', e.target.value)} />
+                  <label className={labelClass}>Email *</label>
+                  <input type="email" required className={inputClass} value={hook.athleteForm.email} onChange={(e) => hook.setAthleteField('email', e.target.value)} />
                 </div>
                 <div>
                   <label className={labelClass}>Phone</label>

@@ -31,7 +31,7 @@ export async function getCurrentUser() {
     if (!session) return null;
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, org_id, role')
+      .select('id, org_id, role, athlete_id')
       .eq('auth_id', session.user.id)
       .single();
     if (userError) throw userError;
@@ -77,6 +77,7 @@ export async function getCurrentUser() {
     return {
       id: user.id, orgId: user.org_id, role: roleName, permissions: resolvedPermissions,
       teamIds: (teamRows ?? []).map((team) => team.id),
+      athleteId: user.athlete_id ?? null,
     };
   } catch (err) {
     console.error('[auth.js] failed to resolve current user:', err);

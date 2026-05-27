@@ -127,6 +127,8 @@ export function useAddUser({ onSuccess, onClose }) {
 
   const submitAthlete = async (user) => {
     if (!athleteForm.first_name.trim()) throw new Error('First name is required.');
+    if (!athleteForm.email.trim()) throw new Error('Email is required.');
+    if (!athleteForm.date_of_birth) throw new Error('Date of birth is required.');
     if (!athleteForm.gender) throw new Error('Gender is required.');
     if (!athleteForm.position) throw new Error('Position is required.');
 
@@ -135,15 +137,16 @@ export function useAddUser({ onSuccess, onClose }) {
 
     const first_name = athleteForm.first_name.trim();
     const last_name = athleteForm.last_name.trim();
+    const emailValue = athleteForm.email.trim();
     const payload = {
       first_name,
       last_name: last_name || null,
       full_name: canonicalFullName(first_name, last_name),
-      date_of_birth: athleteForm.date_of_birth || null,
+      date_of_birth: athleteForm.date_of_birth,
       gender: normalizeGenderForDb(athleteForm.gender),
       position: normalizePositionForDb(athleteForm.position),
       jersey_number: athleteForm.jersey_number ? Number(athleteForm.jersey_number) : null,
-      email: athleteForm.email.trim() || null,
+      email: emailValue,
       phone: athleteForm.phone.trim() || null,
       emergency_contact_phone: athleteForm.emergency_contact_phone?.trim() || null,
       blood_group: athleteForm.blood_group?.trim() || null,
@@ -159,12 +162,29 @@ export function useAddUser({ onSuccess, onClose }) {
       .select('id')
       .single();
     if (insertErr) throw insertErr;
+
     try {
       await insertAthleteTeams(athleteData.id, selectedTeamIds);
-      setSuccessMessage('Athlete added successfully.');
     } catch (teamErr) {
       console.error('[useAddUser] athlete team assignment', teamErr);
-      setSuccessMessage('Athlete added but team assignment failed — please assign teams manually from the athlete profile.');
+    }
+
+    try {
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
+        body: {
+          email: emailValue,
+          fullName: canonicalFullName(first_name, last_name),
+          orgId: user.orgId,
+          userType: 'athlete',
+          athleteId: athleteData.id,
+        },
+      });
+      if (fnError) throw new Error(fnError.message);
+      if (fnData?.error) throw new Error(fnData.error);
+      setSuccessMessage(`Athlete added and invite sent to ${emailValue}`);
+    } catch (err) {
+      console.error('[useAddUser] athlete invite', err);
+      setSuccessMessage('Athlete profile created but invite failed — use Send Invite from the athlete profile to retry');
     }
   };
 
@@ -181,7 +201,7 @@ export function useAddUser({ onSuccess, onClose }) {
     const emailValue = staffForm.email.trim();
 
     const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
-      body: { email: emailValue, fullName, orgId: user.orgId, roleEnum },
+      body: { email: emailValue, fullName, orgId: user.orgId, userType: 'staff', roleEnum },
     });
     if (fnError) throw new Error(fnError.message);
     if (fnData?.error) throw new Error(fnData.error);

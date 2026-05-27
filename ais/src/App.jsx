@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom';
 import SquadDashboard from './components/dashboard/SquadDashboard';
 import Reports from './pages/Reports';
 import AthleteReportView from './pages/AthleteReportView';
@@ -17,6 +17,10 @@ import SuperuserPanel from './pages/SuperuserPanel';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import { supabase } from './lib/supabase';
+import { getCurrentUser } from './lib/auth';
+import AthleteLayout from './components/layout/AthleteLayout';
+import AthleteData from './pages/AthleteData';
+import AthleteProfileSelf from './pages/AthleteProfileSelf';
 
 const PUBLIC_PATHS = ['/login', '/reset-password'];
 
@@ -38,6 +42,10 @@ function LoadingScreen() {
       <div className="h-8 w-8 rounded-full border-2 border-[var(--color-primary-container)] border-t-transparent animate-spin" />
     </div>
   );
+}
+
+function RoleLoading() {
+  return <LoadingScreen />;
 }
 
 function AuthGate({ children }) {
@@ -81,28 +89,82 @@ function AuthGate({ children }) {
   return children;
 }
 
+function HomeRedirect({ user }) {
+  if (!user) return <RoleLoading />;
+  if (user.role === 'athlete') return <Navigate to="/athlete-home" replace />;
+  return <Navigate to="/dashboard" replace />;
+}
+
+function AthleteRouteGuard({ user }) {
+  if (!user) return <RoleLoading />;
+  if (user.role !== 'athlete') return <Navigate to="/dashboard" replace />;
+  return (
+    <AthleteLayout>
+      <Outlet />
+    </AthleteLayout>
+  );
+}
+
+function StaffRouteGuard({ user }) {
+  if (!user) return <RoleLoading />;
+  if (user.role === 'athlete') return <Navigate to="/athlete-home" replace />;
+  return <Outlet />;
+}
+
 export default function App() {
+  const [resolvedUser, setResolvedUser] = useState(null);
+  const [checkingUser, setCheckingUser] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    async function resolve() {
+      try {
+        setCheckingUser(true);
+        const user = await getCurrentUser();
+        if (mounted) setResolvedUser(user);
+      } catch (err) {
+        console.error('[App] resolve user', err);
+      } finally {
+        if (mounted) setCheckingUser(false);
+      }
+    }
+    void resolve();
+    return () => { mounted = false; };
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthGate>
         <Routes>
-          <Route path="/login"          element={<Login />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/"               element={<SquadDashboard />} />
-          <Route path="/reports"        element={<Reports />} />
-          <Route path="/reports/athlete/:reportId" element={<AthleteReportView />} />
-          <Route path="/reports/team/:reportId" element={<TeamReportView />} />
-          <Route path="/athletes"       element={<Athletes />} />
-          <Route path="/athletes/:id"   element={<AthleteProfile />} />
-          <Route path="/athlete-home"   element={<AthleteHome />} />
-          <Route path="/wellness"       element={<WellnessDashboard />} />
-          <Route path="/staff-notes"    element={<StaffNotes />} />
-          <Route path="/periodisation"  element={<Periodisation />} />
-          <Route path="/assess"         element={<Placeholder title="Assessment" />} />
-          <Route path="/settings"       element={<Settings />} />
-          <Route path="/admin"          element={<Admin />} />
-          <Route path="/admin/users/:userId" element={<UserDetailPage />} />
-          <Route path="/superuser"      element={<SuperuserPanel />} />
+
+          <Route path="/" element={<HomeRedirect user={checkingUser ? null : resolvedUser} />} />
+
+          <Route element={<AthleteRouteGuard user={checkingUser ? null : resolvedUser} />}>
+            <Route path="/athlete-home" element={<AthleteHome />} />
+            <Route path="/athlete-data" element={<AthleteData />} />
+            <Route path="/athlete-profile" element={<AthleteProfileSelf />} />
+            <Route path="*" element={<Navigate to="/athlete-home" replace />} />
+          </Route>
+
+          <Route element={<StaffRouteGuard user={checkingUser ? null : resolvedUser} />}>
+            <Route path="/dashboard" element={<SquadDashboard />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/reports/athlete/:reportId" element={<AthleteReportView />} />
+            <Route path="/reports/team/:reportId" element={<TeamReportView />} />
+            <Route path="/athletes" element={<Athletes />} />
+            <Route path="/athletes/:id" element={<AthleteProfile />} />
+            <Route path="/wellness" element={<WellnessDashboard />} />
+            <Route path="/staff-notes" element={<StaffNotes />} />
+            <Route path="/periodisation" element={<Periodisation />} />
+            <Route path="/assess" element={<Placeholder title="Assessment" />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/users/:userId" element={<UserDetailPage />} />
+            <Route path="/superuser" element={<SuperuserPanel />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Route>
         </Routes>
       </AuthGate>
     </BrowserRouter>
