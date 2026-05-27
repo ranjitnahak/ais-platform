@@ -16,7 +16,7 @@ const DOMAIN_VARS = {
   coaching: 'var(--color-primary-fixed)',
 }
 
-export default function StaffNotes() {
+export default function StaffNotes({ embedded = false }) {
   const { user, loading: userLoading } = useUser()
   const [teams, setTeams] = useState([])
   const [athletes, setAthletes] = useState([])
@@ -91,11 +91,13 @@ export default function StaffNotes() {
   }, [canView, selectedTeamId, selectedAthleteId])
 
   const visible = useMemo(() => STAFF_ROLES.includes(user?.role), [user?.role])
-  if (userLoading) return <Shell><Spinner /></Shell>
-  if (!canView || !visible) return <Shell><p className="rounded-2xl bg-[var(--color-surface-container)] p-6 font-bold">Access Denied</p></Shell>
+  const accessDenied = <p className="rounded-2xl bg-[var(--color-surface-container)] p-6 font-bold">Access Denied</p>;
+  if (userLoading) return embedded ? <Spinner /> : <Shell><Spinner /></Shell>;
+  if (!canView || !visible) return embedded ? accessDenied : <Shell>{accessDenied}</Shell>;
 
-  return (
-    <Shell>
+  const notesContent = (
+    <>
+      {!embedded && (
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">Reports</p>
@@ -106,6 +108,12 @@ export default function StaffNotes() {
           {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
         </select>
       </header>
+      )}
+      {embedded && (
+        <select value={selectedTeamId} onChange={(event) => { setSelectedTeamId(event.target.value); setSelectedAthleteId('') }} className="min-h-12 w-full max-w-xs rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-4 text-sm font-bold outline-none">
+          {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+        </select>
+      )}
 
       {(loadError || teamNotes.error || athleteNotes.error) && (
         <div className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">
@@ -144,8 +152,11 @@ export default function StaffNotes() {
           </Panel>
         </section>
       )}
-    </Shell>
-  )
+    </>
+  );
+
+  if (embedded) return <div className="space-y-6">{notesContent}</div>;
+  return <Shell>{notesContent}</Shell>;
 }
 
 function Shell({ children }) {

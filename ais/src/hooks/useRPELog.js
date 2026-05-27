@@ -19,7 +19,7 @@ export function useRPELog() {
       const today = new Date().toISOString().split('T')[0]
       const { data, error } = await supabase
         .from('sessions')
-        .select('id, name, session_date, category')
+        .select('id, name, session_date, category, planned_rpe')
         .eq('org_id', user.orgId)
         .in('team_id', user.teamIds)
         .eq('session_date', today)

@@ -45,7 +45,7 @@ function KpiCard({ label, value, unit, valueClass = 'text-white' }) {
   );
 }
 
-export default function SquadDashboard() {
+export default function SquadDashboard({ embedded = false }) {
   const [athletes, setAthletes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -197,21 +197,8 @@ export default function SquadDashboard() {
         )
       : null;
 
-  return (
-    <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
-      <Sidebar />
-
-      {/* Top App Bar */}
-      <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 md:pl-72">
-        <div className="flex items-center gap-4">
-          <span className="material-symbols-outlined text-gray-400 md:hidden">menu</span>
-          <h1 className="font-['Inter'] text-xl font-bold tracking-tight text-white">Squad Dashboard</h1>
-        </div>
-        <TopBarUserMenu />
-      </header>
-
-      {/* Main Content */}
-      <main className="pt-24 pb-32 px-6 md:pl-72 max-w-7xl mx-auto space-y-8">
+  const mainContent = (
+      <div className={`space-y-8 ${embedded ? '' : 'max-w-7xl mx-auto'}`}>
 
         {/* Loading / error states */}
         {loading && (
@@ -388,33 +375,48 @@ export default function SquadDashboard() {
             </div>
           </>
         )}
-      </main>
+      </div>
+  );
 
-      {/* FAB — mobile */}
-      <button className="fixed bottom-24 right-6 w-14 h-14 bg-[#F97316] rounded-full shadow-2xl flex items-center justify-center text-white z-50 md:hidden active:scale-90 transition-transform">
+  if (embedded) return mainContent;
+
+  return (
+    <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
+      <Sidebar />
+      <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 md:pl-72">
+        <div className="flex items-center gap-4">
+          <span className="material-symbols-outlined text-gray-400 md:hidden">menu</span>
+          <h1 className="font-['Inter'] text-xl font-bold tracking-tight text-white">Squad Dashboard</h1>
+        </div>
+        <TopBarUserMenu />
+      </header>
+      <main className="pt-24 pb-32 px-6 md:pl-72">{mainContent}</main>
+      <button
+        type="button"
+        className="fixed bottom-24 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-primary-container)] text-[var(--color-on-primary)] shadow-2xl md:hidden active:scale-90 transition-transform"
+      >
         <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
       </button>
-
-      {/* Bottom Nav — mobile */}
-      <footer className="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center h-20 bg-[#2A2A2C]/80 backdrop-blur-2xl border-t border-white/10 shadow-[0_-4px_24px_rgba(249,115,22,0.1)] z-50 rounded-t-2xl">
+      <footer className="md:hidden fixed bottom-0 left-0 z-50 flex h-20 w-full items-center justify-around rounded-t-2xl border-t border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]/90 backdrop-blur-2xl">
         {[
-          { icon: 'dashboard', label: 'Live',    to: '/'        },
-          { icon: 'sensors',   label: 'Data',    to: '/'        },
+          { icon: 'dashboard', label: 'Live', to: '/dashboard' },
+          { icon: 'sensors', label: 'Data', to: '/dashboard' },
           { icon: 'edit_note', label: 'Reports', to: '/reports' },
-          { icon: 'settings',  label: 'Sets',    to: '/settings'},
+          { icon: 'settings', label: 'Sets', to: '/settings' },
         ].map(({ icon, label, to }) => (
           <NavLink
             key={label}
             to={to}
-            end={to === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center p-2 active:scale-90 transition-transform ${isActive ? 'text-[#F97316] scale-110' : 'text-gray-500 hover:text-white'}`
+              `flex flex-col items-center justify-center p-2 active:scale-90 transition-transform ${
+                isActive ? 'text-[var(--color-primary-container)] scale-110' : 'text-[var(--color-outline)]'
+              }`
             }
           >
             {({ isActive }) => (
               <>
                 <span className="material-symbols-outlined" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>{icon}</span>
-                <span className="font-['Inter'] text-[10px] uppercase tracking-widest mt-1">{label}</span>
+                <span className="mt-1 font-['Inter'] text-[10px] uppercase tracking-widest">{label}</span>
               </>
             )}
           </NavLink>

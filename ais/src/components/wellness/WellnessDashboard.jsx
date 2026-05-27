@@ -4,7 +4,7 @@ import { getCurrentUser, canSync } from '../../lib/auth'
 import { useUser } from '../../context/UserContext'
 import WellnessTrend from './WellnessTrend'
 
-export default function WellnessDashboard() {
+export default function WellnessDashboard({ embedded = false }) {
   const { user } = useUser()
   const [athletes, setAthletes] = useState([])
   const [logs, setLogs] = useState([])
@@ -67,16 +67,23 @@ export default function WellnessDashboard() {
     return { submitted: logs.length, total: athletes.length, average, flagged }
   }, [athletes.length, logs])
 
-  if (!canView) return null
+  if (!canView) {
+    return (
+      <p className="rounded-2xl bg-[var(--color-surface-container)] p-6 text-sm font-bold text-[var(--color-on-surface-variant)]">
+        You do not have permission to view wellness data.
+      </p>
+    );
+  }
 
-  return (
-    <main className="min-h-screen bg-[var(--color-surface)] px-4 py-8 font-['Inter'] text-[var(--color-on-surface)] md:ml-64 md:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
+  const content = (
+      <div className={`mx-auto max-w-6xl space-y-6 ${embedded ? '' : ''}`}>
+        {!embedded && (
         <header>
           <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">Team Readiness</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight">Wellness Dashboard</h1>
           <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Today&apos;s wellness submissions for your assigned teams.</p>
         </header>
+        )}
 
         <section className="grid gap-3 rounded-3xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4 sm:grid-cols-3">
           <SummaryTile label="Submitted Today" value={`${summary.submitted} of ${summary.total}`} />
@@ -105,8 +112,15 @@ export default function WellnessDashboard() {
           </section>
         )}
       </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <main className="min-h-screen bg-[var(--color-surface)] px-4 py-8 font-['Inter'] text-[var(--color-on-surface)] md:ml-64 md:px-8">
+      {content}
     </main>
-  )
+  );
 }
 
 function SummaryTile({ label, value }) {

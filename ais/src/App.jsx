@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom';
-import SquadDashboard from './components/dashboard/SquadDashboard';
+import Dashboard from './pages/Dashboard';
+import Log from './pages/Log';
 import Reports from './pages/Reports';
 import AthleteReportView from './pages/AthleteReportView';
 import TeamReportView from './pages/TeamReportView';
 import Athletes from './pages/Athletes';
 import AthleteProfile from './pages/AthleteProfile';
 import AthleteHome from './pages/AthleteHome';
-import WellnessDashboard from './components/wellness/WellnessDashboard';
-import StaffNotes from './pages/StaffNotes';
 import Periodisation from './pages/Periodisation';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
@@ -146,16 +145,18 @@ export default function App() {
           </Route>
 
           <Route element={<StaffRouteGuard user={checkingUser ? null : resolvedUser} />}>
-            <Route path="/dashboard" element={<SquadDashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/log" element={<Log />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/reports/athlete/:reportId" element={<AthleteReportView />} />
             <Route path="/reports/team/:reportId" element={<TeamReportView />} />
             <Route path="/athletes" element={<Athletes />} />
             <Route path="/athletes/:id" element={<AthleteProfile />} />
-            <Route path="/wellness" element={<WellnessDashboard />} />
-            <Route path="/staff-notes" element={<StaffNotes />} />
+            <Route path="/wellness" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/staff-notes" element={<Navigate to="/log" replace />} />
+            <Route path="/squad" element={<Navigate to="/dashboard" replace />} />
             <Route path="/periodisation" element={<Periodisation />} />
-            <Route path="/assess" element={<Placeholder title="Assessment" />} />
+            <Route path="/assess" element={<Navigate to="/log" replace />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/users/:userId" element={<UserDetailPage />} />
