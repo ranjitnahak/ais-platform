@@ -83,13 +83,13 @@ export default function UserList({ user }) {
       const [staffRes, athleteAuthRes, athletePendingRes] = await Promise.all([
         supabase
           .from('users')
-          .select('id, full_name, email, role, is_active, last_active_at, deactivated_at, athlete_id')
+          .select('id, full_name, email, role, is_active, last_login_at, deactivated_at, athlete_id')
           .eq('org_id', user.orgId)
           .is('athlete_id', null)
           .order('full_name'),
         supabase
           .from('users')
-          .select('id, full_name, email, role, is_active, last_active_at, deactivated_at, athlete_id, athletes!athlete_id(id, position, jersey_number, photo_url)')
+          .select('id, full_name, email, role, is_active, last_login_at, deactivated_at, athlete_id, athletes!athlete_id(id, position, jersey_number, photo_url)')
           .eq('org_id', user.orgId)
           .eq('role', 'athlete')
           .order('full_name'),
@@ -116,7 +116,7 @@ export default function UserList({ user }) {
         typeLabel: 'Staff',
         roleOrPosition: row.role,
         status: row.is_active ? 'ACTIVE' : 'INACTIVE',
-        lastActiveAt: row.last_active_at,
+        lastActiveAt: row.last_login_at,
         isActive: row.is_active,
       }));
 
@@ -132,7 +132,7 @@ export default function UserList({ user }) {
           typeLabel: 'Athlete',
           roleOrPosition: joinedAthlete?.position ?? 'Athlete',
           status: row.is_active ? 'ACTIVE' : 'INACTIVE',
-          lastActiveAt: row.last_active_at,
+          lastActiveAt: row.last_login_at,
           isActive: row.is_active,
         };
       });
