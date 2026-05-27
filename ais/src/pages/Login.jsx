@@ -11,6 +11,18 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const hash = window.location.hash;
+    if (hash) {
+      const params = new URLSearchParams(hash.replace('#', '?'));
+      const hashError = params.get('error');
+      const errorCode = params.get('error_code');
+      if (hashError === 'access_denied' || errorCode === 'otp_expired' || hash.includes('otp_expired')) {
+        setError('Your invite link has expired. Please contact your administrator.');
+        window.history.replaceState(null, '', '/login');
+        return;
+      }
+    }
+
     if (location.state?.message) {
       setError(location.state.message);
       navigate(location.pathname, { replace: true, state: {} });
