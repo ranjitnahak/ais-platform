@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { canSync, getCurrentUser, useCurrentUser } from '../lib/auth'
 import { getStaffDomain, useStaffNotes } from '../hooks/useStaffNotes'
+import Sidebar from '../components/Sidebar'
 
 const DOMAINS = ['s_and_c', 'physio', 'nutrition', 'psychology', 'analysis', 'coaching']
 const STAFF_ROLES = ['admin', 'superuser', 'head coach', 's&c coach', 'physio', 'analyst', 'nutritionist']
@@ -147,7 +148,12 @@ export default function StaffNotes() {
 }
 
 function Shell({ children }) {
-  return <main className="min-h-screen space-y-6 bg-[var(--color-surface)] px-4 py-8 font-['Inter'] text-[var(--color-on-surface)] md:ml-64 md:px-8">{children}</main>
+  return (
+    <div className="min-h-screen bg-[var(--color-surface)] font-['Inter'] text-[var(--color-on-surface)]">
+      <Sidebar />
+      <main className="space-y-6 px-4 py-8 pb-16 pt-20 md:pl-72 md:px-8">{children}</main>
+    </div>
+  )
 }
 
 function Panel({ title, children }) {
