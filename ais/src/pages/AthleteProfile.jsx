@@ -8,6 +8,7 @@ import { athleteDisplayName, athleteInitialsFromAthlete, canonicalFullName } fro
 import { BLOOD_GROUP_OPTIONS, normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
 import ImageCropModal from '../components/athletes/ImageCropModal';
 import Sidebar from '../components/Sidebar';
+import { TopBarUserMenu } from '../components/layout/TopBar';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -347,11 +348,7 @@ export default function AthleteProfile() {
             Athletes
           </button>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[#353437] flex items-center justify-center" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-            <span className="material-symbols-outlined text-sm text-gray-400">person</span>
-          </div>
-        </div>
+        <TopBarUserMenu showSearch={false} />
       </header>
 
       {/* Main */}

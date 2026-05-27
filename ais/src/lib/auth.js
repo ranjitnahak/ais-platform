@@ -30,7 +30,7 @@ export async function getCurrentUser() {
     if (!session) return null;
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, org_id, role, athlete_id')
+      .select('id, org_id, role, athlete_id, full_name')
       .eq('auth_id', session.user.id)
       .maybeSingle();
     if (userError) throw userError;
@@ -80,7 +80,8 @@ export async function getCurrentUser() {
     const resolvedPermissions = applyPermissionOverrides(permissions, overrideRows);
 
     return {
-      id: user.id, orgId: user.org_id, role: roleName?.toLowerCase(), permissions: resolvedPermissions,
+      id: user.id, orgId: user.org_id, fullName: user.full_name ?? null,
+      role: roleName?.toLowerCase(), permissions: resolvedPermissions,
       teamIds: (teamRows ?? []).map((team) => team.id),
       athleteId: user.athlete_id ?? null,
     };

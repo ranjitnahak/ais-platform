@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
+import { TopBarUserMenu } from '../components/layout/TopBar';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -244,9 +245,7 @@ export default function Athletes() {
             )}
           </div>
         </div>
-        <div className="w-8 h-8 rounded-full bg-[#353437] flex items-center justify-center" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-          <span className="material-symbols-outlined text-sm text-gray-400">person</span>
-        </div>
+        <TopBarUserMenu showSearch={false} />
       </header>
 
       {/* Main */}

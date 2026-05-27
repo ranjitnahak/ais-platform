@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import Sidebar from '../Sidebar';
+import { TopBarUserMenu } from '../layout/TopBar';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUser } from '../../lib/auth';
 import { classifyScore } from '../../lib/scoring';
@@ -206,12 +207,7 @@ export default function SquadDashboard() {
           <span className="material-symbols-outlined text-gray-400 md:hidden">menu</span>
           <h1 className="font-['Inter'] text-xl font-bold tracking-tight text-white">Squad Dashboard</h1>
         </div>
-        <div className="flex items-center gap-5">
-          <span className="material-symbols-outlined text-gray-400 hover:opacity-80 transition-opacity cursor-pointer">search</span>
-          <div className="w-8 h-8 rounded-full overflow-hidden ghost-border bg-[#353437] flex items-center justify-center">
-            <span className="material-symbols-outlined text-sm text-gray-400">person</span>
-          </div>
-        </div>
+        <TopBarUserMenu />
       </header>
 
       {/* Main Content */}

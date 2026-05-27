@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentUser, canSync } from '../lib/auth';
 import Sidebar from '../components/Sidebar';
+import { TopBarUserMenu } from '../components/layout/TopBar';
 import { MAIN_NAV_ITEMS } from '../nav/mainNavItems';
 import { usePeriodisationPlan } from '../hooks/usePeriodisationPlan';
 import PeriodisationCanvas from '../components/periodisation/PeriodisationCanvas';
@@ -376,9 +377,7 @@ export default function Periodisation() {
             )}
           </div>
         </div>
-        <div className="w-8 h-8 rounded-full bg-[#353437] flex items-center justify-center border border-white/10">
-          <span className="material-symbols-outlined text-sm text-gray-400">person</span>
-        </div>
+        <TopBarUserMenu showSearch={false} />
       </header>
 
       <main className="pt-20 pb-28 px-4 md:pl-72 md:pr-6 min-h-screen">

@@ -7,6 +7,7 @@ import AthleteReport from '../components/reports/AthleteReport';
 import TeamReportConfig from '../components/reports/TeamReportConfig';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
+import { TopBarUserMenu } from '../components/layout/TopBar';
 
 function AthleteInitials({ athlete }) {
   const initials = athleteInitialsFromAthlete(athlete);
@@ -258,12 +259,7 @@ export default function Reports() {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-5">
-          <span className="material-symbols-outlined text-gray-400 hover:opacity-80 transition-opacity cursor-pointer">search</span>
-          <div className="w-8 h-8 rounded-full bg-[#353437] flex items-center justify-center ghost-border">
-            <span className="material-symbols-outlined text-sm text-gray-400">person</span>
-          </div>
-        </div>
+        <TopBarUserMenu />
       </header>
 
       {/* Main Content */}
