@@ -1,71 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { filterUserListRows, formatUserListDate, userListStatusBadge } from '../../lib/adminUserListFilters';
 import AddUserModal from './AddUserModal';
 import DeleteUserModal from './DeleteUserModal';
+import AdminUserRowMenu from './AdminUserRowMenu';
 import { setUserActive } from '../../lib/adminUserActions';
-
-function formatDate(value) {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function statusBadge(status) {
-  if (status === 'ACTIVE') return 'bg-[var(--color-tertiary-container)]/20 text-[var(--color-tertiary-fixed-dim)]';
-  if (status === 'INACTIVE') return 'bg-[var(--color-surface-variant)] text-[var(--color-on-surface-variant)]';
-  return 'bg-[var(--color-primary-container)]/20 text-[var(--color-primary-container)]';
-}
-
-function RowMenu({ item, actions }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function close(e) {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [open]);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="rounded p-1 text-[var(--color-outline)] hover:bg-[var(--color-surface-variant)] hover:text-[var(--color-on-surface)]"
-        aria-label="User actions"
-      >
-        <span className="material-symbols-outlined text-lg">more_vert</span>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-8 z-20 min-w-[140px] rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] py-1 shadow-xl">
-          {actions
-            .filter((a) => !a.hidden)
-            .map((a) => (
-              <button
-                key={a.label}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpen(false);
-                  a.onClick(item);
-                }}
-                className={`block w-full px-4 py-2 text-left text-sm ${
-                  a.variant === 'danger'
-                    ? 'text-[var(--color-error)] hover:bg-[var(--color-error-container)]/20'
-                    : 'text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-bright)]'
-                }`}
-              >
-                {a.label}
-              </button>
-            ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function UserList({ user }) {
   const navigate = useNavigate();
@@ -74,6 +14,9 @@ export default function UserList({ user }) {
   const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   async function loadUsers() {
     if (!user?.orgId) return;
@@ -167,7 +110,13 @@ export default function UserList({ user }) {
     void loadUsers();
   }, [user?.orgId]);
 
-  const rows = useMemo(() => items, [items]);
+  const rows = useMemo(
+    () => filterUserListRows(items, { searchQuery, typeFilter, statusFilter }),
+    [items, searchQuery, typeFilter, statusFilter],
+  );
+
+  const selectClassName =
+    'min-h-11 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 text-sm font-bold text-[var(--color-on-surface)] outline-none focus:border-[var(--color-primary-container)]';
 
   async function handleDeactivate(item) {
     try {
@@ -249,6 +198,43 @@ export default function UserList({ user }) {
       {loading && <p className="p-5 text-sm text-[var(--color-outline)]">Loading users...</p>}
 
       {!loading && !error && (
+        <>
+          <div className="space-y-2 border-b border-[var(--color-outline-variant)] px-5 py-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search by name or email..."
+                className="min-h-11 flex-1 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-4 text-sm text-[var(--color-on-surface)] outline-none transition focus:border-[var(--color-primary-container)]"
+              />
+              <select
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+                className={`${selectClassName} md:min-w-[140px]`}
+                aria-label="Filter by type"
+              >
+                <option value="all">All</option>
+                <option value="athlete">Athletes</option>
+                <option value="staff">Staff</option>
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className={`${selectClassName} md:min-w-[160px]`}
+                aria-label="Filter by status"
+              >
+                <option value="all">All</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+                <option value="INVITE_PENDING">Invite Pending</option>
+              </select>
+            </div>
+            <p className="text-sm text-[var(--color-on-surface-variant)]">
+              Showing {rows.length} of {items.length} users
+            </p>
+          </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="text-[10px] uppercase tracking-widest text-[var(--color-outline)]">
@@ -278,14 +264,14 @@ export default function UserList({ user }) {
                   <td className="px-5 py-4 text-[var(--color-on-surface)]">{row.roleOrPosition || '—'}</td>
                   <td className="px-5 py-4">
                     <span
-                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${statusBadge(row.status)}`}
+                      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${userListStatusBadge(row.status)}`}
                     >
                       {row.status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-[var(--color-on-surface-variant)]">{formatDate(row.lastActiveAt)}</td>
+                  <td className="px-5 py-4 text-[var(--color-on-surface-variant)]">{formatUserListDate(row.lastActiveAt)}</td>
                   <td className="px-5 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    <RowMenu
+                    <AdminUserRowMenu
                       item={row}
                       actions={[
                         {
@@ -320,12 +306,15 @@ export default function UserList({ user }) {
               ))}
               {!rows.length && (
                 <tr>
-                  <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-outline)]">No users found.</td>
+                  <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-outline)]">
+                    {items.length ? 'No users match your search or filters.' : 'No users found.'}
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {showAdd && (
