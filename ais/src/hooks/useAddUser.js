@@ -102,15 +102,15 @@ export function useAddUser({ onSuccess, onClose }) {
 
   const handleCropCancel = useCallback(() => setPendingFile(null), []);
 
-  const insertAthleteTeams = async (orgId, athleteId, teamIds) => {
+  const insertAthleteTeams = async (athleteId, teamIds) => {
     if (!teamIds.length) return;
     const teamRows = teamIds.map((teamId) => ({
-      org_id: orgId,
       athlete_id: athleteId,
       team_id: teamId,
+      joined_at: new Date().toISOString(),
     }));
     const { error: teamErr } = await supabase.from('athlete_teams').insert(teamRows);
-    if (teamErr) console.error('[useAddUser] athlete team assignment', teamErr);
+    if (teamErr) throw teamErr;
   };
 
   const assignStaffTeams = async (orgId, userId, roleId, teamIds) => {
@@ -159,8 +159,13 @@ export function useAddUser({ onSuccess, onClose }) {
       .select('id')
       .single();
     if (insertErr) throw insertErr;
-    await insertAthleteTeams(user.orgId, athleteData.id, selectedTeamIds);
-    setSuccessMessage('Athlete added successfully.');
+    try {
+      await insertAthleteTeams(athleteData.id, selectedTeamIds);
+      setSuccessMessage('Athlete added successfully.');
+    } catch (teamErr) {
+      console.error('[useAddUser] athlete team assignment', teamErr);
+      setSuccessMessage('Athlete added but team assignment failed — please assign teams manually from the athlete profile.');
+    }
   };
 
   const submitStaff = async (user) => {

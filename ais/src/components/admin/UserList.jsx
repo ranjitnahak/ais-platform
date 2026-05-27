@@ -186,7 +186,13 @@ export default function UserList({ user }) {
       )}
 
       {showAdd && (
-        <AddUserModal onClose={() => setShowAdd(false)} onCreated={loadUsers} />
+        <AddUserModal
+          onClose={() => {
+            setShowAdd(false);
+            void loadUsers();
+          }}
+          onCreated={loadUsers}
+        />
       )}
 
       {deleteTarget && (
