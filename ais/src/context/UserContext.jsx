@@ -50,7 +50,8 @@ export function UserProvider({ children }) {
       if (!prev?.isSuperuser || !nextOrgId) return prev;
       return { ...prev, orgId: nextOrgId };
     });
-  }, []);
+    void loadUser();
+  }, [loadUser]);
 
   useEffect(() => {
     if (user?.orgId && !activeOrgId) {

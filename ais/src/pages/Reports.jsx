@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { useUser } from '../context/UserContext';
+import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope';
 import AthleteReport from '../components/reports/AthleteReport';
 import TeamReportConfig from '../components/reports/TeamReportConfig';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
@@ -34,7 +35,7 @@ export default function Reports() {
   const navigate = useNavigate();
   const { user, activeOrgId, loading: userLoading } = useUser();
   const isSuperuser = user?.isSuperuser === true;
-  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId;
+  const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
   const [selectedAthlete, setSelectedAthlete] = useState(null);
   const [reportData, setReportData] = useState(null);
@@ -56,15 +57,8 @@ export default function Reports() {
       const currentUser = user ?? await getCurrentUser();
       if (!currentUser || !effectiveOrgId) return;
       const orgId = effectiveOrgId;
-      let effectiveTeamIds = currentUser.teamIds ?? [];
-      if (currentUser.isSuperuser && activeOrgId) {
-        const { data: orgTeams, error: teamsError } = await supabase
-          .from('teams')
-          .select('id')
-          .eq('org_id', orgId); // SUPERUSER: intentional cross-org query
-        if (teamsError) throw teamsError;
-        effectiveTeamIds = orgTeams?.map((team) => team.id) ?? [];
-      }
+      const { effectiveTeamIds, isSuperuser: isSuperuserScope } =
+        await resolveOrgTeamScope(supabase, currentUser, activeOrgId);
 
       let athleteQuery = supabase
         .from('athletes')
@@ -72,7 +66,7 @@ export default function Reports() {
         .eq('org_id', orgId)
         .eq('is_active', true)
         .order('full_name');
-      if (effectiveTeamIds.length) {
+      if (effectiveTeamIds.length && !isSuperuserScope) {
         const { data: memberRows, error: memberError } = await supabase
           .from('athlete_teams')
           .select('athlete_id')
@@ -91,12 +85,15 @@ export default function Reports() {
       if (err) throw err;
       setAthletes(data ?? []);
 
-      const { data: teamRows, error: teamErr } = await supabase
+      let teamRowsQuery = supabase
         .from('teams')
         .select('id, name, org_id, organisations(name)')
         .eq('org_id', orgId) // SUPERUSER: uses activeOrgId
-        .in('id', effectiveTeamIds)
         .order('name');
+      if (!isSuperuserScope && effectiveTeamIds.length) {
+        teamRowsQuery = teamRowsQuery.in('id', effectiveTeamIds);
+      }
+      const { data: teamRows, error: teamErr } = await teamRowsQuery;
       if (teamErr) throw teamErr;
       setTeams(teamRows ?? []);
       setTeamFilter('All');
@@ -135,25 +132,21 @@ export default function Reports() {
         setTeamReportTeams([]);
         return;
       }
-      let effectiveTeamIds = user.teamIds ?? [];
-      if (user.isSuperuser && activeOrgId) {
-        const { data: orgTeams, error: teamsError } = await supabase
-          .from('teams')
-          .select('id')
-          .eq('org_id', effectiveOrgId); // SUPERUSER: intentional cross-org query
-        if (teamsError) throw teamsError;
-        effectiveTeamIds = orgTeams?.map((team) => team.id) ?? [];
-      }
-      if (!effectiveTeamIds.length) {
+      const { effectiveTeamIds, isSuperuser: isSuperuserScope } =
+        await resolveOrgTeamScope(supabase, user, activeOrgId);
+      if (!isSuperuserScope && !effectiveTeamIds.length) {
         setTeamReportTeams([]);
         return;
       }
-      const { data, error: teamsError } = await supabase
+      let teamReportQuery = supabase
         .from('teams')
         .select('id, name, sport, org_id, organisations(name)')
         .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
-        .in('id', effectiveTeamIds)
         .order('name');
+      if (!isSuperuserScope && effectiveTeamIds.length) {
+        teamReportQuery = teamReportQuery.in('id', effectiveTeamIds);
+      }
+      const { data, error: teamsError } = await teamReportQuery;
       if (teamsError) throw teamsError;
       setTeamReportTeams(data ?? []);
       setSelectedTeamReportTeamId((current) => current || data?.[0]?.id || '');

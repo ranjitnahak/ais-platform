@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useUser } from '../context/UserContext';
+import { getEffectiveOrgId } from '../lib/orgScope';
 import StaffPageLayout from '../components/layout/StaffPageLayout';
 import PageTabBar from '../components/layout/PageTabBar';
 import RPEEntryForm from '../components/log/RPEEntryForm';
@@ -26,8 +27,7 @@ function AssessmentTab() {
 export default function Log() {
   const [activeTab, setActiveTab] = useState('rpe');
   const { user, activeOrgId } = useUser();
-  const isSuperuser = user?.isSuperuser === true;
-  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId;
+  const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
   return (
     <StaffPageLayout title="Log" subtitle="Record training and wellness data" showSearch={false}>

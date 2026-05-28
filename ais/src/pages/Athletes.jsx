@@ -2,6 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
+import {
+  getEffectiveOrgId,
+  resolveOrgTeamScope,
+  scopeTeamsForDisplay,
+  teamIdsForMembership,
+} from '../lib/orgScope';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 import { TopBarUserMenu } from '../components/layout/TopBar';
@@ -49,26 +55,11 @@ function formatTier(tier) {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-async function resolveOrgTeamScope(user, activeOrgId) {
-  const isSuperuser = user?.isSuperuser === true;
-  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId;
-  let effectiveTeamIds = user?.teamIds ?? [];
-  if (isSuperuser && activeOrgId) {
-    const { data: orgTeams, error } = await supabase
-      .from('teams')
-      .select('id')
-      .eq('org_id', effectiveOrgId); // SUPERUSER: intentional cross-org query
-    if (error) throw error;
-    effectiveTeamIds = orgTeams?.map((team) => team.id) ?? [];
-  }
-  return { effectiveOrgId, effectiveTeamIds };
-}
-
 export default function Athletes() {
   const navigate = useNavigate();
   const { user, activeOrgId, loading: userLoading } = useUser();
   const isSuperuser = user?.isSuperuser === true;
-  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId;
+  const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
   const [athletes, setAthletes]             = useState([]);
   const [classMap, setClassMap]             = useState({});
@@ -87,7 +78,7 @@ export default function Athletes() {
     if (userLoading || !effectiveOrgId || !user) return;
     setTeamFilter('All');
     void load();
-  }, [effectiveOrgId, userLoading, user?.id]);
+  }, [effectiveOrgId, userLoading, user?.id, activeOrgId]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -101,7 +92,9 @@ export default function Athletes() {
     setError(null);
     try {
       if (!user || !effectiveOrgId) throw new Error('No authenticated user found.');
-      const { effectiveOrgId: orgId, effectiveTeamIds } = await resolveOrgTeamScope(user, activeOrgId);
+      const { effectiveOrgId: orgId, effectiveTeamIds, isSuperuser: isSuperuserScope } =
+        await resolveOrgTeamScope(supabase, user, activeOrgId);
+
 
       // ── Athletes ──────────────────────────────────────────────────────────
       const { data: rows, error: athErr } = await supabase
@@ -125,11 +118,12 @@ export default function Athletes() {
       const atMap = {};      // athleteId → [teamId]
       const teamCounts = {}; // teamId → count
 
-      if (athleteIds.length && effectiveTeamIds.length) {
+      const membershipTeamIds = teamIdsForMembership(effectiveTeamIds, teamRows);
+      if (athleteIds.length && membershipTeamIds.length) {
         const { data: atRows } = await supabase
           .from('athlete_teams')
           .select('athlete_id, team_id')
-          .in('team_id', effectiveTeamIds)
+          .in('team_id', membershipTeamIds)
           .in('athlete_id', athleteIds);
 
         for (const r of atRows ?? []) {
@@ -140,7 +134,7 @@ export default function Athletes() {
       }
 
       setAthleteTeamsMap(atMap);
-      const scopedTeams = (teamRows ?? []).filter((team) => effectiveTeamIds.includes(team.id));
+      const scopedTeams = scopeTeamsForDisplay(teamRows, effectiveTeamIds, isSuperuserScope);
       setTeams(scopedTeams.map((t) => ({ ...t, count: teamCounts[t.id] ?? 0 })));
 
       // ── Latest session classification ─────────────────────────────────────

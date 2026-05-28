@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { canSync, getCurrentUser } from '../lib/auth'
 import { useUser } from '../context/UserContext'
+import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope'
 import { getStaffDomain, useStaffNotes } from '../hooks/useStaffNotes'
 import Sidebar from '../components/Sidebar'
 
@@ -26,7 +27,7 @@ export default function StaffNotes({ embedded = false }) {
   const [tab, setTab] = useState('team')
   const [loadError, setLoadError] = useState(null)
   const isSuperuser = user?.isSuperuser === true
-  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId
+  const effectiveOrgId = getEffectiveOrgId(user, activeOrgId)
   const canView = canSync(user, 'staff_notes', 'view')
   const canCreate = canSync(user, 'reports', 'create')
   const teamNotes = useStaffNotes({ teamId: selectedTeamId, activeOrgId: effectiveOrgId })
@@ -38,29 +39,23 @@ export default function StaffNotes({ embedded = false }) {
     if (!canView || !user) return
     async function loadTeams() {
       try {
-        const isSuperuser = user.isSuperuser === true
-        const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user.orgId
         if (!effectiveOrgId) return
-        let effectiveTeamIds = user.teamIds ?? []
-        if (isSuperuser && activeOrgId) {
-          const { data: orgTeams, error: teamsError } = await supabase
-            .from('teams')
-            .select('id')
-            .eq('org_id', effectiveOrgId) // SUPERUSER: intentional cross-org query
-          if (teamsError) throw teamsError
-          effectiveTeamIds = orgTeams?.map((team) => team.id) ?? []
-        }
-        if (!effectiveTeamIds.length) {
+        const { effectiveTeamIds, isSuperuser: isSuperuserScope } =
+          await resolveOrgTeamScope(supabase, user, activeOrgId)
+        if (!isSuperuserScope && !effectiveTeamIds.length) {
           setTeams([])
           setSelectedTeamId('')
           return
         }
-        const { data, error } = await supabase
+        let teamsQuery = supabase
           .from('teams')
           .select('id, name')
           .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
-          .in('id', effectiveTeamIds)
           .order('name', { ascending: true })
+        if (!isSuperuserScope && effectiveTeamIds.length) {
+          teamsQuery = teamsQuery.in('id', effectiveTeamIds)
+        }
+        const { data, error } = await teamsQuery
         if (error) throw error
         setTeams(data ?? [])
         setSelectedTeamId((current) => (

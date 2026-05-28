@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-// NOTE: RLS is disabled on all tables for development.
+// NOTE: RLS may be enabled in Supabase. Superuser cross-org reads require
+// ais/sql/superuser_cross_org_rls_v1.sql applied on the project.
 // To re-enable, run in Supabase SQL editor:
 //   ALTER TABLE athletes ENABLE ROW LEVEL SECURITY;
 //   ALTER TABLE assessment_sessions ENABLE ROW LEVEL SECURITY;

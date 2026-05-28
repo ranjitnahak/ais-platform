@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentUser, canSync } from '../lib/auth';
 import { useUser } from '../context/UserContext';
+import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope';
 import Sidebar from '../components/Sidebar';
 import { TopBarUserMenu } from '../components/layout/TopBar';
 import { MAIN_NAV_ITEMS } from '../nav/mainNavItems';
@@ -53,7 +54,7 @@ export default function Periodisation() {
   const [user, setUser] = useState(null);
   const authUser = user ?? contextUser;
   const isSuperuser = authUser?.isSuperuser === true;
-  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : authUser?.orgId;
+  const effectiveOrgId = getEffectiveOrgId(authUser, activeOrgId);
   const [effectiveTeamIds, setEffectiveTeamIds] = useState([]);
 
   const [teams, setTeams] = useState([]);
@@ -99,7 +100,11 @@ export default function Periodisation() {
     reorderPlanRowsWithGroups,
     updateDisplayLabelForGroup,
     updatePlanDates,
-  } = usePeriodisationPlan(selectedTeamId, { athleteId: athleteIdForPlan, enabled: planQueryEnabled });
+  } = usePeriodisationPlan(selectedTeamId, {
+    athleteId: athleteIdForPlan,
+    enabled: planQueryEnabled,
+    orgId: effectiveOrgId,
+  });
 
   useEffect(() => {
     const prev = planScopeRef.current;
@@ -125,24 +130,24 @@ export default function Periodisation() {
         return;
       }
       if (!cancelled) setUser(currentUser);
-      const isSuperuserLoad = currentUser.isSuperuser === true;
-      const orgId = (isSuperuserLoad && activeOrgId) ? activeOrgId : currentUser.orgId;
-      let teamIds = currentUser.teamIds ?? [];
-      if (isSuperuserLoad && activeOrgId) {
-        const { data: orgTeams, error: teamsError } = await supabase
-          .from('teams')
-          .select('id')
-          .eq('org_id', orgId); // SUPERUSER: intentional cross-org query
-        if (teamsError) throw teamsError;
-        teamIds = orgTeams?.map((team) => team.id) ?? [];
-      }
+      const { effectiveOrgId: orgId, effectiveTeamIds: teamIds } =
+        await resolveOrgTeamScope(supabase, currentUser, activeOrgId);
       if (!cancelled) setEffectiveTeamIds(teamIds);
-      const { data: teamList, error } = await supabase
+      let teamListQuery = supabase
         .from('teams')
         .select('id, name, logo_url, org_id, organisations(name)')
         .eq('org_id', orgId) // SUPERUSER: uses activeOrgId
-        .in('id', teamIds)
         .order('name');
+      if (!currentUser.isSuperuser && teamIds.length) {
+        teamListQuery = teamListQuery.in('id', teamIds);
+      } else if (!currentUser.isSuperuser) {
+        if (!cancelled) {
+          setTeams([]);
+          setSelectedTeamId(null);
+        }
+        return;
+      }
+      const { data: teamList, error } = await teamListQuery;
       if (cancelled) return;
       if (error) {
         console.error(error);
@@ -184,17 +189,21 @@ export default function Periodisation() {
       return;
     }
     (async () => {
-      const { data: links } = await supabase
+      const { data: links, error: linksError } = await supabase
         .from('athlete_teams')
         .select('athlete_id')
-        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
         .eq('team_id', selectedTeamId);
+      if (linksError) {
+        console.error('[Periodisation] athlete links fetch failed:', linksError);
+        setAthletes([]);
+        return;
+      }
       const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
       if (!ids.length) {
         setAthletes([]);
         return;
       }
-      const { data: ath } = await supabase
+      const { data: ath, error: athError } = await supabase
         .from('athletes')
         .select('id, first_name, last_name, full_name, photo_url, position')
         .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
