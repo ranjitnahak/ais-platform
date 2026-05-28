@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { getCurrentUser } from '../lib/auth'
 import { useUser } from '../context/UserContext'
 export function useRPELog() {
-  const { activeOrgId } = useUser()
+  const { user, activeOrgId } = useUser()
   // State
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -12,18 +12,34 @@ export function useRPELog() {
   const [submitted, setSubmitted] = useState(false)
 
   // Fetch today's sessions on mount
-  useEffect(() => { loadTodaySessions() }, [activeOrgId])
+  const isSuperuser = user?.isSuperuser === true
+  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId
+
+  useEffect(() => { loadTodaySessions() }, [effectiveOrgId, user?.id, activeOrgId])
 
   async function loadTodaySessions() {
     try {
-      const user = await getCurrentUser()
-      if (!user || !activeOrgId) return
+      const currentUser = user ?? await getCurrentUser()
+      if (!currentUser || !effectiveOrgId) return
+      let effectiveTeamIds = currentUser.teamIds ?? []
+      if (currentUser.isSuperuser && activeOrgId) {
+        const { data: orgTeams, error: teamsError } = await supabase
+          .from('teams')
+          .select('id')
+          .eq('org_id', effectiveOrgId) // SUPERUSER: intentional cross-org query
+        if (teamsError) throw teamsError
+        effectiveTeamIds = orgTeams?.map((team) => team.id) ?? []
+      }
+      if (!effectiveTeamIds.length) {
+        setSessions([])
+        return
+      }
       const today = new Date().toISOString().split('T')[0]
       const { data, error } = await supabase
         .from('sessions')
         .select('id, name, session_date, category, planned_rpe')
-        .eq('org_id', activeOrgId)
-        .in('team_id', user.teamIds)
+        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
+        .in('team_id', effectiveTeamIds)
         .eq('session_date', today)
         .order('session_date', { ascending: true })
       if (error) throw error
@@ -40,27 +56,36 @@ export function useRPELog() {
     try {
       setSubmitting(true)
       setError(null)
-      const user = await getCurrentUser()
-      if (!user || !activeOrgId) throw new Error('Not authenticated')
+      const currentUser = user ?? await getCurrentUser()
+      if (!currentUser || !effectiveOrgId) throw new Error('Not authenticated')
+      let effectiveTeamIds = currentUser.teamIds ?? []
+      if (currentUser.isSuperuser && activeOrgId) {
+        const { data: orgTeams, error: teamsError } = await supabase
+          .from('teams')
+          .select('id')
+          .eq('org_id', effectiveOrgId) // SUPERUSER: intentional cross-org query
+        if (teamsError) throw teamsError
+        effectiveTeamIds = orgTeams?.map((team) => team.id) ?? []
+      }
       
       // Get athlete ID linked to this user
       const { data: athlete, error: athleteError } = await supabase
         .from('athletes')
         .select('id')
-        .eq('org_id', activeOrgId)
-        .eq('email', user.email)  
+        .eq('org_id', effectiveOrgId)
+        .eq('email', currentUser.email)  
         .maybeSingle()
       
       // If no athlete found, use user.id as fallback
-      const athleteId = athlete?.id ?? user.id
+      const athleteId = athlete?.id ?? currentUser.id
       
       const { error: upsertError } = await supabase
         .from('session_athlete_logs')
         .upsert({
           session_id: sessionId,
           athlete_id: athleteId,
-          org_id: activeOrgId,
-          team_id: user.teamIds[0] ?? null,
+          org_id: effectiveOrgId,
+          team_id: effectiveTeamIds[0] ?? null,
           actual_rpe: actualRpe,
           actual_duration_min: actualDurationMin,
           notes: notes ?? null,

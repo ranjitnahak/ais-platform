@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useUser } from '../context/UserContext';
 import StaffPageLayout from '../components/layout/StaffPageLayout';
 import PageTabBar from '../components/layout/PageTabBar';
 import RPEEntryForm from '../components/log/RPEEntryForm';
@@ -24,14 +25,17 @@ function AssessmentTab() {
 
 export default function Log() {
   const [activeTab, setActiveTab] = useState('rpe');
+  const { user, activeOrgId } = useUser();
+  const isSuperuser = user?.isSuperuser === true;
+  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId;
 
   return (
     <StaffPageLayout title="Log" subtitle="Record training and wellness data" showSearch={false}>
       <PageTabBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
-      {activeTab === 'rpe' && <RPEEntryForm />}
-      {activeTab === 'wellness' && <WellnessEntryForm />}
+      {activeTab === 'rpe' && <RPEEntryForm key={effectiveOrgId ?? 'rpe'} />}
+      {activeTab === 'wellness' && <WellnessEntryForm key={effectiveOrgId ?? 'wellness'} />}
       {activeTab === 'assessment' && <AssessmentTab />}
-      {activeTab === 'staff-notes' && <StaffNotes embedded />}
+      {activeTab === 'staff-notes' && <StaffNotes embedded key={effectiveOrgId ?? 'staff-notes'} />}
     </StaffPageLayout>
   );
 }

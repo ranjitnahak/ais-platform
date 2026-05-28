@@ -25,55 +25,75 @@ export default function StaffNotes({ embedded = false }) {
   const [selectedAthleteId, setSelectedAthleteId] = useState('')
   const [tab, setTab] = useState('team')
   const [loadError, setLoadError] = useState(null)
+  const isSuperuser = user?.isSuperuser === true
+  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId
   const canView = canSync(user, 'staff_notes', 'view')
   const canCreate = canSync(user, 'reports', 'create')
-  const teamNotes = useStaffNotes({ teamId: selectedTeamId, activeOrgId })
-  const athleteNotes = useStaffNotes({ teamId: selectedTeamId, athleteId: selectedAthleteId, activeOrgId })
+  const teamNotes = useStaffNotes({ teamId: selectedTeamId, activeOrgId: effectiveOrgId })
+  const athleteNotes = useStaffNotes({ teamId: selectedTeamId, athleteId: selectedAthleteId, activeOrgId: effectiveOrgId })
   const userDomain = user ? getStaffDomain(user.role) : null
   const selectedAthlete = athletes.find((athlete) => athlete.id === selectedAthleteId)
 
   useEffect(() => {
-    if (!canView) return
+    if (!canView || !user) return
     async function loadTeams() {
       try {
-        const currentUser = await getCurrentUser()
-        if (!currentUser?.teamIds?.length) return
+        const isSuperuser = user.isSuperuser === true
+        const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user.orgId
+        if (!effectiveOrgId) return
+        let effectiveTeamIds = user.teamIds ?? []
+        if (isSuperuser && activeOrgId) {
+          const { data: orgTeams, error: teamsError } = await supabase
+            .from('teams')
+            .select('id')
+            .eq('org_id', effectiveOrgId) // SUPERUSER: intentional cross-org query
+          if (teamsError) throw teamsError
+          effectiveTeamIds = orgTeams?.map((team) => team.id) ?? []
+        }
+        if (!effectiveTeamIds.length) {
+          setTeams([])
+          setSelectedTeamId('')
+          return
+        }
         const { data, error } = await supabase
           .from('teams')
           .select('id, name')
-          .eq('org_id', activeOrgId ?? currentUser.orgId)
-          .in('id', currentUser.teamIds)
+          .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
+          .in('id', effectiveTeamIds)
           .order('name', { ascending: true })
         if (error) throw error
         setTeams(data ?? [])
-        if (!selectedTeamId && data?.[0]?.id) setSelectedTeamId(data[0].id)
+        setSelectedTeamId((current) => (
+          current && data?.some((team) => team.id === current) ? current : data?.[0]?.id ?? ''
+        ))
       } catch (err) {
         console.error('[StaffNotes] loadTeams failed:', err)
         setLoadError(err.message)
       }
     }
     loadTeams()
-  }, [canView, selectedTeamId])
+  }, [canView, user?.id, activeOrgId])
 
   useEffect(() => {
     if (!canView || !selectedTeamId) return
     async function loadAthletes() {
       try {
         setLoadError(null)
-        const currentUser = await getCurrentUser()
-        if (!currentUser) return
+        if (!user || !selectedTeamId) return
+        const isSuperuser = user.isSuperuser === true
+        const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user.orgId
         const { data: athleteRows, error: athleteError } = await supabase
           .from('athletes')
           .select('id, full_name, photo_url, athlete_teams!inner(team_id)')
-          .eq('org_id', activeOrgId ?? currentUser.orgId)
+          .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
           .eq('athlete_teams.team_id', selectedTeamId)
           .order('full_name', { ascending: true })
         if (athleteError) throw athleteError
-        const domain = getStaffDomain(currentUser.role)
+        const domain = getStaffDomain(user.role)
         let countQuery = supabase
           .from('athlete_staff_notes')
           .select('athlete_id')
-          .eq('org_id', activeOrgId ?? currentUser.orgId)
+          .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
           .eq('team_id', selectedTeamId)
           .eq('note_level', 'athlete')
         if (domain) countQuery = countQuery.eq('domain', domain)
@@ -88,7 +108,7 @@ export default function StaffNotes({ embedded = false }) {
       }
     }
     loadAthletes()
-  }, [canView, selectedTeamId, selectedAthleteId])
+  }, [canView, selectedTeamId, selectedAthleteId, user?.id, activeOrgId])
 
   const visible = useMemo(() => STAFF_ROLES.includes(user?.role), [user?.role])
   const accessDenied = <p className="rounded-2xl bg-[var(--color-surface-container)] p-6 font-bold">Access Denied</p>;

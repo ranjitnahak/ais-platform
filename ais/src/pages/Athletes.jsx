@@ -49,10 +49,26 @@ function formatTier(tier) {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
+async function resolveOrgTeamScope(user, activeOrgId) {
+  const isSuperuser = user?.isSuperuser === true;
+  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId;
+  let effectiveTeamIds = user?.teamIds ?? [];
+  if (isSuperuser && activeOrgId) {
+    const { data: orgTeams, error } = await supabase
+      .from('teams')
+      .select('id')
+      .eq('org_id', effectiveOrgId); // SUPERUSER: intentional cross-org query
+    if (error) throw error;
+    effectiveTeamIds = orgTeams?.map((team) => team.id) ?? [];
+  }
+  return { effectiveOrgId, effectiveTeamIds };
+}
+
 export default function Athletes() {
   const navigate = useNavigate();
   const { user, activeOrgId, loading: userLoading } = useUser();
-  const effectiveOrgId = activeOrgId ?? user?.orgId;
+  const isSuperuser = user?.isSuperuser === true;
+  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId;
 
   const [athletes, setAthletes]             = useState([]);
   const [classMap, setClassMap]             = useState({});
@@ -68,9 +84,10 @@ export default function Athletes() {
   const [confirmDialog, setConfirmDialog]   = useState(null);
 
   useEffect(() => {
-    if (userLoading || !effectiveOrgId) return;
+    if (userLoading || !effectiveOrgId || !user) return;
+    setTeamFilter('All');
     void load();
-  }, [effectiveOrgId, userLoading]);
+  }, [effectiveOrgId, userLoading, user?.id]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -83,8 +100,8 @@ export default function Athletes() {
     setLoading(true);
     setError(null);
     try {
-      if (!effectiveOrgId) throw new Error('No authenticated user found.');
-      const orgId = effectiveOrgId; // SUPERUSER: uses activeOrgId
+      if (!user || !effectiveOrgId) throw new Error('No authenticated user found.');
+      const { effectiveOrgId: orgId, effectiveTeamIds } = await resolveOrgTeamScope(user, activeOrgId);
 
       // ── Athletes ──────────────────────────────────────────────────────────
       const { data: rows, error: athErr } = await supabase
@@ -108,12 +125,11 @@ export default function Athletes() {
       const atMap = {};      // athleteId → [teamId]
       const teamCounts = {}; // teamId → count
 
-      if (athleteIds.length && teamRows?.length) {
-        const teamIds = teamRows.map((t) => t.id);
+      if (athleteIds.length && effectiveTeamIds.length) {
         const { data: atRows } = await supabase
           .from('athlete_teams')
           .select('athlete_id, team_id')
-          .in('team_id', teamIds)
+          .in('team_id', effectiveTeamIds)
           .in('athlete_id', athleteIds);
 
         for (const r of atRows ?? []) {
@@ -124,7 +140,8 @@ export default function Athletes() {
       }
 
       setAthleteTeamsMap(atMap);
-      setTeams((teamRows ?? []).map((t) => ({ ...t, count: teamCounts[t.id] ?? 0 })));
+      const scopedTeams = (teamRows ?? []).filter((team) => effectiveTeamIds.includes(team.id));
+      setTeams(scopedTeams.map((t) => ({ ...t, count: teamCounts[t.id] ?? 0 })));
 
       // ── Latest session classification ─────────────────────────────────────
       const { data: sessions } = await supabase

@@ -3,7 +3,9 @@ import { supabase } from '../lib/supabase'
 import { getCurrentUser } from '../lib/auth'
 import { useUser } from '../context/UserContext'
 export function useWellness() {
-  const { activeOrgId } = useUser()
+  const { user, activeOrgId } = useUser()
+  const isSuperuser = user?.isSuperuser === true
+  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId
   const [formItems, setFormItems] = useState([])
   const [todayLog, setTodayLog] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -11,32 +13,32 @@ export function useWellness() {
   const [error, setError] = useState(null)
   const [submitted, setSubmitted] = useState(false)
 
-  useEffect(() => { loadWellnessData() }, [activeOrgId])
+  useEffect(() => { loadWellnessData() }, [effectiveOrgId, user?.id, activeOrgId])
 
   async function loadWellnessData() {
     try {
-      const user = await getCurrentUser()
-      if (!user || !activeOrgId) return
+      const currentUser = user ?? await getCurrentUser()
+      if (!currentUser || !effectiveOrgId) return
       const today = new Date().toISOString().split('T')[0]
 
       // Fetch form definition for this org
       const { data: items, error: itemsError } = await supabase
         .from('wellness_form_items')
         .select('id, key, label, label_translations, input_type, scale_min, scale_max, scale_min_label, scale_max_label, options, direction, sort_order, is_required')
-        .eq('org_id', activeOrgId)
+        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
       if (itemsError) throw itemsError
 
       // Check if already submitted today
       // Get athlete linked to this user
-      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', activeOrgId).eq('email', user.email).maybeSingle()
-      const athleteId = athlete?.id ?? user.id
+      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', effectiveOrgId).eq('email', currentUser.email).maybeSingle()
+      const athleteId = athlete?.id ?? currentUser.id
 
       const { data: existing } = await supabase
         .from('wellness_logs')
         .select('id, responses, composite_score, logged_at')
-        .eq('org_id', activeOrgId).eq('athlete_id', athleteId).eq('log_date', today).maybeSingle()
+        .eq('org_id', effectiveOrgId).eq('athlete_id', athleteId).eq('log_date', today).maybeSingle()
 
       setFormItems(items ?? [])
       setTodayLog(existing ?? null)
@@ -53,12 +55,21 @@ export function useWellness() {
     try {
       setSubmitting(true)
       setError(null)
-      const user = await getCurrentUser()
-      if (!user || !activeOrgId) throw new Error('Not authenticated')
+      const currentUser = user ?? await getCurrentUser()
+      if (!currentUser || !effectiveOrgId) throw new Error('Not authenticated')
+      let effectiveTeamIds = currentUser.teamIds ?? []
+      if (currentUser.isSuperuser && activeOrgId) {
+        const { data: orgTeams, error: teamsError } = await supabase
+          .from('teams')
+          .select('id')
+          .eq('org_id', effectiveOrgId) // SUPERUSER: intentional cross-org query
+        if (teamsError) throw teamsError
+        effectiveTeamIds = orgTeams?.map((team) => team.id) ?? []
+      }
       const today = new Date().toISOString().split('T')[0]
 
-      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', activeOrgId).eq('email', user.email).maybeSingle()
-      const athleteId = athlete?.id ?? user.id
+      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', effectiveOrgId).eq('email', currentUser.email).maybeSingle()
+      const athleteId = athlete?.id ?? currentUser.id
 
       // Compute composite score
       // Average of numeric slider responses (exclude radio/body_map)
@@ -77,7 +88,7 @@ export function useWellness() {
       const { error: upsertError } = await supabase
         .from('wellness_logs')
         .upsert({
-          athlete_id: athleteId, org_id: activeOrgId, team_id: user.teamIds[0] ?? null,
+          athlete_id: athleteId, org_id: effectiveOrgId, team_id: effectiveTeamIds[0] ?? null,
           log_date: today, responses,
           composite_score: compositeScore ? Math.round(compositeScore * 100) / 100 : null,
         }, { onConflict: 'athlete_id,log_date' })

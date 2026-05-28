@@ -32,7 +32,9 @@ export default function Reports() {
   const [selectedTeamReportTeamId, setSelectedTeamReportTeamId] = useState('');
 
   const navigate = useNavigate();
-  const { user, activeOrgId } = useUser();
+  const { user, activeOrgId, loading: userLoading } = useUser();
+  const isSuperuser = user?.isSuperuser === true;
+  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId;
 
   const [selectedAthlete, setSelectedAthlete] = useState(null);
   const [reportData, setReportData] = useState(null);
@@ -40,40 +42,66 @@ export default function Reports() {
   const [reportError, setReportError] = useState(null);
 
   useEffect(() => {
-    loadAthletes();
-  }, [activeOrgId]);
+    if (userLoading || !user || !effectiveOrgId) return;
+    void loadAthletes();
+  }, [effectiveOrgId, userLoading, user?.id]);
 
   useEffect(() => {
-    if (activeTab === 'team' && user) loadTeamReportTeams();
-  }, [activeTab, user]);
+    if (activeTab === 'team' && user && effectiveOrgId) void loadTeamReportTeams();
+  }, [activeTab, user?.id, effectiveOrgId]);
 
   async function loadAthletes() {
     setLoading(true);
     try {
-      const currentUser = await getCurrentUser();
-      const orgId = activeOrgId ?? currentUser?.orgId;
-      if (!currentUser || !orgId) return;
-      const { data, error: err } = await supabase
+      const currentUser = user ?? await getCurrentUser();
+      if (!currentUser || !effectiveOrgId) return;
+      const orgId = effectiveOrgId;
+      let effectiveTeamIds = currentUser.teamIds ?? [];
+      if (currentUser.isSuperuser && activeOrgId) {
+        const { data: orgTeams, error: teamsError } = await supabase
+          .from('teams')
+          .select('id')
+          .eq('org_id', orgId); // SUPERUSER: intentional cross-org query
+        if (teamsError) throw teamsError;
+        effectiveTeamIds = orgTeams?.map((team) => team.id) ?? [];
+      }
+
+      let athleteQuery = supabase
         .from('athletes')
         .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, email, is_active, org_id, organisations(name, sport, logo_url, secondary_logo_url, report_signatory_name, report_signatory_title)')
         .eq('org_id', orgId)
         .eq('is_active', true)
         .order('full_name');
+      if (effectiveTeamIds.length) {
+        const { data: memberRows, error: memberError } = await supabase
+          .from('athlete_teams')
+          .select('athlete_id')
+          .in('team_id', effectiveTeamIds);
+        if (memberError) throw memberError;
+        const athleteIds = [...new Set((memberRows ?? []).map((row) => row.athlete_id))];
+        if (!athleteIds.length) {
+          setAthletes([]);
+          setTeams([]);
+          setAthleteTeamsMap({});
+          return;
+        }
+        athleteQuery = athleteQuery.in('id', athleteIds);
+      }
+      const { data, error: err } = await athleteQuery;
       if (err) throw err;
       setAthletes(data ?? []);
 
-      // Fetch teams for this org
-      const teamQuery = supabase
+      const { data: teamRows, error: teamErr } = await supabase
         .from('teams')
         .select('id, name, org_id, organisations(name)')
+        .eq('org_id', orgId) // SUPERUSER: uses activeOrgId
+        .in('id', effectiveTeamIds)
         .order('name');
-      const { data: teamRows, error: teamErr } = currentUser.isSuperuser
-        ? await teamQuery // SUPERUSER: intentional cross-org query
-        : await teamQuery.eq('org_id', orgId);
       if (teamErr) throw teamErr;
       setTeams(teamRows ?? []);
+      setTeamFilter('All');
 
-      const teamIds = (teamRows ?? []).map((team) => team.id);
+      const teamIds = effectiveTeamIds;
       if (!teamIds.length) {
         setAthleteTeamsMap({});
         return;
@@ -103,17 +131,29 @@ export default function Reports() {
     try {
       setTeamReportLoading(true);
       setTeamReportError(null);
-      if (!user?.teamIds?.length && !user?.isSuperuser) {
+      if (!user || !effectiveOrgId) {
         setTeamReportTeams([]);
         return;
       }
-      const baseQuery = supabase
+      let effectiveTeamIds = user.teamIds ?? [];
+      if (user.isSuperuser && activeOrgId) {
+        const { data: orgTeams, error: teamsError } = await supabase
+          .from('teams')
+          .select('id')
+          .eq('org_id', effectiveOrgId); // SUPERUSER: intentional cross-org query
+        if (teamsError) throw teamsError;
+        effectiveTeamIds = orgTeams?.map((team) => team.id) ?? [];
+      }
+      if (!effectiveTeamIds.length) {
+        setTeamReportTeams([]);
+        return;
+      }
+      const { data, error: teamsError } = await supabase
         .from('teams')
         .select('id, name, sport, org_id, organisations(name)')
+        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
+        .in('id', effectiveTeamIds)
         .order('name');
-      const { data, error: teamsError } = user?.isSuperuser
-        ? await baseQuery // SUPERUSER: intentional cross-org query
-        : await baseQuery.eq('org_id', activeOrgId ?? user.orgId).in('id', user.teamIds);
       if (teamsError) throw teamsError;
       setTeamReportTeams(data ?? []);
       setSelectedTeamReportTeamId((current) => current || data?.[0]?.id || '');
@@ -132,8 +172,8 @@ export default function Reports() {
     setReportData(null);
 
     try {
-      const currentUser = await getCurrentUser();
-      const orgId = activeOrgId ?? currentUser?.orgId;
+      const currentUser = user ?? await getCurrentUser();
+      const orgId = effectiveOrgId ?? currentUser?.orgId;
       if (!currentUser || !orgId) throw new Error('Not authenticated');
       // Find sessions containing this athlete's results
       const { data: sessionLinks, error: slErr } = await supabase

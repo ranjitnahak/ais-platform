@@ -51,7 +51,10 @@ export default function Periodisation() {
   const navigate = useNavigate();
   const { activeOrgId, user: contextUser } = useUser();
   const [user, setUser] = useState(null);
-  const effectiveOrgId = activeOrgId ?? user?.orgId ?? contextUser?.orgId;
+  const authUser = user ?? contextUser;
+  const isSuperuser = authUser?.isSuperuser === true;
+  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : authUser?.orgId;
+  const [effectiveTeamIds, setEffectiveTeamIds] = useState([]);
 
   const [teams, setTeams] = useState([]);
   const [selectedTeamId, setSelectedTeamId] = useState(null);
@@ -122,10 +125,23 @@ export default function Periodisation() {
         return;
       }
       if (!cancelled) setUser(currentUser);
+      const isSuperuserLoad = currentUser.isSuperuser === true;
+      const orgId = (isSuperuserLoad && activeOrgId) ? activeOrgId : currentUser.orgId;
+      let teamIds = currentUser.teamIds ?? [];
+      if (isSuperuserLoad && activeOrgId) {
+        const { data: orgTeams, error: teamsError } = await supabase
+          .from('teams')
+          .select('id')
+          .eq('org_id', orgId); // SUPERUSER: intentional cross-org query
+        if (teamsError) throw teamsError;
+        teamIds = orgTeams?.map((team) => team.id) ?? [];
+      }
+      if (!cancelled) setEffectiveTeamIds(teamIds);
       const { data: teamList, error } = await supabase
         .from('teams')
         .select('id, name, logo_url, org_id, organisations(name)')
-        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
+        .eq('org_id', orgId) // SUPERUSER: uses activeOrgId
+        .in('id', teamIds)
         .order('name');
       if (cancelled) return;
       if (error) {
@@ -148,7 +164,7 @@ export default function Periodisation() {
     return () => {
       cancelled = true;
     };
-  }, [effectiveOrgId]);
+  }, [effectiveOrgId, activeOrgId]);
 
   useEffect(() => {
     if (!effectiveOrgId) return;
@@ -236,7 +252,7 @@ export default function Periodisation() {
   }, [plan, viewMode, selectedAthleteId, ghostPlan]);
 
   const canEdit = plan
-    ? canSync(user, 'periodisation', 'edit') && user?.teamIds?.includes(plan.team_id)
+    ? canSync(user, 'periodisation', 'edit') && (user?.isSuperuser || effectiveTeamIds.includes(plan.team_id))
     : canSync(user, 'periodisation', 'edit');
 
   async function handleCreatePlan(e) {
