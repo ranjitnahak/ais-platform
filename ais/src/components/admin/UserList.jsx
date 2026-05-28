@@ -6,10 +6,10 @@ import AddUserModal from './AddUserModal';
 import DeleteUserModal from './DeleteUserModal';
 import AdminUserRowMenu from './AdminUserRowMenu';
 import { setUserActive } from '../../lib/adminUserActions';
-
 export default function UserList({ user }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -17,13 +17,26 @@ export default function UserList({ user }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-
+  const [orgFilter, setOrgFilter] = useState('all');
+  const [teamFilter, setTeamFilter] = useState('all');
   async function loadUsers() {
-    if (!user?.orgId) return;
+    if (!user?.orgId && !user?.isSuperuser) return;
     setLoading(true);
     setError(null);
     try {
       const orgId = user.orgId;
+      const scopedOrgId = user.isSuperuser
+        ? (orgFilter === 'all' ? null : orgFilter)
+        : orgId;
+      const teamQuery = supabase
+        .from('teams')
+        .select('id, name, org_id, organisations(name)')
+        .order('name');
+      const teamRes = await (scopedOrgId ? teamQuery.eq('org_id', scopedOrgId) : teamQuery); // SUPERUSER: intentional cross-org query
+      if (teamRes.error) throw teamRes.error;
+      const teamRows = teamRes.data ?? [];
+      const teamIds = teamRows.map((t) => t.id);
+      setTeams(teamRows);
       const staffQuery = supabase
           .from('users')
           .select('id, full_name, email, role, is_active, last_login_at, deactivated_at, athlete_id, org_id, organisations(name)')
@@ -40,15 +53,33 @@ export default function UserList({ user }) {
           .is('auth_id', null)
           .eq('is_active', true)
           .order('first_name');
-      const [staffRes, athleteAuthRes, athletePendingRes] = await Promise.all([
-        user.isSuperuser ? staffQuery : staffQuery.eq('org_id', orgId), // SUPERUSER: intentional cross-org query
-        user.isSuperuser ? athleteAuthQuery : athleteAuthQuery.eq('org_id', orgId), // SUPERUSER: intentional cross-org query
-        user.isSuperuser ? pendingQuery : pendingQuery.eq('org_id', orgId), // SUPERUSER: intentional cross-org query
+      const userRolesQuery = supabase.from('user_roles').select('user_id, group_id, org_id');
+      const athleteTeamsQuery = supabase.from('athlete_teams').select('athlete_id, team_id');
+      const [staffRes, athleteAuthRes, athletePendingRes, userRolesRes, athleteTeamsRes] = await Promise.all([
+        scopedOrgId ? staffQuery.eq('org_id', scopedOrgId) : staffQuery, // SUPERUSER: intentional cross-org query
+        scopedOrgId ? athleteAuthQuery.eq('org_id', scopedOrgId) : athleteAuthQuery, // SUPERUSER: intentional cross-org query
+        scopedOrgId ? pendingQuery.eq('org_id', scopedOrgId) : pendingQuery, // SUPERUSER: intentional cross-org query
+        scopedOrgId ? userRolesQuery.eq('org_id', scopedOrgId) : userRolesQuery, // SUPERUSER: intentional cross-org query
+        teamIds.length ? athleteTeamsQuery.in('team_id', teamIds) : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (staffRes.error) throw staffRes.error;
       if (athleteAuthRes.error) throw athleteAuthRes.error;
       if (athletePendingRes.error) throw athletePendingRes.error;
+      if (userRolesRes.error) throw userRolesRes.error;
+      if (athleteTeamsRes.error) throw athleteTeamsRes.error;
+
+      const athleteTeamMap = {};
+      for (const row of athleteTeamsRes.data ?? []) {
+        if (!athleteTeamMap[row.athlete_id]) athleteTeamMap[row.athlete_id] = [];
+        athleteTeamMap[row.athlete_id].push(row.team_id);
+      }
+      const staffTeamMap = {};
+      for (const row of userRolesRes.data ?? []) {
+        if (!row.group_id || !teamIds.includes(row.group_id)) continue;
+        if (!staffTeamMap[row.user_id]) staffTeamMap[row.user_id] = [];
+        staffTeamMap[row.user_id].push(row.group_id);
+      }
 
       const staffItems = (staffRes.data ?? []).map((row) => ({
         key: `staff:${row.id}`,
@@ -64,6 +95,7 @@ export default function UserList({ user }) {
         status: row.is_active ? 'ACTIVE' : 'INACTIVE',
         lastActiveAt: row.last_login_at,
         isActive: row.is_active,
+        teamIds: staffTeamMap[row.id] ?? [],
       }));
 
       const athleteAuthItems = (athleteAuthRes.data ?? []).map((row) => {
@@ -82,6 +114,7 @@ export default function UserList({ user }) {
           status: row.is_active ? 'ACTIVE' : 'INACTIVE',
           lastActiveAt: row.last_login_at,
           isActive: row.is_active,
+          teamIds: athleteTeamMap[row.athlete_id ?? joinedAthlete?.id] ?? [],
         };
       });
 
@@ -99,6 +132,7 @@ export default function UserList({ user }) {
         status: 'INVITE_PENDING',
         lastActiveAt: null,
         isActive: row.is_active,
+        teamIds: athleteTeamMap[row.id] ?? [],
       }));
 
       const combined = [...staffItems, ...athleteAuthItems, ...pendingItems].sort((a, b) =>
@@ -112,19 +146,21 @@ export default function UserList({ user }) {
       setLoading(false);
     }
   }
-
   useEffect(() => {
     void loadUsers();
-  }, [user?.orgId]);
-
+  }, [user?.orgId, user?.isSuperuser, orgFilter]);
+  useEffect(() => {
+    setTeamFilter('all');
+  }, [orgFilter]);
   const rows = useMemo(
-    () => filterUserListRows(items, { searchQuery, typeFilter, statusFilter }),
-    [items, searchQuery, typeFilter, statusFilter],
+    () => filterUserListRows(items, { searchQuery, typeFilter, statusFilter })
+      .filter((row) => (user.isSuperuser && orgFilter !== 'all' ? row.orgId === orgFilter : true))
+      .filter((row) => (teamFilter !== 'all' ? row.teamIds?.includes(teamFilter) : true)),
+    [items, searchQuery, typeFilter, statusFilter, user?.isSuperuser, orgFilter, teamFilter],
   );
 
   const selectClassName =
     'min-h-11 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 text-sm font-bold text-[var(--color-on-surface)] outline-none focus:border-[var(--color-primary-container)]';
-
   async function handleDeactivate(item) {
     try {
       if (!item.userId) return;
@@ -144,7 +180,6 @@ export default function UserList({ user }) {
       console.error('[UserList] reactivate', err);
     }
   }
-
   async function sendAthleteInvite(item) {
     try {
       if (!item.athleteId) throw new Error('No athlete id found.');
@@ -166,7 +201,6 @@ export default function UserList({ user }) {
       setError(err.message || 'Could not send invite.');
     }
   }
-
   async function deleteAthleteProfile(item) {
     try {
       if (!item.athleteId) return;
@@ -235,6 +269,16 @@ export default function UserList({ user }) {
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
                 <option value="INVITE_PENDING">Invite Pending</option>
+              </select>
+              {user.isSuperuser && (
+                <select value={orgFilter} onChange={(event) => setOrgFilter(event.target.value)} className={`${selectClassName} md:min-w-[180px]`} aria-label="Filter by organisation">
+                  <option value="all">All orgs</option>
+                  {(user.allOrgs ?? []).map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
+                </select>
+              )}
+              <select value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className={`${selectClassName} md:min-w-[180px]`} aria-label="Filter by team">
+                <option value="all">All teams</option>
+                {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
               </select>
             </div>
             <p className="text-sm text-[var(--color-on-surface-variant)]">
