@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentUser, canSync } from '../lib/auth';
+import { useUser } from '../context/UserContext';
 import Sidebar from '../components/Sidebar';
 import { TopBarUserMenu } from '../components/layout/TopBar';
 import { MAIN_NAV_ITEMS } from '../nav/mainNavItems';
@@ -48,7 +49,9 @@ const DEFAULT_TEMPLATE_ROWS = [
 
 export default function Periodisation() {
   const navigate = useNavigate();
+  const { activeOrgId, user: contextUser } = useUser();
   const [user, setUser] = useState(null);
+  const effectiveOrgId = activeOrgId ?? user?.orgId ?? contextUser?.orgId;
 
   const [teams, setTeams] = useState([]);
   const [selectedTeamId, setSelectedTeamId] = useState(null);
@@ -110,25 +113,20 @@ export default function Periodisation() {
   }, [selectedAthleteId, viewMode, planQueryEnabled, fetchPlan]);
 
   useEffect(() => {
+    if (!effectiveOrgId) return;
     let cancelled = false;
     (async () => {
-      const user = await getCurrentUser();
-      if (!user) {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) {
         if (!cancelled) setTeams([]);
         return;
       }
-      if (!user.orgId) {
-        if (!cancelled) setTeams([]);
-        return;
-      }
-      if (!cancelled) setUser(user);
-      const teamQuery = supabase
+      if (!cancelled) setUser(currentUser);
+      const { data: teamList, error } = await supabase
         .from('teams')
         .select('id, name, logo_url, org_id, organisations(name)')
+        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
         .order('name');
-      const { data: teamList, error } = user.isSuperuser
-        ? await teamQuery // SUPERUSER: intentional cross-org query
-        : await teamQuery.eq('org_id', user.orgId);
       if (cancelled) return;
       if (error) {
         console.error(error);
@@ -142,27 +140,30 @@ export default function Periodisation() {
           current && list.some((t) => t.id === current) ? current : list[0].id
         );
         setSelectedAthleteId(null);
+      } else {
+        setSelectedTeamId(null);
+        setSelectedAthleteId(null);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [effectiveOrgId]);
 
   useEffect(() => {
-    if (!user?.orgId) return;
+    if (!effectiveOrgId) return;
     (async () => {
       const { data } = await supabase
         .from('plan_templates')
         .select('id, name, rows_config')
-        .eq('org_id', user.orgId)
+        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
         .order('name');
       setTemplates(data ?? []);
     })();
-  }, [user?.orgId]);
+  }, [effectiveOrgId]);
 
   useEffect(() => {
-    if (viewMode !== 'individual' || !selectedTeamId || !user?.orgId) {
+    if (viewMode !== 'individual' || !selectedTeamId || !effectiveOrgId) {
       setAthletes([]);
       return;
     }
@@ -170,7 +171,7 @@ export default function Periodisation() {
       const { data: links } = await supabase
         .from('athlete_teams')
         .select('athlete_id')
-        .eq('org_id', user.orgId)
+        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
         .eq('team_id', selectedTeamId);
       const ids = [...new Set((links ?? []).map((l) => l.athlete_id))];
       if (!ids.length) {
@@ -180,12 +181,12 @@ export default function Periodisation() {
       const { data: ath } = await supabase
         .from('athletes')
         .select('id, first_name, last_name, full_name, photo_url, position')
-        .eq('org_id', user.orgId)
+        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
         .in('id', ids)
         .order('full_name');
       setAthletes(ath ?? []);
     })();
-  }, [viewMode, selectedTeamId, user?.orgId]);
+  }, [viewMode, selectedTeamId, effectiveOrgId]);
 
   const selectedTeam = useMemo(() => teams.find((t) => t.id === selectedTeamId), [teams, selectedTeamId]);
 
@@ -195,11 +196,9 @@ export default function Periodisation() {
   );
 
   const handleReplaceWithTeamPlan = useCallback(async () => {
-    const user = await getCurrentUser();
-    if (!user) return;
-    if (!user.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
+    if (!effectiveOrgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
     await replaceAthleteWithTeamPlan(supabase, {
-      orgId: user.orgId,
+      orgId: effectiveOrgId, // SUPERUSER: uses activeOrgId
       teamId: selectedTeamId,
       athleteId: selectedAthleteId,
       teamPlan: ghostPlan,
@@ -208,14 +207,12 @@ export default function Periodisation() {
       athletePlan: plan,
     });
     await fetchPlan();
-  }, [selectedTeamId, selectedAthleteId, ghostPlan, ghostRows, ghostCells, plan, fetchPlan]);
+  }, [effectiveOrgId, selectedTeamId, selectedAthleteId, ghostPlan, ghostRows, ghostCells, plan, fetchPlan]);
 
   const handleUpdateFromTeamPlan = useCallback(async () => {
-    const user = await getCurrentUser();
-    if (!user) return;
-    if (!user.orgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
+    if (!effectiveOrgId || !selectedTeamId || !selectedAthleteId || !ghostPlan?.id) return;
     await updateAthleteFromTeamPlan(supabase, {
-      orgId: user.orgId,
+      orgId: effectiveOrgId, // SUPERUSER: uses activeOrgId
       teamId: selectedTeamId,
       athleteId: selectedAthleteId,
       teamPlan: ghostPlan,
@@ -224,7 +221,7 @@ export default function Periodisation() {
       athletePlan: plan,
     });
     await fetchPlan();
-  }, [selectedTeamId, selectedAthleteId, ghostPlan, ghostRows, ghostCells, plan, fetchPlan]);
+  }, [effectiveOrgId, selectedTeamId, selectedAthleteId, ghostPlan, ghostRows, ghostCells, plan, fetchPlan]);
 
   const effectivePlan = useMemo(() => {
     if (plan) return plan;
@@ -245,7 +242,7 @@ export default function Periodisation() {
   async function handleCreatePlan(e) {
     e.preventDefault();
     setCreateError(null);
-    if (!user?.orgId) {
+    if (!effectiveOrgId) {
       setCreateError('No authenticated user found.');
       return;
     }
@@ -258,7 +255,7 @@ export default function Periodisation() {
       const { data: planRow, error: pErr } = await supabase
         .from('periodisation_plans')
         .insert({
-          org_id: user.orgId,
+          org_id: effectiveOrgId, // SUPERUSER: uses activeOrgId
           team_id: selectedTeamId,
           name: createForm.name.trim(),
           start_date: createForm.start_date,
@@ -276,7 +273,7 @@ export default function Periodisation() {
       }
 
       const inserts = rowDefs.map((r, i) => ({
-        org_id: user.orgId,
+        org_id: effectiveOrgId, // SUPERUSER: uses activeOrgId
         plan_id: planRow.id,
         row_group: r.row_group,
         label: r.label,

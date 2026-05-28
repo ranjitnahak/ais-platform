@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser } from '../lib/auth';
 import { useUser } from '../context/UserContext';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
@@ -52,7 +51,8 @@ function formatTier(tier) {
 
 export default function Athletes() {
   const navigate = useNavigate();
-  const { activeOrgId } = useUser();
+  const { user, activeOrgId, loading: userLoading } = useUser();
+  const effectiveOrgId = activeOrgId ?? user?.orgId;
 
   const [athletes, setAthletes]             = useState([]);
   const [classMap, setClassMap]             = useState({});
@@ -67,7 +67,10 @@ export default function Athletes() {
   const [menuOpen, setMenuOpen]             = useState(null);
   const [confirmDialog, setConfirmDialog]   = useState(null);
 
-  useEffect(() => { load(); }, [activeOrgId]);
+  useEffect(() => {
+    if (userLoading || !effectiveOrgId) return;
+    void load();
+  }, [effectiveOrgId, userLoading]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -80,9 +83,8 @@ export default function Athletes() {
     setLoading(true);
     setError(null);
     try {
-      const user = await getCurrentUser();
-      const orgId = activeOrgId ?? user?.orgId;
-      if (!user || !orgId) throw new Error('No authenticated user found.');
+      if (!effectiveOrgId) throw new Error('No authenticated user found.');
+      const orgId = effectiveOrgId; // SUPERUSER: uses activeOrgId
 
       // ── Athletes ──────────────────────────────────────────────────────────
       const { data: rows, error: athErr } = await supabase
@@ -196,14 +198,12 @@ export default function Athletes() {
 
   async function handleArchive(athlete) {
     try {
-      const user = await getCurrentUser();
-      const orgId = activeOrgId ?? user?.orgId;
-      if (!user || !orgId) throw new Error('No authenticated user found.');
+      if (!effectiveOrgId) throw new Error('No authenticated user found.');
       const { error } = await supabase
         .from('athletes')
         .update({ is_archived: true, is_active: false })
         .eq('id', athlete.id)
-        .eq('org_id', orgId);
+        .eq('org_id', effectiveOrgId); // SUPERUSER: uses activeOrgId
       if (error) throw error;
       setConfirmDialog(null);
       load();
@@ -214,14 +214,12 @@ export default function Athletes() {
 
   async function handleDelete(athlete) {
     try {
-      const user = await getCurrentUser();
-      const orgId = activeOrgId ?? user?.orgId;
-      if (!user || !orgId) throw new Error('No authenticated user found.');
+      if (!effectiveOrgId) throw new Error('No authenticated user found.');
       const { error } = await supabase
         .from('athletes')
         .delete()
         .eq('id', athlete.id)
-        .eq('org_id', orgId);
+        .eq('org_id', effectiveOrgId); // SUPERUSER: uses activeOrgId
       if (error) throw error;
       setConfirmDialog(null);
       load();
