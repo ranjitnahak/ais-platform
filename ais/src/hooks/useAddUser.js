@@ -5,6 +5,41 @@ import { canonicalFullName } from '../lib/athleteName';
 import { normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
 import { STAFF_ROLE_DB_NAME, STAFF_ROLE_ENUM } from '../lib/adminUserConstants';
 
+const DEBUG_INGEST_URL = 'http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1';
+const DEBUG_SESSION_ID = 'e95f85';
+
+function sendDebugLog({ runId, hypothesisId, location, message, data }) {
+  // #region agent log
+  fetch(DEBUG_INGEST_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': DEBUG_SESSION_ID },
+    body: JSON.stringify({
+      sessionId: DEBUG_SESSION_ID,
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
+async function resolveFunctionErrorMessage(fnError, fnData) {
+  if (fnData?.error) return String(fnData.error);
+  if (fnError?.context) {
+    try {
+      const body = await fnError.context.json();
+      if (body?.error) return String(body.error);
+      if (body?.message) return String(body.message);
+    } catch (_) {
+      // fall back to base message
+    }
+  }
+  return fnError?.message || 'Edge function request failed.';
+}
+
 const EMPTY_ATHLETE = {
   first_name: '',
   last_name: '',
@@ -138,6 +173,32 @@ export function useAddUser({ onSuccess, onClose }) {
     const first_name = athleteForm.first_name.trim();
     const last_name = athleteForm.last_name.trim();
     const emailValue = athleteForm.email.trim();
+
+    const { data: existingUserRows, error: existingUserErr } = await supabase
+      .from('users')
+      .select('id, org_id, role, athlete_id')
+      .ilike('email', emailValue)
+      .limit(5);
+    if (existingUserErr) throw existingUserErr;
+    const existingUserByEmail = Array.isArray(existingUserRows) ? existingUserRows[0] ?? null : null;
+    if (existingUserByEmail?.org_id && existingUserByEmail.org_id !== user.orgId) {
+      throw new Error('This email is already linked to an athlete account in another organisation. Use a different email.');
+    }
+
+    const { data: existingAthleteRows, error: existingAthleteErr } = await supabase
+      .from('athletes')
+      .select('id, org_id, auth_id')
+      .eq('org_id', user.orgId)
+      .ilike('email', emailValue)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (existingAthleteErr) throw existingAthleteErr;
+    const existingAthleteByEmail = Array.isArray(existingAthleteRows) ? existingAthleteRows[0] ?? null : null;
+    if ((existingAthleteRows ?? []).length > 1) {
+      throw new Error('Multiple athlete profiles already exist with this email in this organisation. Delete duplicates first, then retry invite.');
+    }
+    let athleteId = existingAthleteByEmail?.id ?? null;
+
     const payload = {
       first_name,
       last_name: last_name || null,
@@ -155,16 +216,45 @@ export function useAddUser({ onSuccess, onClose }) {
       is_active: true,
       ...(photo_url ? { photo_url } : {}),
     };
+    sendDebugLog({
+      runId: 'rls-repro-2',
+      hypothesisId: 'H14',
+      location: 'useAddUser.js:submitAthlete:beforeInsert',
+      message: 'Attempt athlete insert with runtime context',
+      data: {
+        orgId: user?.orgId ?? null,
+        payloadOrgId: payload.org_id ?? null,
+        email: payload.email ?? null,
+        isSuperuser: Boolean(user?.isSuperuser),
+        apiBaseUrl: supabase?.supabaseUrl ?? null,
+      },
+    });
 
-    const { data: athleteData, error: insertErr } = await supabase
-      .from('athletes')
-      .insert(payload)
-      .select('id')
-      .single();
-    if (insertErr) throw insertErr;
+
+    if (!athleteId) {
+      const { data: athleteData, error: insertErr } = await supabase
+        .from('athletes')
+        .insert(payload)
+        .select('id')
+        .single();
+      sendDebugLog({
+        runId: 'rls-repro-2',
+        hypothesisId: 'H15',
+        location: 'useAddUser.js:submitAthlete:insertResult',
+        message: 'Athlete insert result',
+        data: {
+          athleteId: athleteData?.id ?? null,
+          errorCode: insertErr?.code ?? null,
+          errorMessage: insertErr?.message ?? null,
+        },
+      });
+      if (insertErr) throw insertErr;
+      athleteId = athleteData?.id ?? null;
+    }
+    if (!athleteId) throw new Error('Could not resolve athlete profile for invite.');
 
     try {
-      await insertAthleteTeams(athleteData.id, selectedTeamIds);
+      await insertAthleteTeams(athleteId, selectedTeamIds);
     } catch (teamErr) {
       console.error('[useAddUser] athlete team assignment', teamErr);
     }
@@ -177,10 +267,10 @@ export function useAddUser({ onSuccess, onClose }) {
           fullName: inviteFullName,
           orgId: user.orgId,
           userType: 'athlete',
-          athleteId: athleteData.id,
+          athleteId,
         },
       });
-      if (fnError) throw new Error(fnError.message);
+      if (fnError) throw new Error(await resolveFunctionErrorMessage(fnError, fnData));
       if (fnData?.error) throw new Error(fnData.error);
       setSuccessMessage(`Athlete added and invite sent to ${emailValue}`);
     } catch (err) {
@@ -206,7 +296,7 @@ export function useAddUser({ onSuccess, onClose }) {
     const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
       body: { email: emailValue, fullName, orgId: user.orgId, userType: 'staff', roleEnum },
     });
-    if (fnError) throw new Error(fnError.message);
+    if (fnError) throw new Error(await resolveFunctionErrorMessage(fnError, fnData));
     if (fnData?.error) throw new Error(fnData.error);
 
     const newUserId = fnData.userId;
@@ -266,6 +356,16 @@ export function useAddUser({ onSuccess, onClose }) {
       }, 1400);
     } catch (err) {
       console.error('[useAddUser] submit', err);
+      sendDebugLog({
+        runId: 'rls-repro-2',
+        hypothesisId: 'H16',
+        location: 'useAddUser.js:handleSubmit:catch',
+        message: 'Add athlete failed',
+        data: {
+          errorCode: err?.code ?? null,
+          errorMessage: err?.message ?? null,
+        },
+      });
       setError(err.message || 'Could not save user.');
     } finally {
       setSaving(false);

@@ -5,6 +5,26 @@ import { getCurrentUser } from '../lib/auth';
 
 const EXPIRED_LINK_MESSAGE =
   'This link has expired or is invalid. Please contact your administrator to resend your invite.';
+const DEBUG_INGEST_URL = 'http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1';
+const DEBUG_SESSION_ID = 'e95f85';
+
+function sendDebugLog(runId, hypothesisId, location, message, data) {
+  // #region agent log
+  fetch(DEBUG_INGEST_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': DEBUG_SESSION_ID },
+    body: JSON.stringify({
+      sessionId: DEBUG_SESSION_ID,
+      runId,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
 
 function parseHashParams() {
   const hash = window.location.hash;
@@ -24,33 +44,105 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    sendDebugLog('reset-loop-1', 'R9', 'ResetPassword:modeChange', 'Mode state changed', {
+      mode,
+    });
+  }, [mode]);
+
+  useEffect(() => {
     let mounted = true;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (!mounted) return;
+      if (event === 'PASSWORD_RECOVERY') {
+        sendDebugLog('reset-loop-1', 'R6', 'ResetPassword:onAuthStateChange:passwordRecovery', 'PASSWORD_RECOVERY event received', {});
+        setTokenType('recovery');
+        setMode('set_password');
+      }
+    });
     const params = parseHashParams();
+    const queryParams = new URLSearchParams(window.location.search);
     const hashError = params.get('error');
     const accessToken = params.get('access_token');
     const refreshToken = params.get('refresh_token');
     const type = params.get('type');
+    const queryCode = queryParams.get('code');
+    const queryType = queryParams.get('type');
+
+    sendDebugLog('reset-loop-1', 'R1', 'ResetPassword:useEffect:init', 'Parsed reset link params', {
+      hasHashError: Boolean(hashError),
+      hasAccessToken: Boolean(accessToken),
+      hasRefreshToken: Boolean(refreshToken),
+      hashType: type || null,
+      hasQueryCode: Boolean(queryCode),
+      queryType: queryType || null,
+      hashLength: window.location.hash?.length ?? 0,
+      searchLength: window.location.search?.length ?? 0,
+    });
 
     if (hashError) {
+      sendDebugLog('reset-loop-1', 'R2', 'ResetPassword:useEffect:tokenError', 'Token error branch selected', {
+        reason: 'hash_error',
+      });
       if (mounted) setMode('token_error');
-      return;
-    }
-
-    if (!accessToken) {
-      if (mounted) setMode('email_request');
       return;
     }
 
     async function initSession() {
       setLoading(true);
       try {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken ?? '',
-        });
-        if (sessionError) throw sessionError;
+        if (queryCode) {
+          const { error: codeError } = await supabase.auth.exchangeCodeForSession(queryCode);
+          if (codeError) throw codeError;
+          sendDebugLog('reset-loop-1', 'R4', 'ResetPassword:initSession:codeSuccess', 'Session established from query code', {
+            queryType: queryType || null,
+          });
+        } else {
+          const tokenHash = queryParams.get('token_hash');
+          const queryRecoveryType = queryType || 'recovery';
+          if (tokenHash) {
+            const { error: verifyError } = await supabase.auth.verifyOtp({
+              token_hash: tokenHash,
+              type: queryRecoveryType,
+            });
+            if (verifyError) throw verifyError;
+            sendDebugLog('reset-loop-1', 'R4', 'ResetPassword:initSession:tokenHashSuccess', 'Session established from token_hash', {
+              queryType: queryRecoveryType,
+            });
+          } else if (accessToken) {
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken ?? '',
+            });
+            if (sessionError) throw sessionError;
+            sendDebugLog('reset-loop-1', 'R4', 'ResetPassword:initSession:hashSuccess', 'Session established from hash tokens', {
+              tokenType: type || null,
+            });
+          } else {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const hasSession = Boolean(sessionData.session);
+            sendDebugLog('reset-loop-1', 'R7', 'ResetPassword:initSession:sessionFallback', 'Checked existing auth session fallback', {
+              hasSession,
+            });
+            if (hasSession) {
+              if (!mounted) return;
+              setTokenType('recovery');
+              setMode('set_password');
+              sendDebugLog('reset-loop-1', 'R8', 'ResetPassword:initSession:modeSetFromSession', 'Set mode to set_password from existing session', {});
+              window.history.replaceState(null, '', window.location.pathname);
+              return;
+            }
+            sendDebugLog('reset-loop-1', 'R3', 'ResetPassword:useEffect:emailRequest', 'Email request branch selected', {
+              reason: 'missing_tokens_and_query_code',
+              hasQueryCode: Boolean(queryCode),
+            });
+            if (mounted) setMode('email_request');
+            return;
+          }
+        }
         if (!mounted) return;
-        setTokenType(type);
+        setTokenType(type || queryType || 'recovery');
         setMode('set_password');
         window.history.replaceState(null, '', window.location.pathname);
       } catch (err) {
@@ -59,6 +151,9 @@ export default function ResetPassword() {
           setError(err.message || 'Could not validate link.');
           setMode('token_error');
         }
+        sendDebugLog('reset-loop-1', 'R5', 'ResetPassword:initSession:error', 'Session setup failed', {
+          errorMessage: err?.message || null,
+        });
       } finally {
         if (mounted) setLoading(false);
       }
@@ -67,6 +162,7 @@ export default function ResetPassword() {
     void initSession();
     return () => {
       mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 

@@ -6,6 +6,21 @@ import AddUserModal from './AddUserModal';
 import DeleteUserModal from './DeleteUserModal';
 import AdminUserRowMenu from './AdminUserRowMenu';
 import { setUserActive } from '../../lib/adminUserActions';
+
+async function resolveFunctionErrorMessage(fnError, fnData) {
+  if (fnData?.error) return String(fnData.error);
+  if (fnError?.context) {
+    try {
+      const body = await fnError.context.json();
+      if (body?.error) return String(body.error);
+      if (body?.message) return String(body.message);
+    } catch (_) {
+      // ignore parse errors
+    }
+  }
+  return fnError?.message || 'Edge function request failed.';
+}
+
 export default function UserList({ user }) {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
@@ -49,8 +64,7 @@ export default function UserList({ user }) {
           .order('full_name');
       const pendingQuery = supabase
           .from('athletes')
-          .select('id, first_name, last_name, email, is_active, position, jersey_number, photo_url, org_id, organisations(name)')
-          .is('auth_id', null)
+          .select('id, first_name, last_name, email, is_active, position, jersey_number, photo_url, org_id, auth_id, organisations(name)')
           .eq('is_active', true)
           .order('first_name');
       const userRolesQuery = supabase.from('user_roles').select('user_id, group_id, org_id');
@@ -117,8 +131,15 @@ export default function UserList({ user }) {
           teamIds: athleteTeamMap[row.athlete_id ?? joinedAthlete?.id] ?? [],
         };
       });
+      const athleteAuthIds = new Set(
+        athleteAuthItems
+          .map((row) => row.athleteId)
+          .filter(Boolean),
+      );
 
-      const pendingItems = (athletePendingRes.data ?? []).map((row) => ({
+      const pendingItems = (athletePendingRes.data ?? [])
+        .filter((row) => !athleteAuthIds.has(row.id))
+        .map((row) => ({
         key: `athlete-pending:${row.id}`,
         kind: 'athlete_pending',
         userId: null,
@@ -129,7 +150,7 @@ export default function UserList({ user }) {
         roleOrPosition: row.position ?? 'Athlete',
         orgId: row.org_id,
         orgName: row.organisations?.name ?? '—',
-        status: 'INVITE_PENDING',
+        status: row.auth_id ? 'PROFILE_ONLY' : 'INVITE_PENDING',
         lastActiveAt: null,
         isActive: row.is_active,
         teamIds: athleteTeamMap[row.id] ?? [],
@@ -193,7 +214,7 @@ export default function UserList({ user }) {
           athleteId: item.athleteId,
         },
       });
-      if (fnError) throw new Error(fnError.message);
+      if (fnError) throw new Error(await resolveFunctionErrorMessage(fnError, fnData));
       if (fnData?.error) throw new Error(fnData.error);
       await loadUsers();
     } catch (err) {
@@ -206,12 +227,16 @@ export default function UserList({ user }) {
       if (!item.athleteId) return;
       const ok = window.confirm('Delete athlete profile permanently? This cannot be undone.');
       if (!ok) return;
-      const { error: deleteError } = await supabase
+      const { data: deletedRows, error: deleteError } = await supabase
         .from('athletes')
         .delete()
+        .select('id')
         .eq('org_id', item.orgId ?? user.orgId)
         .eq('id', item.athleteId);
       if (deleteError) throw deleteError;
+      if (!Array.isArray(deletedRows) || deletedRows.length === 0) {
+        throw new Error('Delete was blocked by row-level permissions or the profile no longer exists.');
+      }
       await loadUsers();
     } catch (err) {
       console.error('[UserList] delete athlete profile', err);
@@ -269,6 +294,7 @@ export default function UserList({ user }) {
                 <option value="ACTIVE">Active</option>
                 <option value="INACTIVE">Inactive</option>
                 <option value="INVITE_PENDING">Invite Pending</option>
+                <option value="PROFILE_ONLY">Profile Only</option>
               </select>
               {user.isSuperuser && (
                 <select value={orgFilter} onChange={(event) => setOrgFilter(event.target.value)} className={`${selectClassName} md:min-w-[180px]`} aria-label="Filter by organisation">
