@@ -5,6 +5,9 @@ export default function OrgSwitcher() {
   const { user, activeOrgId, setActiveOrgId } = useUser();
   const [open, setOpen] = useState(false);
   if (!user?.isSuperuser) return null;
+  function handleSetActiveOrgId(orgId) {
+    setActiveOrgId(orgId);
+  }
 
   const allOrgs = user.allOrgs ?? [];
   const currentOrg = allOrgs.find((org) => org.id === activeOrgId) ?? allOrgs.find((org) => org.id === user.orgId);
@@ -26,7 +29,7 @@ export default function OrgSwitcher() {
               key={org.id}
               type="button"
               onClick={() => {
-                setActiveOrgId(org.id);
+                handleSetActiveOrgId(org.id);
                 setOpen(false);
                 window.location.reload();
               }}

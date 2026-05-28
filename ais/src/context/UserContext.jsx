@@ -4,11 +4,15 @@ import { getCurrentUser } from '../lib/auth';
 
 const UserContext = createContext(null);
 const ACTIVE_ORG_STORAGE_KEY = 'ais_active_org_id';
+function getInitialActiveOrgId() {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
+}
 
 export function UserProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeOrgId, setActiveOrgIdState] = useState(null);
+  const [activeOrgId, setActiveOrgIdState] = useState(() => getInitialActiveOrgId());
 
   const loadUser = useCallback(async () => {
     try {
@@ -34,14 +38,21 @@ export function UserProvider({ children }) {
   }, []);
 
   const setActiveOrgId = useCallback((nextOrgId) => {
+    if (nextOrgId) window.localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, nextOrgId);
+    else window.localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
     setActiveOrgIdState(nextOrgId);
     setUser((prev) => {
       if (!prev?.isSuperuser || !nextOrgId) return prev;
       return { ...prev, orgId: nextOrgId };
     });
-    if (nextOrgId) window.localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, nextOrgId);
-    else window.localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
   }, []);
+
+  useEffect(() => {
+    if (user?.orgId && !activeOrgId) {
+      setActiveOrgIdState(user.orgId);
+      window.localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, user.orgId);
+    }
+  }, [user, activeOrgId]);
 
   useEffect(() => {
     void loadUser();
