@@ -18,6 +18,7 @@ function applyPermissionOverrides(permissions, overrideRows) {
 
 function resolvePermission(user, resource, action) {
   if (!user) return false;
+  if (user.isSuperuser) return true;
   const permKey = ACTION_MAP[action];
   return Boolean(user?.permissions?.[resource]?.[permKey]);
 }
@@ -47,6 +48,33 @@ export async function getCurrentUser() {
     if (!primaryRole?.role_id || !roleName) {
       console.error('[auth.js] no role found for current user');
       return null;
+    }
+
+    if (roleName?.toLowerCase() === 'superuser') {
+      const [orgsResult, teamsResult] = await Promise.all([
+        supabase.from('organisations').select('id, name, slug').order('name'),
+        supabase.from('teams').select('id, org_id, name').order('name'),
+      ]);
+      if (orgsResult.error) throw orgsResult.error;
+      if (teamsResult.error) throw teamsResult.error;
+
+      const allOrgs = orgsResult.data ?? [];
+      const allTeams = teamsResult.data ?? [];
+      const localActiveOrgId = typeof window !== 'undefined' ? window.localStorage.getItem('activeOrgId') : null;
+      const activeOrgId = allOrgs.some((org) => org.id === localActiveOrgId) ? localActiveOrgId : user.org_id;
+
+      return {
+        id: user.id,
+        orgId: activeOrgId,
+        fullName: user.full_name ?? null,
+        role: 'superuser',
+        permissions: {},
+        teamIds: allTeams.map((team) => team.id),
+        athleteId: null,
+        isSuperuser: true,
+        allOrgs,
+        allTeams,
+      };
     }
     const [teamsResult, permissionsResult, overridesResult] = await Promise.all([
       supabase.from('teams').select('id').eq('org_id', user.org_id),
@@ -84,6 +112,9 @@ export async function getCurrentUser() {
       role: roleName?.toLowerCase(), permissions: resolvedPermissions,
       teamIds: (teamRows ?? []).map((team) => team.id),
       athleteId: user.athlete_id ?? null,
+      isSuperuser: false,
+      allOrgs: [],
+      allTeams: [],
     };
   } catch (err) {
     console.error('[auth.js] failed to resolve current user:', err);
@@ -101,6 +132,7 @@ export async function can(resource, action) {
   try {
     const user = await getCurrentUser();
     if (!user?.id || !user?.orgId) return false;
+    if (user.isSuperuser) return true;
 
     const permKey = ACTION_MAP[action];
     const column = PERMISSION_COLUMN[permKey];

@@ -11,7 +11,7 @@ function formatRole(role) {
 }
 
 export function TopBarUserMenu({ showSearch = true }) {
-  const { user } = useUser();
+  const { user, activeOrgId, setActiveOrgId } = useUser();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -31,9 +31,27 @@ export function TopBarUserMenu({ showSearch = true }) {
 
   const displayName = user?.fullName?.trim() || 'Signed in user';
   const roleLabel = formatRole(user?.role);
+  const isSuperuser = Boolean(user?.isSuperuser);
+  const currentOrg = isSuperuser
+    ? user?.allOrgs?.find((org) => org.id === activeOrgId || org.id === user?.orgId)
+    : null;
 
   return (
     <div className="flex items-center gap-5">
+      {isSuperuser && (
+        <select
+          value={activeOrgId ?? user?.orgId ?? ''}
+          onChange={(event) => setActiveOrgId(event.target.value)}
+          className="min-h-9 max-w-[220px] rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 text-xs font-bold text-[var(--color-on-surface)] outline-none"
+          aria-label="Switch organisation"
+        >
+          {(user?.allOrgs ?? []).map((org) => (
+            <option key={org.id} value={org.id}>
+              {org.name}
+            </option>
+          ))}
+        </select>
+      )}
       {showSearch && (
         <span
           className="material-symbols-outlined cursor-pointer text-[var(--color-outline)] transition-opacity hover:opacity-80"
@@ -60,6 +78,11 @@ export function TopBarUserMenu({ showSearch = true }) {
             <div className="px-4 py-2">
               <p className="text-sm font-bold text-[var(--color-on-surface)]">{displayName}</p>
               <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">{roleLabel}</p>
+              {isSuperuser && currentOrg && (
+                <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
+                  {currentOrg.name}
+                </p>
+              )}
             </div>
             <div className="my-1 border-t border-[var(--color-outline-variant)]" />
             <button
