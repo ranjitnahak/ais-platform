@@ -80,7 +80,7 @@ export async function resetAllOverrides(userId, orgId) {
   if (error) throw error;
 }
 
-export function useUserPermissions(userId) {
+export function useUserPermissions(userId, activeOrgId) {
   const [roleDefaults, setRoleDefaults] = useState({});
   const [overrides, setOverrides] = useState({});
   const [roleName, setRoleName] = useState(null);
@@ -99,13 +99,14 @@ export function useUserPermissions(userId) {
     setError(null);
     try {
       const currentUser = await getCurrentUser();
-      if (!currentUser?.orgId) throw new Error('Not authenticated');
+      const orgId = activeOrgId ?? currentUser?.orgId;
+      if (!orgId) throw new Error('Not authenticated');
 
       const { data: targetUser, error: userError } = await supabase
         .from('users')
         .select('id, org_id, role')
         .eq('id', userId)
-        .eq('org_id', currentUser.orgId)
+        .eq('org_id', orgId)
         .single();
       if (userError) throw userError;
 
@@ -113,7 +114,7 @@ export function useUserPermissions(userId) {
         .from('user_roles')
         .select('role_id, roles(id, name)')
         .eq('user_id', userId)
-        .eq('org_id', currentUser.orgId)
+        .eq('org_id', orgId)
         .limit(1);
       if (urError) throw urError;
 
@@ -133,12 +134,12 @@ export function useUserPermissions(userId) {
           .from('role_permissions')
           .select('resource, can_view, can_create, can_edit, can_delete')
           .eq('role_id', resolvedRoleId)
-          .eq('org_id', currentUser.orgId),
+          .eq('org_id', orgId),
         supabase
           .from('user_permission_overrides')
           .select('resource, can_view, can_create, can_edit, can_delete')
           .eq('user_id', userId)
-          .eq('org_id', currentUser.orgId),
+          .eq('org_id', orgId),
       ]);
       if (permError) throw permError;
       if (ovError) throw ovError;
@@ -151,7 +152,7 @@ export function useUserPermissions(userId) {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, activeOrgId]);
 
   useEffect(() => {
     void load();
@@ -168,13 +169,14 @@ export function useUserPermissions(userId) {
   const toggleOverride = async (resource, action) => {
     try {
       const currentUser = await getCurrentUser();
-      if (!currentUser?.orgId) throw new Error('Not authenticated');
+      const orgId = activeOrgId ?? currentUser?.orgId;
+      if (!orgId) throw new Error('Not authenticated');
       const { state, value } = resolvePermissionState(roleDefaults, overrides, resource, action);
       const roleDefault = Boolean(roleDefaults[resource]?.[ACTION_FIELDS[action]]);
       const nextValue = state === 'inherited' ? !roleDefault : !value;
       const payload = await saveOverride(
         userId,
-        currentUser.orgId,
+        orgId,
         resource,
         action,
         nextValue,
@@ -192,8 +194,9 @@ export function useUserPermissions(userId) {
   const resetResource = async (resource) => {
     try {
       const currentUser = await getCurrentUser();
-      if (!currentUser?.orgId) throw new Error('Not authenticated');
-      await resetOverride(userId, currentUser.orgId, resource);
+      const orgId = activeOrgId ?? currentUser?.orgId;
+      if (!orgId) throw new Error('Not authenticated');
+      await resetOverride(userId, orgId, resource);
       setOverrides((prev) => {
         const next = { ...prev };
         delete next[resource];
@@ -209,8 +212,9 @@ export function useUserPermissions(userId) {
   const resetAll = async () => {
     try {
       const currentUser = await getCurrentUser();
-      if (!currentUser?.orgId) throw new Error('Not authenticated');
-      await resetAllOverrides(userId, currentUser.orgId);
+      const orgId = activeOrgId ?? currentUser?.orgId;
+      if (!orgId) throw new Error('Not authenticated');
+      await resetAllOverrides(userId, orgId);
       setOverrides({});
       flashSaved();
     } catch (err) {

@@ -4,7 +4,7 @@ import { getCurrentUser } from '../lib/auth'
 import { buildAthleteReportContext } from '../lib/buildAthleteReportContext'
 import { filterReportContext } from '../lib/filterReportContext'
 
-export function useTeamReport() {
+export function useTeamReport(activeOrgId) {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(null)
   const [reportId, setReportId] = useState(null)
@@ -15,7 +15,7 @@ export function useTeamReport() {
       setError(null)
       setReportId(null)
       const user = await getCurrentUser()
-      if (!user) throw new Error('Not authenticated')
+      if (!user || !activeOrgId) throw new Error('Not authenticated')
       if (!teamId) throw new Error('Select a team')
       if (!enabledSources?.length) throw new Error('Select at least one data source')
 
@@ -23,7 +23,7 @@ export function useTeamReport() {
         .from('teams')
         .select('name')
         .eq('id', teamId)
-        .eq('org_id', user.orgId)
+        .eq('org_id', activeOrgId)
         .single()
       if (teamError) throw teamError
 
@@ -31,13 +31,13 @@ export function useTeamReport() {
         .from('athlete_teams')
         .select('athlete_id, athletes!inner(id, full_name, gender, position)')
         .eq('team_id', teamId)
-        .eq('athletes.org_id', user.orgId)
+        .eq('athletes.org_id', activeOrgId)
       if (rosterError) throw rosterError
 
       const athletes = (rows ?? []).map((row) => Array.isArray(row.athletes) ? row.athletes[0] : row.athletes).filter(Boolean)
       const contexts = []
       for (const athlete of athletes) {
-        const context = await buildAthleteReportContext({ athleteId: athlete.id, orgId: user.orgId, dateRangeStart, dateRangeEnd })
+        const context = await buildAthleteReportContext({ athleteId: athlete.id, orgId: activeOrgId, dateRangeStart, dateRangeEnd })
         if (!context) continue
         const filtered = filterReportContext(filterSources(context, enabledSources), user)
         contexts.push({ athlete, context: filtered })
@@ -52,7 +52,7 @@ export function useTeamReport() {
       const { data: saved, error: saveError } = await supabase
         .from('team_reports')
         .insert({
-          org_id: user.orgId,
+          org_id: activeOrgId,
           team_id: teamId,
           generated_by: user.id,
           date_range_start: dateRangeStart,

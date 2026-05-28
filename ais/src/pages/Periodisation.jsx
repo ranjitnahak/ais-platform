@@ -122,11 +122,13 @@ export default function Periodisation() {
         return;
       }
       if (!cancelled) setUser(user);
-      const { data: teamList, error } = await supabase
+      const teamQuery = supabase
         .from('teams')
-        .select('id, name, logo_url')
-        .eq('org_id', user.orgId)
+        .select('id, name, logo_url, org_id, organisations(name)')
         .order('name');
+      const { data: teamList, error } = user.isSuperuser
+        ? await teamQuery // SUPERUSER: intentional cross-org query
+        : await teamQuery.eq('org_id', user.orgId);
       if (cancelled) return;
       if (error) {
         console.error(error);
@@ -407,7 +409,7 @@ export default function Periodisation() {
               >
                 {teams.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name}
+                    {user?.isSuperuser ? `${t.name} (${t.organisations?.name ?? 'Org'})` : t.name}
                   </option>
                 ))}
               </select>

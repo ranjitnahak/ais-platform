@@ -23,26 +23,27 @@ export default function UserList({ user }) {
     setLoading(true);
     setError(null);
     try {
-      const [staffRes, athleteAuthRes, athletePendingRes] = await Promise.all([
-        supabase
+      const orgId = user.orgId;
+      const staffQuery = supabase
           .from('users')
-          .select('id, full_name, email, role, is_active, last_login_at, deactivated_at, athlete_id')
-          .eq('org_id', user.orgId)
+          .select('id, full_name, email, role, is_active, last_login_at, deactivated_at, athlete_id, org_id, organisations(name)')
           .is('athlete_id', null)
-          .order('full_name'),
-        supabase
+          .order('full_name');
+      const athleteAuthQuery = supabase
           .from('users')
-          .select('id, full_name, email, role, is_active, last_login_at, deactivated_at, athlete_id, athletes!athlete_id(id, position, jersey_number, photo_url)')
-          .eq('org_id', user.orgId)
+          .select('id, full_name, email, role, is_active, last_login_at, deactivated_at, athlete_id, org_id, organisations(name), athletes!athlete_id(id, position, jersey_number, photo_url)')
           .eq('role', 'athlete')
-          .order('full_name'),
-        supabase
+          .order('full_name');
+      const pendingQuery = supabase
           .from('athletes')
-          .select('id, first_name, last_name, email, is_active, position, jersey_number, photo_url')
-          .eq('org_id', user.orgId)
+          .select('id, first_name, last_name, email, is_active, position, jersey_number, photo_url, org_id, organisations(name)')
           .is('auth_id', null)
           .eq('is_active', true)
-          .order('first_name'),
+          .order('first_name');
+      const [staffRes, athleteAuthRes, athletePendingRes] = await Promise.all([
+        user.isSuperuser ? staffQuery : staffQuery.eq('org_id', orgId), // SUPERUSER: intentional cross-org query
+        user.isSuperuser ? athleteAuthQuery : athleteAuthQuery.eq('org_id', orgId), // SUPERUSER: intentional cross-org query
+        user.isSuperuser ? pendingQuery : pendingQuery.eq('org_id', orgId), // SUPERUSER: intentional cross-org query
       ]);
 
       if (staffRes.error) throw staffRes.error;
@@ -58,6 +59,8 @@ export default function UserList({ user }) {
         email: row.email,
         typeLabel: 'Staff',
         roleOrPosition: row.role,
+        orgId: row.org_id,
+        orgName: row.organisations?.name ?? '—',
         status: row.is_active ? 'ACTIVE' : 'INACTIVE',
         lastActiveAt: row.last_login_at,
         isActive: row.is_active,
@@ -74,6 +77,8 @@ export default function UserList({ user }) {
           email: row.email,
           typeLabel: 'Athlete',
           roleOrPosition: joinedAthlete?.position ?? 'Athlete',
+          orgId: row.org_id,
+          orgName: row.organisations?.name ?? '—',
           status: row.is_active ? 'ACTIVE' : 'INACTIVE',
           lastActiveAt: row.last_login_at,
           isActive: row.is_active,
@@ -89,6 +94,8 @@ export default function UserList({ user }) {
         email: row.email,
         typeLabel: 'Athlete',
         roleOrPosition: row.position ?? 'Athlete',
+        orgId: row.org_id,
+        orgName: row.organisations?.name ?? '—',
         status: 'INVITE_PENDING',
         lastActiveAt: null,
         isActive: row.is_active,
@@ -121,7 +128,7 @@ export default function UserList({ user }) {
   async function handleDeactivate(item) {
     try {
       if (!item.userId) return;
-      await setUserActive(user.orgId, item.userId, false);
+      await setUserActive(item.orgId ?? user.orgId, item.userId, false);
       await loadUsers();
     } catch (err) {
       console.error('[UserList] deactivate', err);
@@ -131,7 +138,7 @@ export default function UserList({ user }) {
   async function handleReactivate(item) {
     try {
       if (!item.userId) return;
-      await setUserActive(user.orgId, item.userId, true);
+      await setUserActive(item.orgId ?? user.orgId, item.userId, true);
       await loadUsers();
     } catch (err) {
       console.error('[UserList] reactivate', err);
@@ -146,7 +153,7 @@ export default function UserList({ user }) {
         body: {
           email: item.email,
           fullName: item.fullName,
-          orgId: user.orgId,
+          orgId: item.orgId ?? user.orgId,
           userType: 'athlete',
           athleteId: item.athleteId,
         },
@@ -168,7 +175,7 @@ export default function UserList({ user }) {
       const { error: deleteError } = await supabase
         .from('athletes')
         .delete()
-        .eq('org_id', user.orgId)
+        .eq('org_id', item.orgId ?? user.orgId)
         .eq('id', item.athleteId);
       if (deleteError) throw deleteError;
       await loadUsers();
@@ -239,7 +246,7 @@ export default function UserList({ user }) {
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="text-[10px] uppercase tracking-widest text-[var(--color-outline)]">
               <tr>
-                {['Full Name', 'Email', 'Type', 'Role / Position', 'Status', 'Last Active', ''].map((header) => (
+                {['Full Name', 'Email', 'Type', 'Role / Position', ...(user.isSuperuser ? ['Org'] : []), 'Status', 'Last Active', ''].map((header) => (
                   <th key={header || 'actions'} className="px-5 py-3 font-black">{header}</th>
                 ))}
               </tr>
@@ -262,6 +269,9 @@ export default function UserList({ user }) {
                   <td className="px-5 py-4 text-[var(--color-on-surface-variant)]">{row.email || '—'}</td>
                   <td className="px-5 py-4 text-[var(--color-on-surface)]">{row.typeLabel}</td>
                   <td className="px-5 py-4 text-[var(--color-on-surface)]">{row.roleOrPosition || '—'}</td>
+                  {user.isSuperuser && (
+                    <td className="px-5 py-4 text-[var(--color-on-surface-variant)]">{row.orgName || '—'}</td>
+                  )}
                   <td className="px-5 py-4">
                     <span
                       className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ${userListStatusBadge(row.status)}`}
@@ -306,7 +316,7 @@ export default function UserList({ user }) {
               ))}
               {!rows.length && (
                 <tr>
-                  <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-outline)]">
+                  <td colSpan={user.isSuperuser ? 8 : 7} className="px-5 py-8 text-center text-[var(--color-outline)]">
                     {items.length ? 'No users match your search or filters.' : 'No users found.'}
                   </td>
                 </tr>
@@ -334,7 +344,7 @@ export default function UserList({ user }) {
             full_name: deleteTarget.fullName,
             email: deleteTarget.email,
           }}
-          orgId={user.orgId}
+          orgId={deleteTarget.orgId ?? user.orgId}
           onClose={() => setDeleteTarget(null)}
           onDeleted={loadUsers}
         />

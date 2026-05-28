@@ -43,7 +43,7 @@ export default function SuperuserPanel() {
   const flagMap = useMemo(() => flags.reduce((map, flag) => ({ ...map, [flag.feature_key]: flag }), {}), [flags]);
 
   useEffect(() => {
-    if (user?.role === 'superuser') loadOrgs();
+    if (user?.isSuperuser === true) loadOrgs();
   }, [user]);
 
   useEffect(() => {
@@ -119,7 +119,7 @@ export default function SuperuserPanel() {
       </div>
     );
   }
-  if (!user || user.role !== 'superuser') return <AccessDenied />;
+  if (!user || user.isSuperuser !== true) return <AccessDenied />;
 
   return (
     <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-on-surface)] font-['Inter']">

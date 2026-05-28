@@ -17,7 +17,7 @@ const DOMAIN_VARS = {
 }
 
 export default function StaffNotes({ embedded = false }) {
-  const { user, loading: userLoading } = useUser()
+  const { user, loading: userLoading, activeOrgId } = useUser()
   const [teams, setTeams] = useState([])
   const [athletes, setAthletes] = useState([])
   const [counts, setCounts] = useState({})
@@ -25,10 +25,10 @@ export default function StaffNotes({ embedded = false }) {
   const [selectedAthleteId, setSelectedAthleteId] = useState('')
   const [tab, setTab] = useState('team')
   const [loadError, setLoadError] = useState(null)
-  const canView = canSync(user, 'reports', 'view')
+  const canView = canSync(user, 'staff_notes', 'view')
   const canCreate = canSync(user, 'reports', 'create')
-  const teamNotes = useStaffNotes({ teamId: selectedTeamId })
-  const athleteNotes = useStaffNotes({ teamId: selectedTeamId, athleteId: selectedAthleteId })
+  const teamNotes = useStaffNotes({ teamId: selectedTeamId, activeOrgId })
+  const athleteNotes = useStaffNotes({ teamId: selectedTeamId, athleteId: selectedAthleteId, activeOrgId })
   const userDomain = user ? getStaffDomain(user.role) : null
   const selectedAthlete = athletes.find((athlete) => athlete.id === selectedAthleteId)
 
@@ -41,7 +41,7 @@ export default function StaffNotes({ embedded = false }) {
         const { data, error } = await supabase
           .from('teams')
           .select('id, name')
-          .eq('org_id', currentUser.orgId)
+          .eq('org_id', activeOrgId ?? currentUser.orgId)
           .in('id', currentUser.teamIds)
           .order('name', { ascending: true })
         if (error) throw error
@@ -65,7 +65,7 @@ export default function StaffNotes({ embedded = false }) {
         const { data: athleteRows, error: athleteError } = await supabase
           .from('athletes')
           .select('id, full_name, photo_url, athlete_teams!inner(team_id)')
-          .eq('org_id', currentUser.orgId)
+          .eq('org_id', activeOrgId ?? currentUser.orgId)
           .eq('athlete_teams.team_id', selectedTeamId)
           .order('full_name', { ascending: true })
         if (athleteError) throw athleteError
@@ -73,7 +73,7 @@ export default function StaffNotes({ embedded = false }) {
         let countQuery = supabase
           .from('athlete_staff_notes')
           .select('athlete_id')
-          .eq('org_id', currentUser.orgId)
+          .eq('org_id', activeOrgId ?? currentUser.orgId)
           .eq('team_id', selectedTeamId)
           .eq('note_level', 'athlete')
         if (domain) countQuery = countQuery.eq('domain', domain)
@@ -93,7 +93,7 @@ export default function StaffNotes({ embedded = false }) {
   const visible = useMemo(() => STAFF_ROLES.includes(user?.role), [user?.role])
   const accessDenied = <p className="rounded-2xl bg-[var(--color-surface-container)] p-6 font-bold">Access Denied</p>;
   if (userLoading) return embedded ? <Spinner /> : <Shell><Spinner /></Shell>;
-  if (!canView || !visible) return embedded ? accessDenied : <Shell>{accessDenied}</Shell>;
+  if ((!canView && !user?.isSuperuser) || !visible) return embedded ? accessDenied : <Shell>{accessDenied}</Shell>;
 
   const notesContent = (
     <>

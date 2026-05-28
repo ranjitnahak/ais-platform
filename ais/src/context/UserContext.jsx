@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 
 const UserContext = createContext(null);
+const ACTIVE_ORG_STORAGE_KEY = 'ais_active_org_id';
 
 export function UserProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -15,7 +16,7 @@ export function UserProvider({ children }) {
       const currentUser = await getCurrentUser();
       setUser(currentUser);
       if (currentUser?.isSuperuser) {
-        const localActiveOrgId = window.localStorage.getItem('activeOrgId');
+        const localActiveOrgId = window.localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
         const validOrgId = currentUser.allOrgs?.some((org) => org.id === localActiveOrgId)
           ? localActiveOrgId
           : currentUser.orgId;
@@ -38,8 +39,8 @@ export function UserProvider({ children }) {
       if (!prev?.isSuperuser || !nextOrgId) return prev;
       return { ...prev, orgId: nextOrgId };
     });
-    if (nextOrgId) window.localStorage.setItem('activeOrgId', nextOrgId);
-    else window.localStorage.removeItem('activeOrgId');
+    if (nextOrgId) window.localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, nextOrgId);
+    else window.localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
   }, []);
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export function UserProvider({ children }) {
         setUser(null);
         setLoading(false);
         setActiveOrgIdState(null);
-        window.localStorage.removeItem('activeOrgId');
+        window.localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
       }
     });
     return () => subscription.unsubscribe();

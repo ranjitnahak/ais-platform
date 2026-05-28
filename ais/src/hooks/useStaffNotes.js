@@ -15,14 +15,14 @@ export function getStaffDomain(role) {
   return ROLE_DOMAINS[role] ?? null
 }
 
-export function useStaffNotes({ teamId, athleteId = null }) {
+export function useStaffNotes({ teamId, athleteId = null, activeOrgId }) {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [userDomain, setUserDomain] = useState(null)
 
-  useEffect(() => { loadNotes() }, [teamId, athleteId])
+  useEffect(() => { loadNotes() }, [teamId, athleteId, activeOrgId])
 
   async function loadNotes() {
     try {
@@ -38,7 +38,7 @@ export function useStaffNotes({ teamId, athleteId = null }) {
       let query = supabase
         .from('athlete_staff_notes')
         .select('id, note, domain, note_level, note_date, created_at, author_id, users(full_name)')
-        .eq('org_id', user.orgId)
+        .eq('org_id', activeOrgId ?? user.orgId)
         .order('created_at', { ascending: false })
       if (athleteId) {
         query = query.eq('athlete_id', athleteId)
@@ -71,7 +71,7 @@ export function useStaffNotes({ teamId, athleteId = null }) {
       const { error: insertError } = await supabase.from('athlete_staff_notes').insert({
         athlete_id: athleteId ?? null,
         team_id: teamId,
-        org_id: user.orgId,
+        org_id: activeOrgId ?? user.orgId,
         author_id: user.id,
         domain: noteDomain,
         note,

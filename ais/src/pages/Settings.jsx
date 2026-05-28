@@ -300,7 +300,7 @@ export default function Settings() {
     );
   }
 
-  if (!canSync(user, 'adminConfig', 'admin')) {
+  if (!canSync(user, 'adminConfig', 'admin') && !user?.isSuperuser) {
     return (
       <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
         <Sidebar />

@@ -23,8 +23,8 @@ function isoDate(daysAgo = 0) {
 }
 
 export default function TeamReportConfig({ teamId, teamName, onReportGenerated }) {
-  const { user, loading: userLoading } = useUser()
-  const { generating, error, generateTeamReport } = useTeamReport()
+  const { user, loading: userLoading, activeOrgId } = useUser()
+  const { generating, error, generateTeamReport } = useTeamReport(activeOrgId)
   const [from, setFrom] = useState(isoDate(30))
   const [to, setTo] = useState(isoDate())
   const [sources, setSources] = useState([])
@@ -40,7 +40,7 @@ export default function TeamReportConfig({ teamId, teamName, onReportGenerated }
         const { data, error: flagsError } = await supabase
           .from('org_feature_flags')
           .select('feature_key, is_enabled')
-          .eq('org_id', user.orgId)
+          .eq('org_id', activeOrgId ?? user.orgId)
           .eq('is_enabled', true)
         if (flagsError) throw flagsError
         const rows = (data ?? []).filter((row) => LABELS[row.feature_key])

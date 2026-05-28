@@ -27,14 +27,15 @@ function deviationClass(value) {
 }
 
 export default function SessionRPEView({ sessionId, sessionName, plannedRpe }) {
-  const { user, loading: userLoading } = useUser()
+  const { user, loading: userLoading, activeOrgId } = useUser()
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const canView = canSync(user, 'rpe_logging', 'view')
 
   useEffect(() => {
-    if (!user?.orgId || !sessionId || !canView) return
+    const orgId = activeOrgId ?? user?.orgId
+    if (!orgId || !sessionId || !canView) return
     let mounted = true
     async function loadLogs() {
       setLoading(true)
@@ -44,7 +45,7 @@ export default function SessionRPEView({ sessionId, sessionName, plannedRpe }) {
           .from('session_athlete_logs')
           .select('athlete_id, actual_rpe, actual_duration_min, session_load, logged_at, athletes!inner(full_name, photo_url, is_active)')
           .eq('session_id', sessionId)
-          .eq('org_id', user.orgId)
+          .eq('org_id', orgId)
           .eq('athletes.is_active', true)
           .order('logged_at', { ascending: false })
         if (logError) throw logError
@@ -58,7 +59,7 @@ export default function SessionRPEView({ sessionId, sessionName, plannedRpe }) {
     }
     void loadLogs()
     return () => { mounted = false }
-  }, [canView, sessionId, user?.orgId])
+  }, [canView, sessionId, activeOrgId, user?.orgId])
 
   const summary = useMemo(() => {
     const logged = logs.filter((log) => log.actual_rpe != null)

@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 
 const ACTION_MAP = { view: 'canView', create: 'canCreate', edit: 'canEdit', delete: 'canDelete', admin: 'canEdit' };
 const PERMISSION_COLUMN = { canView: 'can_view', canCreate: 'can_create', canEdit: 'can_edit', canDelete: 'can_delete' };
+const ACTIVE_ORG_STORAGE_KEY = 'ais_active_org_id';
 
 function applyPermissionOverrides(permissions, overrideRows) {
   const merged = { ...permissions };
@@ -52,15 +53,15 @@ export async function getCurrentUser() {
 
     if (roleName?.toLowerCase() === 'superuser') {
       const [orgsResult, teamsResult] = await Promise.all([
-        supabase.from('organisations').select('id, name, slug').order('name'),
-        supabase.from('teams').select('id, org_id, name').order('name'),
+        supabase.from('organisations').select('id, name, slug').order('name'), // SUPERUSER: intentional cross-org query
+        supabase.from('teams').select('id, org_id, name').order('name'), // SUPERUSER: intentional cross-org query
       ]);
       if (orgsResult.error) throw orgsResult.error;
       if (teamsResult.error) throw teamsResult.error;
 
       const allOrgs = orgsResult.data ?? [];
       const allTeams = teamsResult.data ?? [];
-      const localActiveOrgId = typeof window !== 'undefined' ? window.localStorage.getItem('activeOrgId') : null;
+      const localActiveOrgId = typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_ORG_STORAGE_KEY) : null;
       const activeOrgId = allOrgs.some((org) => org.id === localActiveOrgId) ? localActiveOrgId : user.org_id;
 
       return {
@@ -125,6 +126,7 @@ export async function getCurrentUser() {
 // Use canSync() in JSX/components with user from useUser() (UserContext)
 // Use can() in async lib functions and hooks
 export function canSync(user, resource, action) {
+  if (user?.isSuperuser === true) return true;
   return resolvePermission(user, resource, action);
 }
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
+import { useUser } from '../context/UserContext';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 import { TopBarUserMenu } from '../components/layout/TopBar';
@@ -51,6 +52,7 @@ function formatTier(tier) {
 
 export default function Athletes() {
   const navigate = useNavigate();
+  const { activeOrgId } = useUser();
 
   const [athletes, setAthletes]             = useState([]);
   const [classMap, setClassMap]             = useState({});
@@ -65,7 +67,7 @@ export default function Athletes() {
   const [menuOpen, setMenuOpen]             = useState(null);
   const [confirmDialog, setConfirmDialog]   = useState(null);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [activeOrgId]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -79,13 +81,14 @@ export default function Athletes() {
     setError(null);
     try {
       const user = await getCurrentUser();
-      if (!user) throw new Error('No authenticated user found.');
+      const orgId = activeOrgId ?? user?.orgId;
+      if (!user || !orgId) throw new Error('No authenticated user found.');
 
       // ── Athletes ──────────────────────────────────────────────────────────
       const { data: rows, error: athErr } = await supabase
         .from('athletes')
         .select('id, first_name, last_name, full_name, date_of_birth, gender, position, photo_url, is_active, org_id')
-        .eq('org_id', user.orgId)
+        .eq('org_id', orgId)
         .eq('is_active', true)
         .order('full_name');
       if (athErr) throw athErr;
@@ -95,7 +98,7 @@ export default function Athletes() {
       const { data: teamRows } = await supabase
         .from('teams')
         .select('id, name')
-        .eq('org_id', user.orgId)
+        .eq('org_id', orgId)
         .order('name');
 
       // ── Athlete–team membership ───────────────────────────────────────────
@@ -125,7 +128,7 @@ export default function Athletes() {
       const { data: sessions } = await supabase
         .from('assessment_sessions')
         .select('id')
-        .eq('org_id', user.orgId)
+        .eq('org_id', orgId)
         .order('assessed_on', { ascending: false })
         .limit(1);
 
@@ -134,7 +137,7 @@ export default function Athletes() {
         const { data: results } = await supabase
           .from('assessment_results')
           .select('athlete_id, classification')
-          .eq('org_id', user.orgId)
+        .eq('org_id', orgId)
           .eq('session_id', sessionId);
 
         const map = {};
@@ -194,12 +197,13 @@ export default function Athletes() {
   async function handleArchive(athlete) {
     try {
       const user = await getCurrentUser();
-      if (!user) throw new Error('No authenticated user found.');
+      const orgId = activeOrgId ?? user?.orgId;
+      if (!user || !orgId) throw new Error('No authenticated user found.');
       const { error } = await supabase
         .from('athletes')
         .update({ is_archived: true, is_active: false })
         .eq('id', athlete.id)
-        .eq('org_id', user.orgId);
+        .eq('org_id', orgId);
       if (error) throw error;
       setConfirmDialog(null);
       load();
@@ -211,12 +215,13 @@ export default function Athletes() {
   async function handleDelete(athlete) {
     try {
       const user = await getCurrentUser();
-      if (!user) throw new Error('No authenticated user found.');
+      const orgId = activeOrgId ?? user?.orgId;
+      if (!user || !orgId) throw new Error('No authenticated user found.');
       const { error } = await supabase
         .from('athletes')
         .delete()
         .eq('id', athlete.id)
-        .eq('org_id', user.orgId);
+        .eq('org_id', orgId);
       if (error) throw error;
       setConfirmDialog(null);
       load();

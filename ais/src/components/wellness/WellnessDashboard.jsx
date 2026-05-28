@@ -5,7 +5,7 @@ import { useUser } from '../../context/UserContext'
 import WellnessTrend from './WellnessTrend'
 
 export default function WellnessDashboard({ embedded = false }) {
-  const { user } = useUser()
+  const { user, activeOrgId } = useUser()
   const [athletes, setAthletes] = useState([])
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -19,7 +19,8 @@ export default function WellnessDashboard({ embedded = false }) {
         setLoading(true)
         setError(null)
         const currentUser = await getCurrentUser()
-        if (!currentUser) return
+        const orgId = activeOrgId ?? currentUser?.orgId
+        if (!currentUser || !orgId) return
         if (!currentUser.teamIds?.length) {
           setAthletes([])
           setLogs([])
@@ -28,7 +29,7 @@ export default function WellnessDashboard({ embedded = false }) {
         const { data: athleteRows, error: athleteError } = await supabase
           .from('athletes')
           .select('id, full_name, photo_url, athlete_teams!inner(team_id)')
-          .eq('org_id', currentUser.orgId)
+          .eq('org_id', orgId)
           .eq('is_active', true)
           .in('athlete_teams.team_id', currentUser.teamIds)
           .order('full_name', { ascending: true })
@@ -43,7 +44,7 @@ export default function WellnessDashboard({ embedded = false }) {
         const { data: logRows, error: logError } = await supabase
           .from('wellness_logs')
           .select('athlete_id, composite_score, flagged, responses, logged_at, athletes(full_name, photo_url)')
-          .eq('org_id', currentUser.orgId)
+          .eq('org_id', orgId)
           .eq('log_date', today)
           .in('athlete_id', athleteIds)
           .order('composite_score', { ascending: true })
@@ -58,7 +59,7 @@ export default function WellnessDashboard({ embedded = false }) {
       }
     }
     loadDashboard()
-  }, [canView])
+  }, [canView, activeOrgId])
 
   const summary = useMemo(() => {
     const scored = logs.filter((log) => log.composite_score != null)
