@@ -18,18 +18,23 @@ export function UserProvider({ children }) {
     try {
       setLoading(true);
       const currentUser = await getCurrentUser();
+      if (!currentUser) {
+        console.error('[UserContext] loadUser failed: getCurrentUser returned null');
+        setUser(null);
+        return;
+      }
       setUser(currentUser);
-      if (currentUser?.isSuperuser) {
+      if (currentUser.isSuperuser) {
         const localActiveOrgId = window.localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
         const validOrgId = currentUser.allOrgs?.some((org) => org.id === localActiveOrgId)
           ? localActiveOrgId
           : currentUser.orgId;
         setActiveOrgIdState(validOrgId);
       } else {
-        setActiveOrgIdState(currentUser?.orgId ?? null);
+        setActiveOrgIdState(currentUser.orgId ?? null);
       }
     } catch (err) {
-      console.error('[UserContext] load failed:', err);
+      console.error('[UserContext] loadUser failed:', err);
       setUser(null);
       setActiveOrgIdState(null);
     } finally {
@@ -76,5 +81,9 @@ export function UserProvider({ children }) {
 }
 
 export function useUser() {
-  return useContext(UserContext);
+  const ctx = useContext(UserContext);
+  if (!ctx) {
+    throw new Error('useUser must be used within UserProvider');
+  }
+  return ctx;
 }

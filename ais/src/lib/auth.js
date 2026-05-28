@@ -40,18 +40,31 @@ export async function getCurrentUser() {
 
     const { data: roleRows, error: rolesError } = await supabase
       .from('user_roles')
-      .select('role_id, roles(name), group_id')
-      .eq('user_id', user.id)
-      .eq('org_id', user.org_id);
+      .select('role_id, roles(name), group_id, org_id')
+      .eq('user_id', user.id);
     if (rolesError) throw rolesError;
-    const primaryRole = roleRows?.[0];
-    const roleName = Array.isArray(primaryRole?.roles) ? primaryRole.roles[0]?.name : primaryRole?.roles?.name;
-    if (!primaryRole?.role_id || !roleName) {
+
+    const roleNameFromRow = (row) => {
+      if (!row) return null;
+      const roles = row.roles;
+      return Array.isArray(roles) ? roles[0]?.name : roles?.name;
+    };
+
+    const orgScopedRows = user.org_id
+      ? (roleRows ?? []).filter((row) => row.org_id === user.org_id)
+      : [];
+    const superuserRow = (roleRows ?? []).find(
+      (row) => roleNameFromRow(row)?.toLowerCase() === 'superuser',
+    );
+    const primaryRole = superuserRow ?? orgScopedRows[0] ?? roleRows?.[0];
+    let roleName = roleNameFromRow(primaryRole) ?? user.role ?? null;
+
+    if (!roleName) {
       console.error('[auth.js] no role found for current user');
       return null;
     }
 
-    if (roleName?.toLowerCase() === 'superuser') {
+    if (roleName.toLowerCase() === 'superuser') {
       const [orgsResult, teamsResult] = await Promise.all([
         supabase.from('organisations').select('id, name, slug').order('name'), // SUPERUSER: intentional cross-org query
         supabase.from('teams').select('id, org_id, name').order('name'), // SUPERUSER: intentional cross-org query
@@ -62,7 +75,9 @@ export async function getCurrentUser() {
       const allOrgs = orgsResult.data ?? [];
       const allTeams = teamsResult.data ?? [];
       const localActiveOrgId = typeof window !== 'undefined' ? window.localStorage.getItem(ACTIVE_ORG_STORAGE_KEY) : null;
-      const activeOrgId = allOrgs.some((org) => org.id === localActiveOrgId) ? localActiveOrgId : user.org_id;
+      const activeOrgId = allOrgs.some((org) => org.id === localActiveOrgId)
+        ? localActiveOrgId
+        : (user.org_id ?? allOrgs[0]?.id ?? null);
 
       return {
         id: user.id,
@@ -77,12 +92,29 @@ export async function getCurrentUser() {
         allTeams,
       };
     }
+
+    let roleId = primaryRole?.role_id;
+    if (!roleId && user.org_id) {
+      const { data: roleRow, error: roleLookupError } = await supabase
+        .from('roles')
+        .select('id')
+        .eq('org_id', user.org_id)
+        .ilike('name', roleName)
+        .maybeSingle();
+      if (roleLookupError) throw roleLookupError;
+      roleId = roleRow?.id ?? null;
+    }
+    if (!roleId || !user.org_id) {
+      console.error('[auth.js] no role_id or org_id for current user');
+      return null;
+    }
+
     const [teamsResult, permissionsResult, overridesResult] = await Promise.all([
       supabase.from('teams').select('id').eq('org_id', user.org_id),
       supabase
         .from('role_permissions')
         .select('resource, can_view, can_create, can_edit, can_delete')
-        .eq('role_id', primaryRole.role_id)
+        .eq('role_id', roleId)
         .eq('org_id', user.org_id),
       supabase
         .from('user_permission_overrides')
