@@ -1,0 +1,8 @@
+<svg width="512" height="512" viewBox="0 0 80 80" 
+     xmlns="http://www.w3.org/2000/svg">
+  <rect width="80" height="80" rx="18" fill="#F97316"/>
+  <text x="40" y="52" text-anchor="middle" 
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="28" font-weight="700" 
+        fill="#1C1C1E" letter-spacing="-1">AIS</text>
+</svg>
