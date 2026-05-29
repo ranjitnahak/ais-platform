@@ -1,15 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useUser } from '../../context/UserContext';
+import { formatRoleOrPosition } from '../../lib/adminUserConstants';
 import OrgSwitcher from './OrgSwitcher';
-
-function formatRole(role) {
-  if (!role) return 'User';
-  return role
-    .split(/[_\s]+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
 
 export function TopBarUserMenu({ showSearch = true }) {
   const { user } = useUser();
@@ -31,7 +24,8 @@ export function TopBarUserMenu({ showSearch = true }) {
   }
 
   const displayName = user?.fullName?.trim() || 'Signed in user';
-  const roleLabel = formatRole(user?.role);
+  const formattedRole = formatRoleOrPosition(user?.role);
+  const roleLabel = formattedRole === '—' ? 'User' : formattedRole;
 
   return (
     <div className="flex items-center gap-5">

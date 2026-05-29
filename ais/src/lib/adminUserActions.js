@@ -35,19 +35,27 @@ export async function setUserActive(orgId, userId, isActive) {
   const patch = isActive
     ? { is_active: true, deactivated_at: null }
     : { is_active: false, deactivated_at: new Date().toISOString() };
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('users')
     .update(patch)
     .eq('id', userId)
-    .eq('org_id', orgId);
+    .eq('org_id', orgId)
+    .select('id');
   if (error) throw error;
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error('Update was blocked by permissions or the user no longer exists.');
+  }
 }
 
 export async function deleteUser(orgId, userId) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('users')
     .delete()
     .eq('id', userId)
-    .eq('org_id', orgId);
+    .eq('org_id', orgId)
+    .select('id');
   if (error) throw error;
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error('Delete was blocked by permissions or the user no longer exists.');
+  }
 }

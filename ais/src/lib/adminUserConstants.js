@@ -9,6 +9,25 @@ export const STAFF_ROLE_ENUM = {
   Admin: 'admin',
 };
 
+/** Enum / slug → display label for admin UI. */
+export const USER_ROLE_DISPLAY = {
+  ...Object.fromEntries(Object.entries(STAFF_ROLE_ENUM).map(([label, value]) => [value, label])),
+  superuser: 'Superuser',
+  athlete: 'Athlete',
+};
+
+/** Format staff role enum or athlete position for display (e.g. nutritionist → Nutritionist). */
+export function formatRoleOrPosition(value) {
+  if (!value) return '—';
+  const key = String(value).trim().toLowerCase();
+  if (USER_ROLE_DISPLAY[key]) return USER_ROLE_DISPLAY[key];
+  const words = key.split(/[_\s]+/);
+  if (words.length > 1) {
+    return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  }
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
 /** Map staff UI label → roles.name in DB for user_roles insert. */
 export const STAFF_ROLE_DB_NAME = {
   'S&C Coach': 'S&C Coach',

@@ -155,6 +155,17 @@ export default function ResetPassword() {
       const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
       if (updateError) throw updateError;
 
+      if (isInvite) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const authId = sessionData.session?.user?.id;
+        if (authId) {
+          await supabase
+            .from('users')
+            .update({ is_active: true, deactivated_at: null })
+            .eq('auth_id', authId);
+        }
+      }
+
       const user = await getCurrentUser();
       if (!user) {
         navigate('/login', { replace: true });

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { filterUserListRows, formatUserListDate, userListStatusBadge } from '../../lib/adminUserListFilters';
+import { formatRoleOrPosition } from '../../lib/adminUserConstants';
 import AddUserModal from './AddUserModal';
 import DeleteUserModal from './DeleteUserModal';
 import AdminUserRowMenu from './AdminUserRowMenu';
@@ -189,6 +190,7 @@ export default function UserList({ user }) {
       await loadUsers();
     } catch (err) {
       console.error('[UserList] deactivate', err);
+      setError(err.message || 'Could not deactivate user.');
     }
   }
 
@@ -199,6 +201,7 @@ export default function UserList({ user }) {
       await loadUsers();
     } catch (err) {
       console.error('[UserList] reactivate', err);
+      setError(err.message || 'Could not reactivate user.');
     }
   }
   async function sendAthleteInvite(item) {
@@ -338,7 +341,7 @@ export default function UserList({ user }) {
                   </td>
                   <td className="px-5 py-4 text-[var(--color-on-surface-variant)]">{row.email || '—'}</td>
                   <td className="px-5 py-4 text-[var(--color-on-surface)]">{row.typeLabel}</td>
-                  <td className="px-5 py-4 text-[var(--color-on-surface)]">{row.roleOrPosition || '—'}</td>
+                  <td className="px-5 py-4 text-[var(--color-on-surface)]">{formatRoleOrPosition(row.roleOrPosition)}</td>
                   {user.isSuperuser && (
                     <td className="px-5 py-4 text-[var(--color-on-surface-variant)]">{row.orgName || '—'}</td>
                   )}

@@ -6,6 +6,7 @@ import { getCurrentUser } from '../lib/auth';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
 import { setUserActive } from '../lib/adminUserActions';
+import { formatRoleOrPosition } from '../lib/adminUserConstants';
 import { useUserPermissions } from '../hooks/useUserPermissions';
 
 function formatDate(value) {
@@ -165,7 +166,7 @@ export default function UserDetailPage() {
             <dl className="grid gap-4 sm:grid-cols-2">
               <div><dt className={labelClass}>Phone</dt><dd>{profile.phone || '—'}</dd></div>
               <div><dt className={labelClass}>Title</dt><dd>{profile.title || '—'}</dd></div>
-              <div><dt className={labelClass}>Role</dt><dd>{roleName}</dd></div>
+              <div><dt className={labelClass}>Role</dt><dd>{formatRoleOrPosition(roleName)}</dd></div>
               <div>
                 <dt className={labelClass}>Status</dt>
                 <dd>

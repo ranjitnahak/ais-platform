@@ -5,27 +5,6 @@ import { canonicalFullName } from '../lib/athleteName';
 import { normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
 import { STAFF_ROLE_DB_NAME, STAFF_ROLE_ENUM } from '../lib/adminUserConstants';
 
-const DEBUG_INGEST_URL = 'http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1';
-const DEBUG_SESSION_ID = 'e95f85';
-
-function sendDebugLog({ runId, hypothesisId, location, message, data }) {
-  // #region agent log
-  fetch(DEBUG_INGEST_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': DEBUG_SESSION_ID },
-    body: JSON.stringify({
-      sessionId: DEBUG_SESSION_ID,
-      runId,
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-}
-
 async function resolveFunctionErrorMessage(fnError, fnData) {
   if (fnData?.error) return String(fnData.error);
   if (fnError?.context) {
@@ -216,20 +195,6 @@ export function useAddUser({ onSuccess, onClose }) {
       is_active: true,
       ...(photo_url ? { photo_url } : {}),
     };
-    sendDebugLog({
-      runId: 'rls-repro-2',
-      hypothesisId: 'H14',
-      location: 'useAddUser.js:submitAthlete:beforeInsert',
-      message: 'Attempt athlete insert with runtime context',
-      data: {
-        orgId: user?.orgId ?? null,
-        payloadOrgId: payload.org_id ?? null,
-        email: payload.email ?? null,
-        isSuperuser: Boolean(user?.isSuperuser),
-        apiBaseUrl: supabase?.supabaseUrl ?? null,
-      },
-    });
-
 
     if (!athleteId) {
       const { data: athleteData, error: insertErr } = await supabase
@@ -237,17 +202,6 @@ export function useAddUser({ onSuccess, onClose }) {
         .insert(payload)
         .select('id')
         .single();
-      sendDebugLog({
-        runId: 'rls-repro-2',
-        hypothesisId: 'H15',
-        location: 'useAddUser.js:submitAthlete:insertResult',
-        message: 'Athlete insert result',
-        data: {
-          athleteId: athleteData?.id ?? null,
-          errorCode: insertErr?.code ?? null,
-          errorMessage: insertErr?.message ?? null,
-        },
-      });
       if (insertErr) throw insertErr;
       athleteId = athleteData?.id ?? null;
     }
@@ -356,16 +310,6 @@ export function useAddUser({ onSuccess, onClose }) {
       }, 1400);
     } catch (err) {
       console.error('[useAddUser] submit', err);
-      sendDebugLog({
-        runId: 'rls-repro-2',
-        hypothesisId: 'H16',
-        location: 'useAddUser.js:handleSubmit:catch',
-        message: 'Add athlete failed',
-        data: {
-          errorCode: err?.code ?? null,
-          errorMessage: err?.message ?? null,
-        },
-      });
       setError(err.message || 'Could not save user.');
     } finally {
       setSaving(false);

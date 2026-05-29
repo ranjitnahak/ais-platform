@@ -80,3 +80,24 @@ DROP POLICY IF EXISTS plan_templates_platform_superuser_select ON public.plan_te
 CREATE POLICY plan_templates_platform_superuser_select
   ON public.plan_templates FOR SELECT TO authenticated
   USING (public.is_platform_superuser());
+
+DROP POLICY IF EXISTS users_platform_superuser_select ON public.users;
+CREATE POLICY users_platform_superuser_select
+  ON public.users FOR SELECT TO authenticated
+  USING (public.is_platform_superuser());
+
+DROP POLICY IF EXISTS user_roles_platform_superuser_select ON public.user_roles;
+CREATE POLICY user_roles_platform_superuser_select
+  ON public.user_roles FOR SELECT TO authenticated
+  USING (public.is_platform_superuser());
+
+DROP POLICY IF EXISTS users_platform_superuser_update ON public.users;
+CREATE POLICY users_platform_superuser_update
+  ON public.users FOR UPDATE TO authenticated
+  USING (public.is_platform_superuser())
+  WITH CHECK (public.is_platform_superuser());
+
+DROP POLICY IF EXISTS users_platform_superuser_delete ON public.users;
+CREATE POLICY users_platform_superuser_delete
+  ON public.users FOR DELETE TO authenticated
+  USING (public.is_platform_superuser());
