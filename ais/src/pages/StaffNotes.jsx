@@ -4,6 +4,8 @@ import { canSync, getCurrentUser } from '../lib/auth'
 import { useUser } from '../context/UserContext'
 import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope'
 import { getStaffDomain, useStaffNotes } from '../hooks/useStaffNotes'
+import { useIsMobile } from '../hooks/useIsMobile'
+import AthleteNoteRow from '../components/staffnotes/AthleteNoteRow'
 import Sidebar from '../components/Sidebar'
 
 const DOMAINS = ['s_and_c', 'physio', 'nutrition', 'psychology', 'analysis', 'coaching']
@@ -26,6 +28,7 @@ export default function StaffNotes({ embedded = false }) {
   const [selectedAthleteId, setSelectedAthleteId] = useState('')
   const [tab, setTab] = useState('team')
   const [loadError, setLoadError] = useState(null)
+  const isMobile = useIsMobile()
   const isSuperuser = user?.isSuperuser === true
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId)
   const canView = canSync(user, 'staff_notes', 'view')
@@ -96,14 +99,18 @@ export default function StaffNotes({ embedded = false }) {
         if (countError) throw countError
         setAthletes(athleteRows ?? [])
         setCounts(countRows?.reduce((acc, row) => ({ ...acc, [row.athlete_id]: (acc[row.athlete_id] ?? 0) + 1 }), {}) ?? {})
-        if (!selectedAthleteId && athleteRows?.[0]?.id) setSelectedAthleteId(athleteRows[0].id)
+        if (!isMobile && !selectedAthleteId && athleteRows?.[0]?.id) setSelectedAthleteId(athleteRows[0].id)
       } catch (err) {
         console.error('[StaffNotes] loadAthletes failed:', err)
         setLoadError(err.message)
       }
     }
     loadAthletes()
-  }, [canView, selectedTeamId, selectedAthleteId, user?.id, activeOrgId])
+  }, [canView, selectedTeamId, selectedAthleteId, user?.id, activeOrgId, isMobile])
+
+  function handleMobileAthleteToggle(athleteId) {
+    setSelectedAthleteId((current) => (current === athleteId ? '' : athleteId))
+  }
 
   const visible = useMemo(() => STAFF_ROLES.includes(user?.role), [user?.role])
   const accessDenied = <p className="rounded-2xl bg-[var(--color-surface-container)] p-6 font-bold">Access Denied</p>;
@@ -153,15 +160,59 @@ export default function StaffNotes({ embedded = false }) {
             <NoteList notes={teamNotes.notes} loading={teamNotes.loading} />
           </Panel>
         </section>
+      ) : isMobile ? (
+        <section>
+          <Panel title="Athletes">
+            <div className="space-y-2">
+              {athletes.map((athlete) => (
+                <AthleteNoteRow
+                  key={athlete.id}
+                  athlete={athlete}
+                  count={counts[athlete.id] ?? 0}
+                  expanded={selectedAthleteId === athlete.id}
+                  onToggle={() => handleMobileAthleteToggle(athlete.id)}
+                >
+                  {selectedAthleteId === athlete.id && canCreate && (
+                    <NoteForm
+                      placeholder={`Write a note for ${athlete.full_name}...`}
+                      userDomain={userDomain}
+                      onSubmit={athleteNotes.submitNote}
+                      submitting={athleteNotes.submitting}
+                    />
+                  )}
+                  {selectedAthleteId === athlete.id && !canCreate && <NoCreate />}
+                  {selectedAthleteId === athlete.id && (
+                    <NoteList notes={athleteNotes.notes} loading={athleteNotes.loading} />
+                  )}
+                </AthleteNoteRow>
+              ))}
+            </div>
+          </Panel>
+        </section>
       ) : (
         <section className="grid gap-5 lg:grid-cols-[320px_1fr]">
           <Panel title="Athletes">
             <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
-              {athletes.map((athlete) => <AthleteRow key={athlete.id} athlete={athlete} count={counts[athlete.id] ?? 0} selected={selectedAthleteId === athlete.id} onClick={() => setSelectedAthleteId(athlete.id)} />)}
+              {athletes.map((athlete) => (
+                <AthleteRow
+                  key={athlete.id}
+                  athlete={athlete}
+                  count={counts[athlete.id] ?? 0}
+                  selected={selectedAthleteId === athlete.id}
+                  onClick={() => setSelectedAthleteId(athlete.id)}
+                />
+              ))}
             </div>
           </Panel>
           <Panel title={selectedAthlete ? selectedAthlete.full_name : 'Select Athlete'}>
-            {selectedAthleteId && canCreate && <NoteForm placeholder="Write an athlete note..." userDomain={userDomain} onSubmit={athleteNotes.submitNote} submitting={athleteNotes.submitting} />}
+            {selectedAthleteId && canCreate && (
+              <NoteForm
+                placeholder="Write an athlete note..."
+                userDomain={userDomain}
+                onSubmit={athleteNotes.submitNote}
+                submitting={athleteNotes.submitting}
+              />
+            )}
             {selectedAthleteId && !canCreate && <NoCreate />}
             <NoteList notes={athleteNotes.notes} loading={athleteNotes.loading} />
           </Panel>
