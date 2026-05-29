@@ -23,6 +23,7 @@ import AthleteData from './pages/AthleteData';
 import AthleteLog from './pages/AthleteLog';
 import AthleteProfileSelf from './pages/AthleteProfileSelf';
 import AthleteSettings from './pages/AthleteSettings';
+import { getDefaultStaffHomeRoute } from './nav/navResourceMap';
 
 const PUBLIC_PATHS = ['/login', '/reset-password'];
 
@@ -109,12 +110,14 @@ function AuthGate({ children }) {
 function HomeRedirect({ user }) {
   if (!user) return <RoleLoading />;
   if (user.role?.toLowerCase() === 'athlete') return <Navigate to="/athlete-home" replace />;
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to={getDefaultStaffHomeRoute(user)} replace />;
 }
 
 function AthleteRouteGuard({ user }) {
   if (!user) return <RoleLoading />;
-  if (user.role?.toLowerCase() !== 'athlete') return <Navigate to="/dashboard" replace />;
+  if (user.role?.toLowerCase() !== 'athlete') {
+    return <Navigate to={getDefaultStaffHomeRoute(user)} replace />;
+  }
   return (
     <AthleteLayout>
       <Outlet />
@@ -171,7 +174,10 @@ export default function App() {
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/users/:userId" element={<UserDetailPage />} />
             <Route path="/superuser" element={<SuperuserPanel />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route
+              path="*"
+              element={<Navigate to={getDefaultStaffHomeRoute(resolvedUser)} replace />}
+            />
           </Route>
         </Routes>
       </AuthGate>
