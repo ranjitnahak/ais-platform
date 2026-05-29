@@ -5,12 +5,10 @@ import StaffPageLayout from '../components/layout/StaffPageLayout';
 import PageTabBar from '../components/layout/PageTabBar';
 import WellnessDashboard from '../components/wellness/WellnessDashboard';
 import DashboardRPEPanel from '../components/dashboard/DashboardRPEPanel';
-import SquadDashboard from '../components/dashboard/SquadDashboard';
 
 const ALL_TABS = [
   { id: 'wellness', label: 'Wellness', resource: 'wellness' },
   { id: 'rpe', label: 'RPE', resource: 'rpe_logging' },
-  { id: 'squad', label: 'Squad', resource: null },
 ];
 
 export default function Dashboard() {
@@ -40,7 +38,6 @@ export default function Dashboard() {
           <PageTabBar tabs={visibleTabs} activeTab={activeTab} onTabChange={setActiveTab} />
           {activeTab === 'wellness' && <WellnessDashboard embedded />}
           {activeTab === 'rpe' && <DashboardRPEPanel />}
-          {activeTab === 'squad' && <SquadDashboard embedded />}
         </>
       )}
     </StaffPageLayout>
