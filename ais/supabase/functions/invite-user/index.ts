@@ -7,7 +7,36 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type',
 }
 
-const SITE_URL = 'https://ais-platform-omega.vercel.app/reset-password'
+const SITE_URL = 'https://app.athleteintelligencesystem.in/reset-password'
+
+/** Lookup auth.users id by email via GoTrue admin API (no email sent). */
+async function lookupAuthUserIdByEmail(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  email: string,
+): Promise<string> {
+  const url = new URL(`${supabaseUrl}/auth/v1/admin/users`)
+  url.searchParams.set('filter', email)
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      apikey: serviceRoleKey,
+    },
+  })
+
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg = body?.msg || body?.message || body?.error_description || `Auth user lookup failed (${res.status})`
+    throw new Error(msg)
+  }
+
+  const users = Array.isArray(body?.users) ? body.users : []
+  const normalized = email.toLowerCase()
+  const user = users.find((u: { email?: string }) => u.email?.toLowerCase() === normalized) ?? users[0]
+  if (!user?.id) throw new Error('Auth user not found for email')
+  return user.id
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -21,10 +50,12 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
     // Step 1: Send invite email
     // Try inviteUserByEmail first — works for new users
-    // Falls back to generateLink if user already exists in auth.users
+    // Falls back to admin user lookup + recovery email if user already exists in auth.users
     let authId: string
 
     const { data: inviteData, error: inviteError } =
@@ -36,8 +67,8 @@ serve(async (req) => {
     if (inviteError) {
       if (inviteError.code === 'email_exists' || inviteError.message?.includes('already been registered')) {
         // Existing auth user path:
-        // 1) resolve authId from existing profile row (or fallback generateLink for lookup),
-        // 2) send one recovery email call (avoid back-to-back otp calls that self-rate-limit).
+        // 1) resolve authId from existing profile row (or admin lookup — no email),
+        // 2) send one recovery email call (never pair with generateLink — it self-rate-limits).
         const { data: existingProfileRows, error: existingProfileErr } = await supabaseAdmin
           .from('users')
           .select('id')
@@ -47,15 +78,9 @@ serve(async (req) => {
         authId = existingProfileRows?.[0]?.id ?? ''
 
         if (!authId) {
-          const { data: linkData, error: linkError } =
-            await supabaseAdmin.auth.admin.generateLink({
-              type: 'magiclink',
-              email: email,
-              options: { redirectTo: SITE_URL },
-            })
-          if (linkError) throw linkError
-          authId = linkData.user.id
+          authId = await lookupAuthUserIdByEmail(supabaseUrl, serviceRoleKey, email)
         }
+
         const { error: recoverError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
           redirectTo: SITE_URL,
         })
@@ -77,7 +102,6 @@ serve(async (req) => {
     if (userType === 'athlete') {
       if (!athleteId) throw new Error('athleteId is required for athlete userType')
 
-      // Check if users row already exists
       const { data: existingUser } = await supabaseAdmin
         .from('users')
         .select('id')
@@ -85,7 +109,6 @@ serve(async (req) => {
         .maybeSingle()
 
       if (!existingUser) {
-        // Create users row for identity
         const { error: userError } = await supabaseAdmin
           .from('users')
           .insert({
@@ -100,7 +123,6 @@ serve(async (req) => {
           })
         if (userError) throw userError
 
-        // Assign Athlete role in user_roles
         const { data: athleteRole } = await supabaseAdmin
           .from('roles')
           .select('id')
@@ -119,7 +141,6 @@ serve(async (req) => {
         }
       }
 
-      // Always update athletes.auth_id
       const { error: athleteError } = await supabaseAdmin
         .from('athletes')
         .update({ auth_id: authId })
@@ -128,8 +149,6 @@ serve(async (req) => {
       if (athleteError) throw athleteError
 
     } else {
-      // Staff path
-      // Check if users row already exists
       const { data: existingUser } = await supabaseAdmin
         .from('users')
         .select('id')
@@ -150,9 +169,7 @@ serve(async (req) => {
           })
         if (userError) throw userError
 
-        // Assign role in user_roles
         if (roleEnum) {
-          // Map roleEnum to roles.name
           const roleNameMap: Record<string, string> = {
             sc_coach: 'S&C Coach',
             physio: 'Physio',

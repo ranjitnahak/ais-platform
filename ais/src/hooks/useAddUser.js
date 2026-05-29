@@ -226,7 +226,7 @@ export function useAddUser({ onSuccess, onClose }) {
       });
       if (fnError) throw new Error(await resolveFunctionErrorMessage(fnError, fnData));
       if (fnData?.error) throw new Error(fnData.error);
-      setSuccessMessage(`Athlete added and invite sent to ${emailValue}`);
+      setSuccessMessage(`Athlete added and invite sent to ${emailValue}. Ask them to check spam if it is not in their inbox.`);
     } catch (err) {
       console.error('[useAddUser] athlete invite', err);
       setSuccessMessage(

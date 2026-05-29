@@ -28,6 +28,7 @@ export default function UserList({ user }) {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -208,20 +209,25 @@ export default function UserList({ user }) {
     try {
       if (!item.athleteId) throw new Error('No athlete id found.');
       if (!item.email) throw new Error('Athlete email is missing.');
+      setError(null);
+      setSuccessMessage(null);
+      const orgId = item.orgId ?? user.orgId;
       const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
         body: {
           email: item.email,
           fullName: item.fullName,
-          orgId: item.orgId ?? user.orgId,
+          orgId,
           userType: 'athlete',
           athleteId: item.athleteId,
         },
       });
       if (fnError) throw new Error(await resolveFunctionErrorMessage(fnError, fnData));
       if (fnData?.error) throw new Error(fnData.error);
+      setSuccessMessage(`Invite sent to ${item.email}. Ask the athlete to check spam if it is not in their inbox.`);
       await loadUsers();
     } catch (err) {
       console.error('[UserList] send athlete invite', err);
+      setSuccessMessage(null);
       setError(err.message || 'Could not send invite.');
     }
   }
@@ -264,6 +270,7 @@ export default function UserList({ user }) {
       </div>
 
       {error && <p className="p-5 text-sm text-[var(--color-error)]">{error}</p>}
+      {successMessage && <p className="p-5 text-sm text-[var(--color-tertiary-fixed-dim)]">{successMessage}</p>}
       {loading && <p className="p-5 text-sm text-[var(--color-outline)]">Loading users...</p>}
 
       {!loading && !error && (

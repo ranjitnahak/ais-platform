@@ -1,20 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import { PERMISSION_CATEGORIES } from '../../lib/adminUserConstants';
 import { supabase } from '../../lib/supabase';
-
-const RESOURCES = [
-  'assessments',
-  'periodisation',
-  'wellness',
-  'rpe_logging',
-  'injury_surveillance',
-  'reports',
-  'unified_reports',
-  'athlete_portal',
-  'sc_pro',
-  'sessionLibrary',
-  'athleteRoster',
-  'adminConfig',
-];
 
 const COLUMNS = [
   ['visible', 'Visible'],
@@ -23,6 +9,8 @@ const COLUMNS = [
   ['can_edit', 'Edit'],
   ['can_delete', 'Delete'],
 ];
+
+const COL_SPAN = 2 + COLUMNS.length;
 
 const CRUD_FIELDS = ['can_view', 'can_create', 'can_edit', 'can_delete'];
 
@@ -75,11 +63,6 @@ export default function RolePermissionsGrid({ user }) {
     void loadPermissions();
   }, [user?.orgId]);
 
-  const roleResourceRows = useMemo(
-    () => roles.flatMap((role) => RESOURCES.map((resource) => ({ role, resource }))),
-    [roles],
-  );
-
   async function togglePermission(roleId, resource, field, checked) {
     if (!user?.orgId) return;
     const key = keyFor(roleId, resource);
@@ -109,6 +92,53 @@ export default function RolePermissionsGrid({ user }) {
     }
   }
 
+  function renderResourceRow(role, resource) {
+    const row = permissions[keyFor(role.id, resource)] ?? {};
+    const hidden = !isRowVisible(row);
+    const warn = hasMisconfiguration(row);
+
+    return (
+      <tr
+        key={`${role.id}-${resource}`}
+        className={warn ? 'border-l-2 border-l-[var(--color-primary-container)]' : undefined}
+        title={warn ? 'Tab will show but user cannot view data' : undefined}
+      >
+        <td className="px-4 py-3" />
+        <td className="px-4 py-3 font-bold text-[var(--color-on-surface)]">
+          <span className="inline-flex items-center gap-2">
+            {warn && (
+              <span
+                className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary-container)]"
+                title="Tab will show but user cannot view data"
+                aria-label="Tab will show but user cannot view data"
+              />
+            )}
+            {resource}
+          </span>
+        </td>
+        {COLUMNS.map(([field, label]) => {
+          const inputKey = `${role.id}:${resource}:${field}`;
+          const dimCrud = hidden && CRUD_FIELDS.includes(field);
+          return (
+            <td
+              key={field}
+              className={`px-4 py-3 text-center ${dimCrud ? 'pointer-events-none opacity-[0.35]' : ''}`}
+            >
+              <input
+                aria-label={`${role.name} ${resource} ${label}`}
+                type="checkbox"
+                checked={field === 'visible' ? isRowVisible(row) : Boolean(row[field])}
+                disabled={savingKey === inputKey}
+                onChange={(event) => togglePermission(role.id, resource, field, event.target.checked)}
+                className="h-4 w-4 accent-[var(--color-primary-container)]"
+              />
+            </td>
+          );
+        })}
+      </tr>
+    );
+  }
+
   return (
     <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]">
       <div className="border-b border-[var(--color-outline-variant)] p-5">
@@ -134,54 +164,42 @@ export default function RolePermissionsGrid({ user }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-outline-variant)]">
-              {roleResourceRows.map(({ role, resource }) => {
-                const row = permissions[keyFor(role.id, resource)] ?? {};
-                const hidden = !isRowVisible(row);
-                const warn = hasMisconfiguration(row);
-                return (
+              {roles.map((role, roleIndex) => (
+                <Fragment key={role.id}>
                   <tr
-                    key={`${role.id}-${resource}`}
-                    className={warn ? 'border-l-2 border-l-[var(--color-primary-container)]' : undefined}
-                    title={warn ? 'Tab will show but user cannot view data' : undefined}
+                    className={
+                      roleIndex > 0
+                        ? 'border-t-2 border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)]'
+                        : 'bg-[var(--color-surface-container-low)]'
+                    }
                   >
-                    <td className="px-4 py-3 font-bold text-[var(--color-on-surface)]">
-                      <span className="inline-flex items-center gap-2">
-                        {warn && (
-                          <span
-                            className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary-container)]"
-                            title="Tab will show but user cannot view data"
-                            aria-label="Tab will show but user cannot view data"
-                          />
-                        )}
-                        {role.name}
-                      </span>
+                    <td
+                      colSpan={COL_SPAN}
+                      className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface)]"
+                    >
+                      {role.name}
                     </td>
-                    <td className="px-4 py-3 text-[var(--color-on-surface-variant)]">{resource}</td>
-                    {COLUMNS.map(([field, label]) => {
-                      const inputKey = `${role.id}:${resource}:${field}`;
-                      const dimCrud = hidden && CRUD_FIELDS.includes(field);
-                      return (
-                        <td
-                          key={field}
-                          className={`px-4 py-3 text-center ${dimCrud ? 'opacity-[0.35] pointer-events-none' : ''}`}
-                        >
-                          <input
-                            aria-label={`${role.name} ${resource} ${label}`}
-                            type="checkbox"
-                            checked={field === 'visible' ? isRowVisible(row) : Boolean(row[field])}
-                            disabled={savingKey === inputKey}
-                            onChange={(event) => togglePermission(role.id, resource, field, event.target.checked)}
-                            className="h-4 w-4 accent-[var(--color-primary-container)]"
-                          />
-                        </td>
-                      );
-                    })}
                   </tr>
-                );
-              })}
-              {!roleResourceRows.length && (
+                  {PERMISSION_CATEGORIES.map((category) => (
+                    <Fragment key={`${role.id}-${category.label}`}>
+                      <tr className="bg-[var(--color-surface-container-high)]">
+                        <td
+                          colSpan={COL_SPAN}
+                          className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)]"
+                        >
+                          {category.label}
+                        </td>
+                      </tr>
+                      {category.resources.map((resource) => renderResourceRow(role, resource))}
+                    </Fragment>
+                  ))}
+                </Fragment>
+              ))}
+              {!roles.length && (
                 <tr>
-                  <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-outline)]">No roles found.</td>
+                  <td colSpan={COL_SPAN} className="px-5 py-8 text-center text-[var(--color-outline)]">
+                    No roles found.
+                  </td>
                 </tr>
               )}
             </tbody>
