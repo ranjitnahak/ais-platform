@@ -1,17 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
+import { isVisibleSync } from '../lib/auth';
 import StaffPageLayout from '../components/layout/StaffPageLayout';
 import PageTabBar from '../components/layout/PageTabBar';
 import RPEEntryForm from '../components/log/RPEEntryForm';
 import WellnessEntryForm from '../components/log/WellnessEntryForm';
 import StaffNotes from './StaffNotes';
 
-const TABS = [
-  { id: 'rpe', label: 'RPE Entry' },
-  { id: 'wellness', label: 'Wellness Entry' },
-  { id: 'assessment', label: 'Assessment' },
-  { id: 'staff-notes', label: 'Staff Notes' },
+const ALL_TABS = [
+  { id: 'rpe-entry', label: 'RPE Entry', resource: 'rpe_logging' },
+  { id: 'wellness-entry', label: 'Wellness Entry', resource: 'wellness' },
+  { id: 'assessment', label: 'Assessment', resource: 'assessments' },
+  { id: 'staff-notes', label: 'Staff Notes', resource: 'staff_notes' },
 ];
 
 function AssessmentTab() {
@@ -25,17 +26,37 @@ function AssessmentTab() {
 }
 
 export default function Log() {
-  const [activeTab, setActiveTab] = useState('rpe');
+  const [activeTab, setActiveTab] = useState('rpe-entry');
   const { user, activeOrgId } = useUser();
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
+  const visibleTabs = useMemo(
+    () => ALL_TABS.filter((tab) => isVisibleSync(user, tab.resource)),
+    [user],
+  );
+
+  useEffect(() => {
+    if (!visibleTabs.length) return;
+    if (!visibleTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [visibleTabs, activeTab]);
+
   return (
     <StaffPageLayout title="Log" subtitle="Record training and wellness data" showSearch={false}>
-      <PageTabBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
-      {activeTab === 'rpe' && <RPEEntryForm key={effectiveOrgId ?? 'rpe'} />}
-      {activeTab === 'wellness' && <WellnessEntryForm key={effectiveOrgId ?? 'wellness'} />}
-      {activeTab === 'assessment' && <AssessmentTab />}
-      {activeTab === 'staff-notes' && <StaffNotes embedded key={effectiveOrgId ?? 'staff-notes'} />}
+      {visibleTabs.length === 0 ? (
+        <p className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-8 text-center text-sm text-[var(--color-on-surface-variant)]">
+          You do not have access to any log views.
+        </p>
+      ) : (
+        <>
+          <PageTabBar tabs={visibleTabs} activeTab={activeTab} onTabChange={setActiveTab} />
+          {activeTab === 'rpe-entry' && <RPEEntryForm key={effectiveOrgId ?? 'rpe'} />}
+          {activeTab === 'wellness-entry' && <WellnessEntryForm key={effectiveOrgId ?? 'wellness'} />}
+          {activeTab === 'assessment' && <AssessmentTab />}
+          {activeTab === 'staff-notes' && <StaffNotes embedded key={effectiveOrgId ?? 'staff-notes'} />}
+        </>
+      )}
     </StaffPageLayout>
   );
 }

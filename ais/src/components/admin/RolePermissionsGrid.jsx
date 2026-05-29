@@ -16,15 +16,26 @@ const RESOURCES = [
   'adminConfig',
 ];
 
-const ACTIONS = [
+const COLUMNS = [
+  ['visible', 'Visible'],
   ['can_view', 'View'],
   ['can_create', 'Create'],
   ['can_edit', 'Edit'],
   ['can_delete', 'Delete'],
 ];
 
+const CRUD_FIELDS = ['can_view', 'can_create', 'can_edit', 'can_delete'];
+
 function keyFor(roleId, resource) {
   return `${roleId}:${resource}`;
+}
+
+function isRowVisible(row) {
+  return row.visible !== false;
+}
+
+function hasMisconfiguration(row) {
+  return isRowVisible(row) && !row.can_view;
 }
 
 export default function RolePermissionsGrid({ user }) {
@@ -43,7 +54,7 @@ export default function RolePermissionsGrid({ user }) {
         supabase.from('roles').select('id, name').eq('org_id', user.orgId).order('name'),
         supabase
           .from('role_permissions')
-          .select('role_id, resource, can_view, can_create, can_edit, can_delete, roles(name)')
+          .select('role_id, resource, visible, can_view, can_create, can_edit, can_delete, roles(name)')
           .eq('org_id', user.orgId),
       ]);
       if (roleError) throw roleError;
@@ -75,6 +86,7 @@ export default function RolePermissionsGrid({ user }) {
     const current = permissions[key] ?? {
       role_id: roleId,
       resource,
+      visible: true,
       can_view: false,
       can_create: false,
       can_edit: false,
@@ -101,7 +113,9 @@ export default function RolePermissionsGrid({ user }) {
     <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]">
       <div className="border-b border-[var(--color-outline-variant)] p-5">
         <h2 className="text-lg font-black text-[var(--color-on-surface)]">Roles</h2>
-        <p className="text-sm text-[var(--color-on-surface-variant)]">Toggle CRUD permissions for each role and resource.</p>
+        <p className="text-sm text-[var(--color-on-surface-variant)]">
+          Visible controls tab display; View/Create/Edit/Delete control data access.
+        </p>
       </div>
 
       {error && <p className="p-5 text-sm text-[var(--color-error)]">{error}</p>}
@@ -109,12 +123,12 @@ export default function RolePermissionsGrid({ user }) {
 
       {!loading && !error && (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="text-[10px] uppercase tracking-widest text-[var(--color-outline)]">
               <tr>
                 <th className="px-4 py-3 font-black">Role</th>
                 <th className="px-4 py-3 font-black">Resource</th>
-                {ACTIONS.map(([, label]) => (
+                {COLUMNS.map(([, label]) => (
                   <th key={label} className="px-4 py-3 text-center font-black">{label}</th>
                 ))}
               </tr>
@@ -122,18 +136,39 @@ export default function RolePermissionsGrid({ user }) {
             <tbody className="divide-y divide-[var(--color-outline-variant)]">
               {roleResourceRows.map(({ role, resource }) => {
                 const row = permissions[keyFor(role.id, resource)] ?? {};
+                const hidden = !isRowVisible(row);
+                const warn = hasMisconfiguration(row);
                 return (
-                  <tr key={`${role.id}-${resource}`}>
-                    <td className="px-4 py-3 font-bold text-[var(--color-on-surface)]">{role.name}</td>
+                  <tr
+                    key={`${role.id}-${resource}`}
+                    className={warn ? 'border-l-2 border-l-[var(--color-primary-container)]' : undefined}
+                    title={warn ? 'Tab will show but user cannot view data' : undefined}
+                  >
+                    <td className="px-4 py-3 font-bold text-[var(--color-on-surface)]">
+                      <span className="inline-flex items-center gap-2">
+                        {warn && (
+                          <span
+                            className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary-container)]"
+                            title="Tab will show but user cannot view data"
+                            aria-label="Tab will show but user cannot view data"
+                          />
+                        )}
+                        {role.name}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-[var(--color-on-surface-variant)]">{resource}</td>
-                    {ACTIONS.map(([field, label]) => {
+                    {COLUMNS.map(([field, label]) => {
                       const inputKey = `${role.id}:${resource}:${field}`;
+                      const dimCrud = hidden && CRUD_FIELDS.includes(field);
                       return (
-                        <td key={field} className="px-4 py-3 text-center">
+                        <td
+                          key={field}
+                          className={`px-4 py-3 text-center ${dimCrud ? 'opacity-[0.35] pointer-events-none' : ''}`}
+                        >
                           <input
                             aria-label={`${role.name} ${resource} ${label}`}
                             type="checkbox"
-                            checked={Boolean(row[field])}
+                            checked={field === 'visible' ? isRowVisible(row) : Boolean(row[field])}
                             disabled={savingKey === inputKey}
                             onChange={(event) => togglePermission(role.id, resource, field, event.target.checked)}
                             className="h-4 w-4 accent-[var(--color-primary-container)]"
@@ -146,7 +181,7 @@ export default function RolePermissionsGrid({ user }) {
               })}
               {!roleResourceRows.length && (
                 <tr>
-                  <td colSpan="6" className="px-5 py-8 text-center text-[var(--color-outline)]">No roles found.</td>
+                  <td colSpan="7" className="px-5 py-8 text-center text-[var(--color-outline)]">No roles found.</td>
                 </tr>
               )}
             </tbody>

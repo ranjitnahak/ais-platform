@@ -4,15 +4,20 @@ const ACTION_MAP = { view: 'canView', create: 'canCreate', edit: 'canEdit', dele
 const PERMISSION_COLUMN = { canView: 'can_view', canCreate: 'can_create', canEdit: 'can_edit', canDelete: 'can_delete' };
 const ACTIVE_ORG_STORAGE_KEY = 'ais_active_org_id';
 
+function emptyPermission() {
+  return { canView: false, canCreate: false, canEdit: false, canDelete: false, visible: true };
+}
+
 function applyPermissionOverrides(permissions, overrideRows) {
   const merged = { ...permissions };
   for (const row of overrideRows ?? []) {
     if (!merged[row.resource]) {
-      merged[row.resource] = { canView: false, canCreate: false, canEdit: false, canDelete: false };
+      merged[row.resource] = emptyPermission();
     }
     for (const [key, col] of Object.entries(PERMISSION_COLUMN)) {
       if (row[col] != null) merged[row.resource][key] = Boolean(row[col]);
     }
+    if (row.visible != null) merged[row.resource].visible = Boolean(row.visible);
   }
   return merged;
 }
@@ -22,6 +27,14 @@ function resolvePermission(user, resource, action) {
   if (user.isSuperuser) return true;
   const permKey = ACTION_MAP[action];
   return Boolean(user?.permissions?.[resource]?.[permKey]);
+}
+
+function resolveVisible(user, resource) {
+  if (!user) return false;
+  if (user.isSuperuser) return true;
+  const perm = user?.permissions?.[resource];
+  if (perm && typeof perm.visible === 'boolean') return perm.visible;
+  return true;
 }
 
 export async function getCurrentUser() {
@@ -113,12 +126,12 @@ export async function getCurrentUser() {
       supabase.from('teams').select('id').eq('org_id', user.org_id),
       supabase
         .from('role_permissions')
-        .select('resource, can_view, can_create, can_edit, can_delete')
+        .select('resource, can_view, can_create, can_edit, can_delete, visible')
         .eq('role_id', roleId)
         .eq('org_id', user.org_id),
       supabase
         .from('user_permission_overrides')
-        .select('resource, can_view, can_create, can_edit, can_delete')
+        .select('resource, can_view, can_create, can_edit, can_delete, visible')
         .eq('user_id', user.id)
         .eq('org_id', user.org_id),
     ]);
@@ -133,8 +146,11 @@ export async function getCurrentUser() {
     const permissions = {};
     for (const row of permissionRows ?? []) {
       permissions[row.resource] = {
-        canView: Boolean(row.can_view), canCreate: Boolean(row.can_create),
-        canEdit: Boolean(row.can_edit), canDelete: Boolean(row.can_delete),
+        canView: Boolean(row.can_view),
+        canCreate: Boolean(row.can_create),
+        canEdit: Boolean(row.can_edit),
+        canDelete: Boolean(row.can_delete),
+        visible: row.visible !== false,
       };
     }
 
@@ -160,6 +176,10 @@ export async function getCurrentUser() {
 export function canSync(user, resource, action) {
   if (user?.isSuperuser === true) return true;
   return resolvePermission(user, resource, action);
+}
+
+export function isVisibleSync(user, resource) {
+  return resolveVisible(user, resource);
 }
 
 export async function can(resource, action) {

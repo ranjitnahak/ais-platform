@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import { PERMISSION_ACTIONS, PERMISSION_CATEGORIES } from '../../lib/adminUserConstants';
 
-function PermissionCheckbox({ cell, onToggle }) {
+function PermissionCheckbox({ cell, onToggle, dimmed = false }) {
   const { state, value } = cell;
   let boxClass = 'border-[var(--color-outline-variant)] bg-transparent';
   let icon = value ? 'check' : '';
@@ -22,8 +22,15 @@ function PermissionCheckbox({ cell, onToggle }) {
     <button
       type="button"
       onClick={onToggle}
-      className={`mx-auto flex h-5 w-5 items-center justify-center rounded border-2 ${boxClass}`}
-      title={state === 'inherited' ? 'Inherited from role' : state === 'override_on' ? 'Override: allowed' : 'Override: denied'}
+      disabled={dimmed}
+      className={`mx-auto flex h-5 w-5 items-center justify-center rounded border-2 ${boxClass} ${dimmed ? 'opacity-[0.35] pointer-events-none' : ''}`}
+      title={
+        state === 'inherited'
+          ? 'Inherited from role'
+          : state === 'override_on'
+            ? 'Override: allowed'
+            : 'Override: denied'
+      }
     >
       {icon && (
         <span className={`material-symbols-outlined text-[14px] leading-none ${state === 'override_off' ? 'text-[var(--color-on-error-container)]' : 'text-[var(--color-on-surface)]'}`}>
@@ -32,6 +39,16 @@ function PermissionCheckbox({ cell, onToggle }) {
       )}
     </button>
   );
+}
+
+function shouldDimCrud(resolvedMap, resource) {
+  return resolvedMap[resource]?.visible?.state === 'override_off';
+}
+
+function hasMisconfiguration(resolvedMap, resource) {
+  const visible = resolvedMap[resource]?.visible;
+  const view = resolvedMap[resource]?.view;
+  return visible?.value === true && view?.value === false;
 }
 
 export default function UserPermissionsTab({ permissions }) {
@@ -75,10 +92,11 @@ export default function UserPermissionsTab({ permissions }) {
       )}
 
       <div className="overflow-x-auto rounded-xl border border-[var(--color-outline-variant)]">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[800px] text-left text-sm">
           <thead className="text-[10px] uppercase tracking-widest text-[var(--color-outline)]">
             <tr>
               <th className="px-4 py-3 font-black">Resource</th>
+              <th className="px-4 py-3 text-center font-black">Visible</th>
               {PERMISSION_ACTIONS.map(([, , label]) => (
                 <th key={label} className="px-4 py-3 text-center font-black">{label}</th>
               ))}
@@ -89,34 +107,60 @@ export default function UserPermissionsTab({ permissions }) {
             {PERMISSION_CATEGORIES.map((category) => (
               <Fragment key={category.label}>
                 <tr key={`cat-${category.label}`} className="bg-[var(--color-surface-container-high)]">
-                  <td colSpan={PERMISSION_ACTIONS.length + 2} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)]">
+                  <td colSpan={PERMISSION_ACTIONS.length + 3} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)]">
                     {category.label}
                   </td>
                 </tr>
-                {category.resources.map((resource) => (
-                  <tr key={resource}>
-                    <td className="px-4 py-3 font-bold text-[var(--color-on-surface)]">{resource}</td>
-                    {PERMISSION_ACTIONS.map(([, action]) => (
-                      <td key={action} className="px-4 py-3 text-center">
+                {category.resources.map((resource) => {
+                  const hidden = shouldDimCrud(permissions.resolvedMap, resource);
+                  const warn = hasMisconfiguration(permissions.resolvedMap, resource);
+                  return (
+                    <tr
+                      key={resource}
+                      className={warn ? 'border-l-2 border-l-[var(--color-primary-container)]' : undefined}
+                      title={warn ? 'Tab will show but user cannot view data' : undefined}
+                    >
+                      <td className="px-4 py-3 font-bold text-[var(--color-on-surface)]">
+                        <span className="inline-flex items-center gap-2">
+                          {warn && (
+                            <span
+                              className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--color-primary-container)]"
+                              title="Tab will show but user cannot view data"
+                              aria-label="Tab will show but user cannot view data"
+                            />
+                          )}
+                          {resource}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
                         <PermissionCheckbox
-                          cell={permissions.resolvedMap[resource]?.[action] ?? { state: 'inherited', value: false }}
-                          onToggle={() => permissions.toggleOverride(resource, action)}
+                          cell={permissions.resolvedMap[resource]?.visible ?? { state: 'inherited', value: true }}
+                          onToggle={() => permissions.toggleOverride(resource, 'visible')}
                         />
                       </td>
-                    ))}
-                    <td className="px-4 py-3 text-right">
-                      {permissions.overrides[resource] && (
-                        <button
-                          type="button"
-                          onClick={() => permissions.resetResource(resource)}
-                          className="text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)] hover:text-[var(--color-on-surface)]"
-                        >
-                          Reset row
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      {PERMISSION_ACTIONS.map(([, action]) => (
+                        <td key={action} className="px-4 py-3 text-center">
+                          <PermissionCheckbox
+                            cell={permissions.resolvedMap[resource]?.[action] ?? { state: 'inherited', value: false }}
+                            onToggle={() => permissions.toggleOverride(resource, action)}
+                            dimmed={hidden}
+                          />
+                        </td>
+                      ))}
+                      <td className="px-4 py-3 text-right">
+                        {permissions.overrides[resource] && (
+                          <button
+                            type="button"
+                            onClick={() => permissions.resetResource(resource)}
+                            className="text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)] hover:text-[var(--color-on-surface)]"
+                          >
+                            Reset row
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </Fragment>
             ))}
           </tbody>
@@ -128,7 +172,8 @@ export default function UserPermissionsTab({ permissions }) {
           <div className="w-full max-w-md rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-6">
             <h3 className="text-lg font-black text-[var(--color-on-surface)]">Reset to role defaults?</h3>
             <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
-              This will remove all custom permissions for this user. They will revert to their role defaults.
+              This will remove all custom permissions for this user, including visibility overrides.
+              They will revert to their role defaults.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setConfirmResetAll(false)} className="px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">Cancel</button>

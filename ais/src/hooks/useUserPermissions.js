@@ -4,6 +4,7 @@ import { getCurrentUser } from '../lib/auth';
 import { PERMISSION_ACTIONS, PERMISSION_RESOURCES } from '../lib/adminUserConstants';
 
 const ACTION_FIELDS = {
+  visible: 'visible',
   view: 'can_view',
   create: 'can_create',
   edit: 'can_edit',
@@ -14,6 +15,7 @@ function buildRoleDefaults(rows) {
   const map = {};
   for (const row of rows ?? []) {
     map[row.resource] = {
+      visible: row.visible !== false,
       can_view: Boolean(row.can_view),
       can_create: Boolean(row.can_create),
       can_edit: Boolean(row.can_edit),
@@ -35,7 +37,10 @@ export function resolvePermissionState(roleDefaults, overrides, resource, action
   const field = ACTION_FIELDS[action];
   const overrideRow = overrides[resource];
   if (!overrideRow || overrideRow[field] == null) {
-    return { state: 'inherited', value: Boolean(roleDefaults[resource]?.[field]) };
+    const roleValue = action === 'visible'
+      ? roleDefaults[resource]?.visible !== false
+      : Boolean(roleDefaults[resource]?.[field]);
+    return { state: 'inherited', value: roleValue };
   }
   const value = Boolean(overrideRow[field]);
   return { state: value ? 'override_on' : 'override_off', value };
@@ -47,6 +52,7 @@ export async function saveOverride(userId, orgId, resource, action, value, creat
     org_id: orgId,
     user_id: userId,
     resource,
+    visible: existingOverride?.visible ?? null,
     can_view: existingOverride?.can_view ?? null,
     can_create: existingOverride?.can_create ?? null,
     can_edit: existingOverride?.can_edit ?? null,
@@ -133,12 +139,12 @@ export function useUserPermissions(userId, activeOrgId) {
       const [{ data: permRows, error: permError }, { data: overrideRows, error: ovError }] = await Promise.all([
         supabase
           .from('role_permissions')
-          .select('resource, can_view, can_create, can_edit, can_delete')
+          .select('resource, visible, can_view, can_create, can_edit, can_delete')
           .eq('role_id', resolvedRoleId)
           .eq('org_id', orgId),
         supabase
           .from('user_permission_overrides')
-          .select('resource, can_view, can_create, can_edit, can_delete')
+          .select('resource, visible, can_view, can_create, can_edit, can_delete')
           .eq('user_id', userId)
           .eq('org_id', orgId),
       ]);
@@ -161,7 +167,9 @@ export function useUserPermissions(userId, activeOrgId) {
 
   const resolvedMap = {};
   for (const resource of PERMISSION_RESOURCES) {
-    resolvedMap[resource] = {};
+    resolvedMap[resource] = {
+      visible: resolvePermissionState(roleDefaults, overrides, resource, 'visible'),
+    };
     for (const [, action] of PERMISSION_ACTIONS) {
       resolvedMap[resource][action] = resolvePermissionState(roleDefaults, overrides, resource, action);
     }
@@ -174,7 +182,9 @@ export function useUserPermissions(userId, activeOrgId) {
       const orgId = activeOrgId ?? currentUser?.orgId;
       if (!orgId) throw new Error('Not authenticated');
       const { state, value } = resolvePermissionState(roleDefaults, overrides, resource, action);
-      const roleDefault = Boolean(roleDefaults[resource]?.[ACTION_FIELDS[action]]);
+      const roleDefault = action === 'visible'
+        ? roleDefaults[resource]?.visible !== false
+        : Boolean(roleDefaults[resource]?.[ACTION_FIELDS[action]]);
       const nextValue = state === 'inherited' ? !roleDefault : !value;
       const payload = await saveOverride(
         userId,
