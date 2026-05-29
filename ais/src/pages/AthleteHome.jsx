@@ -1,16 +1,52 @@
-import RPEEntryForm from '../components/log/RPEEntryForm';
-import WellnessEntryForm from '../components/log/WellnessEntryForm';
+import { useUser } from '../context/UserContext';
+import PersonalisedHeader from '../components/shared/PersonalisedHeader';
+import LogSkeleton from '../components/shared/skeletons/LogSkeleton';
+import { useAthleteHome } from '../hooks/useAthleteHome';
+import {
+  AthleteStatsRow,
+  DailyCheckInCard,
+  QuickActionsCard,
+  TodaySessionCard,
+} from '../components/athlete-home/AthleteHomeCards';
 
 export default function AthleteHome() {
+  const { user } = useUser();
+  const {
+    loading,
+    error,
+    wellnessDoneToday,
+    todaySession,
+    streakDays,
+    streakCount,
+    lastRpe,
+    lastRpeDateLabel,
+  } = useAthleteHome();
+
   return (
-    <div className="mx-auto max-w-[480px] space-y-5">
-      <header className="rounded-3xl bg-[var(--color-surface-container)] p-6 shadow-2xl">
-        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">AIS Athlete</p>
-        <h1 className="mt-2 text-3xl font-black leading-tight tracking-tight">How was your session today?</h1>
-        <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Log training load and your morning readiness.</p>
-      </header>
-      <RPEEntryForm />
-      <WellnessEntryForm />
+    <div className="mx-auto max-w-[480px] space-y-4">
+      <PersonalisedHeader user={user} />
+
+      {loading && <LogSkeleton />}
+
+      {error && (
+        <p className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">
+          {error}
+        </p>
+      )}
+
+      {!loading && (
+        <>
+          <DailyCheckInCard doneToday={wellnessDoneToday} />
+          <TodaySessionCard session={todaySession} />
+          <AthleteStatsRow
+            streakDays={streakDays}
+            streakCount={streakCount}
+            lastRpe={lastRpe}
+            lastRpeDateLabel={lastRpeDateLabel}
+          />
+          <QuickActionsCard />
+        </>
+      )}
     </div>
   );
 }

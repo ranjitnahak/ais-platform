@@ -37,7 +37,7 @@ export function useRPELog() {
       const today = new Date().toISOString().split('T')[0]
       const { data, error } = await supabase
         .from('sessions')
-        .select('id, name, session_date, category, planned_rpe')
+        .select('id, name, session_date, category, rpe_planned')
         .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
         .in('team_id', effectiveTeamIds)
         .eq('session_date', today)

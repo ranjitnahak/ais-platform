@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { formatRoleOrPosition } from './adminUserConstants';
 
 const ACTION_MAP = { view: 'canView', create: 'canCreate', edit: 'canEdit', delete: 'canDelete', admin: 'canEdit' };
 const PERMISSION_COLUMN = { canView: 'can_view', canCreate: 'can_create', canEdit: 'can_edit', canDelete: 'can_delete' };
@@ -35,6 +36,53 @@ function resolveVisible(user, resource) {
   const perm = user?.permissions?.[resource];
   if (perm && typeof perm.visible === 'boolean') return perm.visible;
   return true;
+}
+
+async function loadOrgProfile(orgId) {
+  if (!orgId) return { orgName: null, orgLogoUrl: null };
+  try {
+    const { data, error } = await supabase
+      .from('organisations')
+      .select('name, logo_url')
+      .eq('id', orgId)
+      .maybeSingle();
+    if (error) throw error;
+    return { orgName: data?.name ?? null, orgLogoUrl: data?.logo_url ?? null };
+  } catch (err) {
+    console.error('[auth.js] loadOrgProfile failed:', err);
+    return { orgName: null, orgLogoUrl: null };
+  }
+}
+
+async function loadAthleteProfile(orgId, athleteId) {
+  if (!orgId || !athleteId) return { position: null, teamName: null };
+  try {
+    const [athleteResult, teamResult] = await Promise.all([
+      supabase
+        .from('athletes')
+        .select('position')
+        .eq('org_id', orgId)
+        .eq('id', athleteId)
+        .maybeSingle(),
+      supabase
+        .from('athlete_teams')
+        .select('teams(name)')
+        .eq('athlete_id', athleteId)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    if (athleteResult.error) throw athleteResult.error;
+    if (teamResult.error) throw teamResult.error;
+    const teams = teamResult.data?.teams;
+    const teamName = Array.isArray(teams) ? teams[0]?.name : teams?.name;
+    return {
+      position: athleteResult.data?.position ?? null,
+      teamName: teamName ?? null,
+    };
+  } catch (err) {
+    console.error('[auth.js] loadAthleteProfile failed:', err);
+    return { position: null, teamName: null };
+  }
 }
 
 export async function getCurrentUser() {
@@ -79,7 +127,7 @@ export async function getCurrentUser() {
 
     if (roleName.toLowerCase() === 'superuser') {
       const [orgsResult, teamsResult] = await Promise.all([
-        supabase.from('organisations').select('id, name, slug').order('name'), // SUPERUSER: intentional cross-org query
+        supabase.from('organisations').select('id, name, slug, logo_url').order('name'), // SUPERUSER: intentional cross-org query
         supabase.from('teams').select('id, org_id, name').order('name'), // SUPERUSER: intentional cross-org query
       ]);
       if (orgsResult.error) throw orgsResult.error;
@@ -92,17 +140,24 @@ export async function getCurrentUser() {
         ? localActiveOrgId
         : (user.org_id ?? allOrgs[0]?.id ?? null);
 
+      const activeOrg = allOrgs.find((org) => org.id === activeOrgId);
+
       return {
         id: user.id,
         orgId: activeOrgId,
         fullName: user.full_name ?? null,
         role: 'superuser',
+        roleLabel: formatRoleOrPosition('superuser'),
         permissions: {},
         teamIds: allTeams.map((team) => team.id),
         athleteId: null,
         isSuperuser: true,
         allOrgs,
         allTeams,
+        orgName: activeOrg?.name ?? null,
+        orgLogoUrl: activeOrg?.logo_url ?? null,
+        position: null,
+        teamName: null,
       };
     }
 
@@ -155,15 +210,27 @@ export async function getCurrentUser() {
     }
 
     const resolvedPermissions = applyPermissionOverrides(permissions, overrideRows);
+    const normalizedRole = roleName?.toLowerCase();
+    const [orgProfile, athleteProfile] = await Promise.all([
+      loadOrgProfile(user.org_id),
+      normalizedRole === 'athlete'
+        ? loadAthleteProfile(user.org_id, user.athlete_id)
+        : Promise.resolve({ position: null, teamName: null }),
+    ]);
 
     return {
       id: user.id, orgId: user.org_id, fullName: user.full_name ?? null,
-      role: roleName?.toLowerCase(), permissions: resolvedPermissions,
+      role: normalizedRole, permissions: resolvedPermissions,
       teamIds: (teamRows ?? []).map((team) => team.id),
       athleteId: user.athlete_id ?? null,
       isSuperuser: false,
       allOrgs: [],
       allTeams: [],
+      orgName: orgProfile.orgName,
+      orgLogoUrl: orgProfile.orgLogoUrl,
+      roleLabel: formatRoleOrPosition(normalizedRole),
+      position: athleteProfile.position,
+      teamName: athleteProfile.teamName,
     };
   } catch (err) {
     console.error('[auth.js] failed to resolve current user:', err);

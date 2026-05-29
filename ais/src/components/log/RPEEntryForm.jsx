@@ -70,8 +70,8 @@ export default function RPEEntryForm() {
                         {session.category}
                       </span>
                     )}
-                    {session.planned_rpe != null && (
-                      <span className="text-xs font-bold text-[var(--color-outline)]">Planned RPE: {session.planned_rpe}</span>
+                    {session.rpe_planned != null && (
+                      <span className="text-xs font-bold text-[var(--color-outline)]">Planned RPE: {session.rpe_planned}</span>
                     )}
                   </div>
                 </div>

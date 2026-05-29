@@ -31,7 +31,7 @@ export default function DashboardRPEPanel() {
         const today = new Date().toISOString().split('T')[0];
         const { data, error: sessionError } = await supabase
           .from('sessions')
-          .select('id, name, planned_rpe, category')
+          .select('id, name, rpe_planned, category')
           .eq('org_id', currentUser.orgId)
           .in('team_id', currentUser.teamIds)
           .eq('session_date', today)
@@ -101,7 +101,7 @@ export default function DashboardRPEPanel() {
             <SessionRPEView
               sessionId={selectedSession.id}
               sessionName={selectedSession.name}
-              plannedRpe={selectedSession.planned_rpe}
+              plannedRpe={selectedSession.rpe_planned}
             />
           )}
         </>

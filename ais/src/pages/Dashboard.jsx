@@ -3,9 +3,11 @@ import { useUser } from '../context/UserContext';
 import { isVisibleSync } from '../lib/auth';
 import StaffPageLayout from '../components/layout/StaffPageLayout';
 import PageTabBar from '../components/layout/PageTabBar';
+import PersonalisedHeader from '../components/shared/PersonalisedHeader';
 import WellnessDashboard from '../components/wellness/WellnessDashboard';
 import DashboardRPEPanel from '../components/dashboard/DashboardRPEPanel';
 import DashboardSkeleton from '../components/shared/skeletons/DashboardSkeleton';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const ALL_TABS = [
   { id: 'wellness', label: 'Wellness', resource: 'wellness' },
@@ -14,6 +16,7 @@ const ALL_TABS = [
 
 export default function Dashboard() {
   const { user, loading: userLoading } = useUser();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('wellness');
 
   const visibleTabs = useMemo(
@@ -29,7 +32,9 @@ export default function Dashboard() {
   }, [visibleTabs, activeTab]);
 
   return (
-    <StaffPageLayout title="Dashboard" subtitle="Team readiness, training load, and squad overview">
+    <StaffPageLayout personalisedHeader showSearch>
+      {!isMobile && !userLoading && user && <PersonalisedHeader user={user} />}
+
       {userLoading ? (
         <DashboardSkeleton />
       ) : visibleTabs.length === 0 ? (
