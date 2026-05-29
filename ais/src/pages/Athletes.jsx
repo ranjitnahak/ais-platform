@@ -13,6 +13,7 @@ import {
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 import { TopBarUserMenu } from '../components/layout/TopBar';
+import AthletesSkeleton from '../components/shared/skeletons/AthletesSkeleton';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -271,6 +272,10 @@ export default function Athletes() {
       {/* Main */}
       <main className="pt-24 pb-32 px-6 lg:pl-72 max-w-7xl mx-auto space-y-6">
 
+        {(userLoading || loading) ? (
+          <AthletesSkeleton />
+        ) : (
+        <>
         {/* Search + Filters */}
         <div className="space-y-3">
           {/* Search */}
@@ -352,18 +357,11 @@ export default function Athletes() {
         </div>
 
         {/* Count */}
-        {!loading && !error && (
+        {!error && (
           <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
             {filtered.length} athlete{filtered.length !== 1 ? 's' : ''}
             {(search || genderFilter !== 'All' || posFilter !== 'All' || teamFilter !== 'All') ? ' matching filters' : ''}
           </p>
-        )}
-
-        {/* Loading */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <span className="material-symbols-outlined text-[#F97316] animate-spin text-4xl">refresh</span>
-          </div>
         )}
 
         {/* Error */}
@@ -374,7 +372,7 @@ export default function Athletes() {
         )}
 
         {/* Grid */}
-        {!loading && !error && (
+        {!error && (
           <>
             {filtered.length === 0 ? (
               <div
@@ -466,6 +464,8 @@ export default function Athletes() {
               </div>
             )}
           </>
+        )}
+        </>
         )}
       </main>
 

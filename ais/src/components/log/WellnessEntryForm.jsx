@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useWellness } from '../../hooks/useWellness';
 import { WellnessField, formatScore, getCompositeScore, midpoint } from './wellnessFormFields';
+import LogSkeleton from '../shared/skeletons/LogSkeleton';
 
 export default function WellnessEntryForm() {
   const wellness = useWellness();
@@ -37,11 +38,7 @@ export default function WellnessEntryForm() {
           <h2 className="mt-1 text-2xl font-black tracking-tight">Morning Wellness</h2>
         </div>
 
-        {wellness.loading && (
-          <div className="flex justify-center py-8">
-            <span className="material-symbols-outlined animate-spin text-3xl text-[var(--color-primary)]">refresh</span>
-          </div>
-        )}
+        {wellness.loading && <LogSkeleton />}
 
         {wellness.error && (
           <div className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-error)]">

@@ -24,6 +24,7 @@ import AthleteLog from './pages/AthleteLog';
 import AthleteProfileSelf from './pages/AthleteProfileSelf';
 import AthleteSettings from './pages/AthleteSettings';
 import { getDefaultStaffHomeRoute } from './nav/navResourceMap';
+import AppLoadingScreen from './components/shared/AppLoadingScreen';
 
 const PUBLIC_PATHS = ['/login', '/reset-password'];
 
@@ -39,16 +40,8 @@ function Placeholder({ title }) {
   );
 }
 
-function LoadingScreen() {
-  return (
-    <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center">
-      <div className="h-8 w-8 rounded-full border-2 border-[var(--color-primary-container)] border-t-transparent animate-spin" />
-    </div>
-  );
-}
-
 function RoleLoading() {
-  return <LoadingScreen />;
+  return <AppLoadingScreen />;
 }
 
 const ACCOUNT_SETUP_MESSAGE =
@@ -101,8 +94,8 @@ function AuthGate({ children }) {
     }
   }, [checkingSession, isPublicPath, navigate, session]);
 
-  if (checkingSession || profileChecking || profileFailed) return <LoadingScreen />;
-  if (!session && !isPublicPath) return <LoadingScreen />;
+  if (checkingSession || profileChecking || profileFailed) return <AppLoadingScreen />;
+  if (!session && !isPublicPath) return <AppLoadingScreen />;
 
   return children;
 }

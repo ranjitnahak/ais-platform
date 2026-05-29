@@ -93,3 +93,48 @@ body {
   max-width: 100%;
   text-align: left;
 }
+
+/* ── Loading & skeleton animations ── */
+@keyframes shimmer {
+  0% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes app-loading-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.skeleton-bone {
+  background: var(--color-surface-container);
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.app-loading-progress {
+  position: relative;
+  width: 80px;
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--color-surface-container);
+}
+
+.app-loading-progress-shimmer {
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  border-radius: 2px;
+  background: var(--color-primary-container);
+  animation: app-loading-shimmer 1.4s ease-in-out infinite;
+}

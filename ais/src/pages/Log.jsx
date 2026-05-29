@@ -7,6 +7,7 @@ import PageTabBar from '../components/layout/PageTabBar';
 import RPEEntryForm from '../components/log/RPEEntryForm';
 import WellnessEntryForm from '../components/log/WellnessEntryForm';
 import StaffNotes from './StaffNotes';
+import LogSkeleton from '../components/shared/skeletons/LogSkeleton';
 
 const ALL_TABS = [
   { id: 'rpe-entry', label: 'RPE Entry', resource: 'rpe_logging' },
@@ -27,7 +28,7 @@ function AssessmentTab() {
 
 export default function Log() {
   const [activeTab, setActiveTab] = useState('rpe-entry');
-  const { user, activeOrgId } = useUser();
+  const { user, activeOrgId, loading: userLoading } = useUser();
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
   const visibleTabs = useMemo(
@@ -44,7 +45,9 @@ export default function Log() {
 
   return (
     <StaffPageLayout title="Log" subtitle="Record training and wellness data" showSearch={false}>
-      {visibleTabs.length === 0 ? (
+      {userLoading ? (
+        <LogSkeleton />
+      ) : visibleTabs.length === 0 ? (
         <p className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-8 text-center text-sm text-[var(--color-on-surface-variant)]">
           You do not have access to any log views.
         </p>

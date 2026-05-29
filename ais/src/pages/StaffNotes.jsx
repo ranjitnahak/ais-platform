@@ -7,6 +7,7 @@ import { getStaffDomain, useStaffNotes } from '../hooks/useStaffNotes'
 import { useIsMobile } from '../hooks/useIsMobile'
 import AthleteNoteRow from '../components/staffnotes/AthleteNoteRow'
 import Sidebar from '../components/Sidebar'
+import LogSkeleton from '../components/shared/skeletons/LogSkeleton'
 
 const DOMAINS = ['s_and_c', 'physio', 'nutrition', 'psychology', 'analysis', 'coaching']
 const STAFF_ROLES = ['admin', 'superuser', 'head coach', 's&c coach', 'physio', 'analyst', 'nutritionist']
@@ -114,7 +115,7 @@ export default function StaffNotes({ embedded = false }) {
 
   const visible = useMemo(() => STAFF_ROLES.includes(user?.role), [user?.role])
   const accessDenied = <p className="rounded-2xl bg-[var(--color-surface-container)] p-6 font-bold">Access Denied</p>;
-  if (userLoading) return embedded ? <Spinner /> : <Shell><Spinner /></Shell>;
+  if (userLoading) return embedded ? <LogSkeleton /> : <Shell><LogSkeleton /></Shell>;
   if ((!canView && !user?.isSuperuser) || !visible) return embedded ? accessDenied : <Shell>{accessDenied}</Shell>;
 
   const notesContent = (
@@ -283,7 +284,7 @@ function AthleteRow({ athlete, count, selected, onClick }) {
 }
 
 function NoteList({ notes, loading }) {
-  if (loading) return <Spinner />
+  if (loading) return <LogSkeleton contentOnly className="py-4" />
   if (!notes.length) return <p className="rounded-2xl bg-[var(--color-surface)] p-4 text-sm font-bold text-[var(--color-on-surface-variant)]">No notes yet.</p>
   return <div className="space-y-3">{notes.map((note) => <NoteCard key={note.id} note={note} />)}</div>
 }
@@ -303,10 +304,6 @@ function NoteCard({ note }) {
 function DomainBadge({ domain }) {
   const color = DOMAIN_VARS[domain] ?? 'var(--color-outline)'
   return <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest" style={{ color, borderColor: color, backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)` }}>{formatDomain(domain)}</span>
-}
-
-function Spinner() {
-  return <div className="flex justify-center py-8"><span className="material-symbols-outlined animate-spin text-3xl text-[var(--color-primary)]">refresh</span></div>
 }
 
 function NoCreate() {

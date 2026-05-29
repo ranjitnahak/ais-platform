@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRPELog } from '../../hooks/useRPELog';
+import LogSkeleton from '../shared/skeletons/LogSkeleton';
 
 const RPE_LABELS = [
   ['0', 'Rest'],
@@ -35,11 +36,7 @@ export default function RPEEntryForm() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      {loading && (
-        <div className="flex justify-center rounded-2xl bg-[var(--color-surface-container)] py-12">
-          <span className="material-symbols-outlined animate-spin text-4xl text-[var(--color-primary)]">refresh</span>
-        </div>
-      )}
+      {loading && <LogSkeleton />}
 
       {!loading && !sessions.length && (
         <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-6 text-center">

@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { MAIN_NAV_ITEMS, SUPERUSER_NAV_ITEM } from '../nav/mainNavItems';
 import { useUser } from '../context/UserContext';
 import { filterStaffNavItems } from '../nav/navResourceMap';
+import AISLogo from './shared/AISLogo';
 
 const ADMIN_ROLES = ['admin', 'superuser'];
 
@@ -19,7 +20,7 @@ export default function Sidebar() {
   return (
     <aside className="hidden lg:flex flex-col h-full w-64 fixed left-0 top-0 bg-[var(--color-surface)] border-r border-[var(--color-outline-variant)] shadow-2xl py-6 z-50">
       <div className="px-6 mb-10">
-        <span className="text-2xl font-black tracking-tighter text-[var(--color-on-surface)] uppercase">AIS</span>
+        <AISLogo size={32} />
       </div>
       <nav className="flex-1 space-y-1">
         {visibleItems.map(({ icon, label, to }) => (

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { getCurrentUser, canSync } from '../../lib/auth'
 import { useUser } from '../../context/UserContext'
 import WellnessTrend from './WellnessTrend'
+import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton'
 
 export default function WellnessDashboard({ embedded = false }) {
   const { user, activeOrgId } = useUser()
@@ -86,17 +87,15 @@ export default function WellnessDashboard({ embedded = false }) {
         </header>
         )}
 
-        <section className="grid gap-3 rounded-3xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4 sm:grid-cols-3">
-          <SummaryTile label="Submitted Today" value={`${summary.submitted} of ${summary.total}`} />
-          <SummaryTile label="Average Score" value={summary.average == null ? '—' : summary.average.toFixed(1)} />
-          <SummaryTile label="Flagged" value={summary.flagged} />
-        </section>
-
-        {loading && (
-          <div className="flex justify-center rounded-3xl bg-[var(--color-surface-container)] py-16">
-            <span className="material-symbols-outlined animate-spin text-4xl text-[var(--color-primary)]">refresh</span>
-          </div>
+        {!loading && (
+          <section className="grid gap-3 rounded-3xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4 sm:grid-cols-3">
+            <SummaryTile label="Submitted Today" value={`${summary.submitted} of ${summary.total}`} />
+            <SummaryTile label="Average Score" value={summary.average == null ? '—' : summary.average.toFixed(1)} />
+            <SummaryTile label="Flagged" value={summary.flagged} />
+          </section>
         )}
+
+        {loading && <DashboardSkeleton contentOnly />}
 
         {error && (
           <div className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">

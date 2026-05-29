@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { getCurrentUser, canSync } from '../../lib/auth';
 import { useUser } from '../../context/UserContext';
 import SessionRPEView from '../sessions/SessionRPEView';
+import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton';
 
 export default function DashboardRPEPanel() {
   const { user } = useUser();
@@ -64,11 +65,7 @@ export default function DashboardRPEPanel() {
 
   return (
     <div className="space-y-5">
-      {loading && (
-        <div className="flex justify-center py-12">
-          <span className="material-symbols-outlined animate-spin text-4xl text-[var(--color-primary)]">refresh</span>
-        </div>
-      )}
+      {loading && <DashboardSkeleton contentOnly />}
 
       {error && (
         <p className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">
