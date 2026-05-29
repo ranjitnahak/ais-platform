@@ -3,6 +3,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { useUser } from '../context/UserContext';
+import { isReportsNavVisible } from '../nav/navResourceMap';
+import VisibilityDenied from '../components/VisibilityDenied';
 import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope';
 import AthleteReport from '../components/reports/AthleteReport';
 import TeamReportConfig from '../components/reports/TeamReportConfig';
@@ -270,6 +272,10 @@ export default function Reports() {
   }, [athletes, teamFilter, athleteTeamsMap]);
 
   const selectedTeamReportTeam = teamReportTeams.find((team) => team.id === selectedTeamReportTeamId);
+
+  if (user && !user.isSuperuser && !isReportsNavVisible(user)) {
+    return <VisibilityDenied title="Reports" />;
+  }
 
   return (
     <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">

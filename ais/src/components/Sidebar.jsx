@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { MAIN_NAV_ITEMS, SUPERUSER_NAV_ITEM } from '../nav/mainNavItems';
 import { useUser } from '../context/UserContext';
+import { filterStaffNavItems } from '../nav/navResourceMap';
 
 const ADMIN_ROLES = ['admin', 'superuser'];
 
@@ -9,7 +10,10 @@ const ADMIN_ROLES = ['admin', 'superuser'];
  */
 export default function Sidebar() {
   const { user } = useUser();
-  const items = MAIN_NAV_ITEMS.filter((item) => !item.adminOnly || ADMIN_ROLES.includes(user?.role));
+  const items = filterStaffNavItems(
+    MAIN_NAV_ITEMS.filter((item) => !item.adminOnly || ADMIN_ROLES.includes(user?.role)),
+    user,
+  );
   const visibleItems = user?.role === 'superuser' ? [...items, SUPERUSER_NAV_ITEM] : items;
 
   return (

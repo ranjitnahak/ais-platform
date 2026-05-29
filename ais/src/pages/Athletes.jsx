@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
+import { isVisibleSync } from '../lib/auth';
+import VisibilityDenied from '../components/VisibilityDenied';
 import {
   getEffectiveOrgId,
   resolveOrgTeamScope,
@@ -237,6 +239,10 @@ export default function Athletes() {
     } catch (err) {
       console.error('[handleDelete] failed:', err);
     }
+  }
+
+  if (user && !user.isSuperuser && !isVisibleSync(user, 'athleteRoster')) {
+    return <VisibilityDenied title="Athletes" />;
   }
 
   return (

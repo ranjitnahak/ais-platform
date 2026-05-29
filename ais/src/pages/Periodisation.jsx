@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { getCurrentUser, canSync } from '../lib/auth';
+import { getCurrentUser, canSync, isVisibleSync } from '../lib/auth';
+import VisibilityDenied from '../components/VisibilityDenied';
 import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope';
 import Sidebar from '../components/Sidebar';
@@ -317,6 +318,10 @@ export default function Periodisation() {
     } finally {
       setCreating(false);
     }
+  }
+
+  if (authUser && !authUser.isSuperuser && !isVisibleSync(authUser, 'periodisation')) {
+    return <VisibilityDenied title="Periodisation" />;
   }
 
   return (

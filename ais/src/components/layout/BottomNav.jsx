@@ -7,15 +7,19 @@ import {
   ATHLETE_BOTTOM_NAV,
   ATHLETE_MORE_NAV,
 } from '../../nav/mobileNavItems';
+import { filterStaffNavItems } from '../../nav/navResourceMap';
 
 const ADMIN_ROLES = ['admin', 'superuser'];
 
 function filterStaffItems(items, user) {
-  return items.filter((item) => {
-    if (item.adminOnly && !ADMIN_ROLES.includes(user?.role)) return false;
-    if (item.superuserOnly && !user?.isSuperuser) return false;
-    return true;
-  });
+  return filterStaffNavItems(
+    items.filter((item) => {
+      if (item.adminOnly && !ADMIN_ROLES.includes(user?.role)) return false;
+      if (item.superuserOnly && !user?.isSuperuser) return false;
+      return true;
+    }),
+    user,
+  );
 }
 
 function isRouteActive(pathname, to) {
@@ -158,7 +162,10 @@ export default function BottomNav({ variant = 'staff' }) {
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isStaff = variant === 'staff';
-  const barItems = isStaff ? STAFF_BOTTOM_NAV : ATHLETE_BOTTOM_NAV;
+  const barItems = useMemo(
+    () => (isStaff ? filterStaffItems(STAFF_BOTTOM_NAV, user) : ATHLETE_BOTTOM_NAV),
+    [isStaff, user],
+  );
   const moreItems = useMemo(
     () => (isStaff ? filterStaffItems(STAFF_MORE_NAV, user) : ATHLETE_MORE_NAV),
     [isStaff, user],
