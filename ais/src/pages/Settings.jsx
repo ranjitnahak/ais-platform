@@ -1,9 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser, canSync } from '../lib/auth';
 import { useUser } from '../context/UserContext';
+import { getEffectiveOrgId } from '../lib/orgScope';
 import Sidebar from '../components/Sidebar';
+import TabShell from '../components/layout/TabShell';
 import TeamDetailModal from '../components/settings/TeamDetailModal';
+
+const SETTINGS_TABS = [
+  { id: 'teams', label: 'Teams' },
+  { id: 'tests', label: 'Test Setup' },
+];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -19,11 +26,13 @@ function teamInitials(name) {
 
 // ── Nav item ───────────────────────────────────────────────────────────────────
 
-function NavItem({ label, tabKey, activeTab, onClick, disabled, badge }) {
+function NavItem({ label, tabKey, activeTab, onClick, onPrefetch, disabled, badge }) {
   const isActive = activeTab === tabKey && !disabled;
   return (
     <button
       onClick={disabled ? undefined : onClick}
+      onPointerEnter={disabled ? undefined : onPrefetch}
+      onFocus={disabled ? undefined : onPrefetch}
       disabled={disabled}
       className={[
         'w-full text-left px-4 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center justify-between',
@@ -290,7 +299,16 @@ function TestSetupTab() {
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('teams');
-  const { user, loading } = useUser();
+  const { user, activeOrgId, loading } = useUser();
+  const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
+
+  const panels = useMemo(
+    () => ({
+      teams: () => <TeamsTab />,
+      tests: () => <TestSetupTab />,
+    }),
+    [],
+  );
 
   if (loading) {
     return (
@@ -338,51 +356,46 @@ export default function Settings() {
 
       {/* Main */}
       <main className="pt-24 pb-32 px-6 lg:pl-72">
-        <div className="flex min-h-[calc(100vh-6rem)]">
+        <TabShell
+          tabs={SETTINGS_TABS}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          panels={panels}
+          scopeKey={effectiveOrgId ?? 'settings'}
+          className="flex min-h-[calc(100vh-6rem)] space-y-0"
+          panelClassName="relative flex-1 pl-8 pt-2"
+          renderTabBar={({ tabs, activeTab, onTabChange, onTabHover }) => (
+            <aside
+              className="flex-shrink-0 pt-2"
+              style={{ width: 180, borderRight: '1px solid rgba(255,255,255,0.05)' }}
+            >
+              <p className="text-[10px] uppercase tracking-widest text-gray-500 px-4 pb-2 mt-4">
+                Setup
+              </p>
+              {tabs.map((tab) => (
+                <NavItem
+                  key={tab.id}
+                  label={tab.label}
+                  tabKey={tab.id}
+                  activeTab={activeTab}
+                  onClick={() => onTabChange(tab.id)}
+                  onPrefetch={onTabHover ? () => onTabHover(tab.id) : undefined}
+                />
+              ))}
 
-          {/* Settings nav */}
-          <aside
-            className="flex-shrink-0 pt-2"
-            style={{ width: 180, borderRight: '1px solid rgba(255,255,255,0.05)' }}
-          >
-            {/* SETUP */}
-            <p className="text-[10px] uppercase tracking-widest text-gray-500 px-4 pb-2 mt-4">
-              Setup
-            </p>
-            <NavItem
-              label="Teams"
-              tabKey="teams"
-              activeTab={activeTab}
-              onClick={() => setActiveTab('teams')}
-            />
-            <NavItem
-              label="Test Setup"
-              tabKey="tests"
-              activeTab={activeTab}
-              onClick={() => setActiveTab('tests')}
-            />
+              <p className="text-[10px] uppercase tracking-widest text-gray-500 px-4 pb-2 mt-4">
+                Access
+              </p>
+              <NavItem label="Users" tabKey="users-v2" activeTab={activeTab} disabled badge="V2" />
+              <NavItem label="Roles" tabKey="roles-v2" activeTab={activeTab} disabled badge="V2" />
 
-            {/* ACCESS */}
-            <p className="text-[10px] uppercase tracking-widest text-gray-500 px-4 pb-2 mt-4">
-              Access
-            </p>
-            <NavItem label="Users" disabled badge="V2" />
-            <NavItem label="Roles" disabled badge="V2" />
-
-            {/* ORGANISATION */}
-            <p className="text-[10px] uppercase tracking-widest text-gray-500 px-4 pb-2 mt-4">
-              Organisation
-            </p>
-            <NavItem label="Organisation" disabled badge="V2" />
-          </aside>
-
-          {/* Tab content */}
-          <div className="flex-1 pl-8 pt-2">
-            {activeTab === 'teams' && <TeamsTab />}
-            {activeTab === 'tests' && <TestSetupTab />}
-          </div>
-
-        </div>
+              <p className="text-[10px] uppercase tracking-widest text-gray-500 px-4 pb-2 mt-4">
+                Organisation
+              </p>
+              <NavItem label="Organisation" tabKey="org-v2" activeTab={activeTab} disabled badge="V2" />
+            </aside>
+          )}
+        />
       </main>
     </div>
   );

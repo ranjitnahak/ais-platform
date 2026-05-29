@@ -502,3 +502,49 @@ DUPLICATION CHECK
 □ If yes — extend it, don't recreate it.
 □ New pages/tabs must serve a distinct purpose not covered by any existing page.
 □ Settings is for configuration. Operational views (rosters, reports) stay in their own pages.
+
+---
+
+## 14. In-Page Tab UI (`TabShell`) — Mandatory Pattern
+
+**Established:** May 2026  
+**Full reference:** `AIS_Architecture_Context.md` §3.11
+
+Any page or panel with **in-page tabs** (multiple views switched without a route change) must use `TabShell`. This is not optional for new work and must be adopted when extending existing tabbed pages.
+
+### Required
+
+- Use `TabShell` from `src/components/layout/TabShell.jsx`
+- Declare tabs as a config array (`id`, `label`, optional `resource`, optional `prefetch: false`)
+- Declare panels as a `panels` map keyed by tab `id`
+- Pass `scopeKey` on org-scoped pages (`effectiveOrgId`) so panels remount on org switch
+- Filter permission-gated tabs into `visibleTabs` before passing to `TabShell`
+
+### Forbidden
+
+```jsx
+// ❌ Do not use mount-on-switch conditional rendering for tab panels
+{activeTab === 'wellness' && <WellnessDashboard />}
+{activeTab === 'rpe' && <DashboardRPEPanel />}
+```
+
+This pattern remounts and refetches on every tab switch and bypasses idle/hover prefetch.
+
+### Allowed customisation
+
+- `renderTabBar` — custom tab UI (sidebar nav, header-inline tabs) must wire `onTabChange` and `onTabHover`
+- `prefetch: false` — opt out per tab when prefetch is undesirable (heavy lists, sensitive forms)
+- `panelClassName` / `className` — layout (e.g. horizontal sidebar + content)
+
+### Does not apply to
+
+- **Main navigation routes** (sidebar / bottom nav) — those are React Router pages, not `TabShell` tabs
+- **Single-view pages** with no tabs — no `TabShell` needed
+
+### Pre-development checklist (tabbed features)
+
+□ New tabbed page or panel uses `TabShell`, not conditional mount JSX  
+□ Every tab `id` has a matching `panels[id]` entry  
+□ `scopeKey` set if data is org-scoped  
+□ Custom tab bar passes `onTabHover` for desktop prefetch  
+□ `prefetch: false` documented if used

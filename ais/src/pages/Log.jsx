@@ -3,7 +3,7 @@ import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
 import { isVisibleSync } from '../lib/auth';
 import StaffPageLayout from '../components/layout/StaffPageLayout';
-import PageTabBar from '../components/layout/PageTabBar';
+import TabShell from '../components/layout/TabShell';
 import RPEEntryForm from '../components/log/RPEEntryForm';
 import WellnessEntryForm from '../components/log/WellnessEntryForm';
 import StaffNotes from './StaffNotes';
@@ -36,6 +36,16 @@ export default function Log() {
     [user],
   );
 
+  const panels = useMemo(
+    () => ({
+      'rpe-entry': () => <RPEEntryForm />,
+      'wellness-entry': () => <WellnessEntryForm />,
+      assessment: () => <AssessmentTab />,
+      'staff-notes': () => <StaffNotes embedded />,
+    }),
+    [],
+  );
+
   useEffect(() => {
     if (!visibleTabs.length) return;
     if (!visibleTabs.some((tab) => tab.id === activeTab)) {
@@ -52,13 +62,13 @@ export default function Log() {
           You do not have access to any log views.
         </p>
       ) : (
-        <>
-          <PageTabBar tabs={visibleTabs} activeTab={activeTab} onTabChange={setActiveTab} />
-          {activeTab === 'rpe-entry' && <RPEEntryForm key={effectiveOrgId ?? 'rpe'} />}
-          {activeTab === 'wellness-entry' && <WellnessEntryForm key={effectiveOrgId ?? 'wellness'} />}
-          {activeTab === 'assessment' && <AssessmentTab />}
-          {activeTab === 'staff-notes' && <StaffNotes embedded key={effectiveOrgId ?? 'staff-notes'} />}
-        </>
+        <TabShell
+          tabs={visibleTabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          panels={panels}
+          scopeKey={effectiveOrgId ?? 'log'}
+        />
       )}
     </StaffPageLayout>
   );

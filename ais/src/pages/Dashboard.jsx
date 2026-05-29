@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useUser } from '../context/UserContext';
 import { isVisibleSync } from '../lib/auth';
+import { getEffectiveOrgId } from '../lib/orgScope';
 import StaffPageLayout from '../components/layout/StaffPageLayout';
-import PageTabBar from '../components/layout/PageTabBar';
+import TabShell from '../components/layout/TabShell';
 import PersonalisedHeader from '../components/shared/PersonalisedHeader';
 import WellnessDashboard from '../components/wellness/WellnessDashboard';
 import DashboardRPEPanel from '../components/dashboard/DashboardRPEPanel';
@@ -15,13 +16,22 @@ const ALL_TABS = [
 ];
 
 export default function Dashboard() {
-  const { user, loading: userLoading } = useUser();
+  const { user, activeOrgId, loading: userLoading } = useUser();
+  const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('wellness');
 
   const visibleTabs = useMemo(
     () => ALL_TABS.filter((tab) => !tab.resource || isVisibleSync(user, tab.resource)),
     [user],
+  );
+
+  const panels = useMemo(
+    () => ({
+      wellness: () => <WellnessDashboard embedded />,
+      rpe: () => <DashboardRPEPanel />,
+    }),
+    [],
   );
 
   useEffect(() => {
@@ -42,11 +52,13 @@ export default function Dashboard() {
           You do not have access to any dashboard views.
         </p>
       ) : (
-        <>
-          <PageTabBar tabs={visibleTabs} activeTab={activeTab} onTabChange={setActiveTab} />
-          {activeTab === 'wellness' && <WellnessDashboard embedded />}
-          {activeTab === 'rpe' && <DashboardRPEPanel />}
-        </>
+        <TabShell
+          tabs={visibleTabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          panels={panels}
+          scopeKey={effectiveOrgId ?? 'dashboard'}
+        />
       )}
     </StaffPageLayout>
   );

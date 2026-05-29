@@ -1,5 +1,5 @@
 # Athlete Intelligence System (AIS) — Architecture & Context Document
-**Last updated:** April 2026  
+**Last updated:** May 2026  
 **Purpose:** Continuity document for picking up work across threads  
 **Author:** Ranjit Nahak, Strength & Conditioning Coach
 
@@ -10,7 +10,7 @@
 | File | Purpose | Update frequency |
 |---|---|---|
 | `AIS_Architecture_Guidelines.md` | **How** to build — rules, Three Rules, RBAC, anti-patterns, coding standards | Rarely — architecture decisions only |
-| `AIS_Architecture_Context.md` (this file) | **What** is built — current state, tech stack, schema, active data, feature design | Per thread — reflects current build state |
+| `AIS_Architecture_Context.md` (this file) | **What** is built — current state, tech stack, schema, active data, feature design, `TabShell` tab pattern | Per thread — reflects current build state |
 | `AIS_Pending_Items.md` | **What** needs doing — bugs, backlog, tech debt, V-stage tracking | Every thread |
 | `AIS_Settings_Backlog.md` | Settings feature design brief — implementation brief for V2 Settings module | When new settings items are identified |
 | `AIS_Settings_Backlog.md` | Settings feature design brief — implementation brief for V2 Settings module | When new settings items are identified |
@@ -121,6 +121,90 @@ Code changes target `AthleteReport.jsx` only — replacing `overallFromQualities
 ### 3.10 Data Correction Workflow
 SQL-first: Diagnostic query → DELETE incorrect rows → INSERT correct values using `test_id` (not `test_definition_id`).  
 Note: `assessment_results` table uses `test_id` (not `test_definition_id`).
+
+### 3.11 In-Page Tab System (`TabShell`)
+
+**Status:** Built — all tabbed staff pages use this pattern (May 2026).
+
+**Problem solved:** Switching in-page tabs used to unmount/remount panels and refetch data on every click, making the app feel slow.
+
+**Solution:** `TabShell` (`src/components/layout/TabShell.jsx`) — generic wrapper for any page with horizontal or custom tab navigation. It:
+- Keeps visited/prefetched tab panels **mounted but hidden** (`hidden` / `aria-hidden`)
+- **Idle-prefetches** other visible tabs after the active tab loads (`requestIdleCallback`, one tab at a time)
+- **Hover/focus-prefetches** on desktop via `PageTabBar` or custom tab bars
+- **Resets panels** when `scopeKey` changes (e.g. superuser org switch)
+
+**Pages using TabShell today:** Dashboard, Log, Admin, Settings, Reports, UserDetailPage, SuperuserPanel, UserDetailPanel (slide-over).
+
+**Does NOT apply to:** main sidebar/bottom-nav **routes** (Dashboard → Athletes → Log). Those are separate React Router pages and still load on navigation.
+
+#### Adding a new tab to an existing page
+
+1. Add an entry to the page’s tab config array (`id`, `label`, optional `resource` for RBAC, optional `prefetch: false` to opt out).
+2. Add a matching key in the `panels` map (render function returning the panel component).
+3. If permission-gated, filter with `visibleTabs` before passing to `TabShell` (same as Dashboard / Log).
+
+Prefetch is **automatic** for every tab in `visibleTabs` that has a `panels[id]` entry, unless `prefetch: false`.
+
+```jsx
+const ALL_TABS = [
+  { id: 'new-feature', label: 'New Feature', resource: 'some_resource' },
+];
+
+const panels = useMemo(() => ({
+  'new-feature': () => <NewFeaturePanel />,
+}), []);
+
+<TabShell
+  tabs={visibleTabs}
+  activeTab={activeTab}
+  onTabChange={setActiveTab}
+  panels={panels}
+  scopeKey={effectiveOrgId ?? 'page-id'}
+/>
+```
+
+#### Adding a new page with tabs
+
+**Required:** wrap tab content in `TabShell`. Do **not** use `{activeTab === 'x' && <Component />}` — that bypasses prefetch and remounts on every switch.
+
+**Optional:** `renderTabBar` when the tab UI is custom (Admin header, Settings sidebar, Reports styling). Wire tab buttons to `onTabChange` and `onTabHover` from `renderTabBar` props.
+
+**Optional:** `panelClassName` / `className` for layout (e.g. Settings horizontal sidebar + content).
+
+**Required for org-scoped pages:** pass `scopeKey={effectiveOrgId ?? '…'}` so panels remount when the active org changes.
+
+#### Adding a new page without tabs (single view)
+
+No `TabShell` needed. Route-level loading behaviour is unchanged.
+
+#### Opt-outs and edge cases
+
+| Case | Approach |
+|------|----------|
+| Heavy tab (large list) | `{ prefetch: false }` on tab config, or accept idle prefetch after active tab |
+| Form tab (draft state) | Panels stay mounted when switching away — usually desirable; use `prefetch: false` if mount-on-first-visit only is required |
+| Programmatic tab switch | Control `activeTab` from parent state (e.g. Superuser “Manage Features” → Feature Flags) |
+| Cross-tab shared state | Keep shared state in the **page** component; pass into panel render functions (Reports pattern) or lift into panel components with their own fetch-on-mount (Team Reports pattern) |
+
+#### Files to know
+
+| File | Role |
+|------|------|
+| `src/components/layout/TabShell.jsx` | Core tab shell |
+| `src/components/layout/PageTabBar.jsx` | Default horizontal tab bar + hover prefetch |
+| `src/lib/scheduleIdleWork.js` | Idle scheduling helper |
+
+#### Checklist for new tabbed features
+
+- [ ] Tab config + `panels` map with matching `id`s
+- [ ] Page uses `TabShell` (not conditional mount-only JSX)
+- [ ] Permissions filter `visibleTabs` before `TabShell`
+- [ ] `scopeKey` set for org-scoped data
+- [ ] Custom tab bar calls `onTabHover` if not using default `PageTabBar`
+- [ ] `prefetch: false` only when there is a documented reason
+
+See also: `AIS_Architecture_Guidelines.md` §14 — mandatory rule for new tabbed UI.
 
 ---
 
@@ -542,6 +626,7 @@ The Session Planner (V1.5) is the natural foundation S&C Pro builds on top of.
 - **Data-first architecture** — raw numbers are stored; visualisations (load wave, charts) derive from them
 - **SQL-first data correction** — diagnose → delete → insert with verified data
 - **Cursor IDE prompts should be tightly scoped** — e.g. "modify only AthleteReport.jsx, do not touch scoring.js"
+- **In-page tabs use `TabShell`** — never conditional `{activeTab && …}` mount-only patterns on new tabbed pages; register tabs in config + panels map for automatic prefetch (see §3.11)
 
 ---
 

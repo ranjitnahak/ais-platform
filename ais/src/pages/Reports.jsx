@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { useUser } from '../context/UserContext';
@@ -10,13 +10,265 @@ import AthleteReport from '../components/reports/AthleteReport';
 import TeamReportConfig from '../components/reports/TeamReportConfig';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
+import TabShell from '../components/layout/TabShell';
 import { TopBarUserMenu } from '../components/layout/TopBar';
+
+const REPORT_TABS = [
+  { id: 'individual', label: 'Individual Reports' },
+  { id: 'team', label: 'Team Reports' },
+];
 
 function AthleteInitials({ athlete }) {
   const initials = athleteInitialsFromAthlete(athlete);
   return (
     <div className="w-12 h-12 rounded-full bg-[#353437] flex items-center justify-center text-sm font-black text-white shrink-0" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
       {initials}
+    </div>
+  );
+}
+
+function ReportsTabBar({ tabs, activeTab, onTabChange, onTabHover }) {
+  return (
+    <div className="mb-6 flex flex-wrap gap-2 rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-2">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onTabChange(tab.id)}
+          onPointerEnter={onTabHover ? () => onTabHover(tab.id) : undefined}
+          onFocus={onTabHover ? () => onTabHover(tab.id) : undefined}
+          className={`rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
+            activeTab === tab.id
+              ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
+              : 'text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function IndividualReportsPanel({
+  loading,
+  error,
+  teams,
+  teamFilter,
+  setTeamFilter,
+  filteredAthletes,
+  onGenerateReport,
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <span className="material-symbols-outlined animate-spin text-4xl text-[#F97316]">refresh</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-[#93000a]/40 bg-[#93000a]/20 p-4 text-sm text-[#EF4444]">
+        Failed to load athletes: {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {teams.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setTeamFilter('All')}
+            className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-colors ${
+              teamFilter === 'All'
+                ? 'bg-[#F97316] text-[#552100]'
+                : 'bg-[#2a2a2c] text-gray-400 hover:text-white'
+            }`}
+            style={{ border: '1px solid rgba(255,255,255,0.06)' }}
+          >
+            All Teams
+          </button>
+          {teams.map((team) => (
+            <button
+              key={team.id}
+              onClick={() => setTeamFilter(team.id)}
+              className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-colors ${
+                teamFilter === team.id
+                  ? 'bg-[#F97316] text-[#552100]'
+                  : 'bg-[#2a2a2c] text-gray-400 hover:text-white'
+              }`}
+              style={{ border: '1px solid rgba(255,255,255,0.06)' }}
+            >
+              {team.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-end justify-between">
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+            {filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? 's' : ''} · select to generate report
+          </p>
+          <h2 className="text-3xl font-black uppercase tracking-tighter text-white">Athlete Reports</h2>
+        </div>
+      </div>
+
+      {filteredAthletes.length === 0 ? (
+        <div className="rounded-xl bg-[#2a2a2c] p-8 text-center text-sm text-gray-500" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+          No active athletes found.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredAthletes.map((athlete) => {
+            const age = athlete.date_of_birth
+              ? (() => {
+                  const d = new Date(athlete.date_of_birth);
+                  const t = new Date();
+                  let a = t.getFullYear() - d.getFullYear();
+                  if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a--;
+                  return a;
+                })()
+              : null;
+
+            return (
+              <div
+                key={athlete.id}
+                className="flex flex-col gap-4 rounded-xl bg-[#2a2a2c] p-5 transition-colors hover:bg-[#39393b]"
+                style={{ border: '1px solid rgba(255,255,255,0.06)' }}
+              >
+                <div className="flex items-center gap-3">
+                  {athlete.photo_url ? (
+                    <img
+                      src={athlete.photo_url}
+                      alt={athleteDisplayName(athlete)}
+                      className="h-12 w-12 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <AthleteInitials athlete={athlete} />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <h4 className="truncate text-sm font-bold text-white">{athleteDisplayName(athlete)}</h4>
+                    <p className="truncate text-[10px] font-bold uppercase tracking-tight text-gray-500">
+                      {[athlete.position, athlete.organisations?.sport, age ? `Age ${age}` : null].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onGenerateReport(athlete)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-[#FFB690] to-[#F97316] py-2.5 text-[10px] font-black uppercase tracking-widest text-[#552100] transition-all hover:brightness-110 active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-sm">assessment</span>
+                  Generate Report
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamReportsPanel({ user, activeOrgId, effectiveOrgId }) {
+  const navigate = useNavigate();
+  const [teamReportTeams, setTeamReportTeams] = useState([]);
+  const [teamReportLoading, setTeamReportLoading] = useState(true);
+  const [teamReportError, setTeamReportError] = useState(null);
+  const [selectedTeamReportTeamId, setSelectedTeamReportTeamId] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadTeamReportTeams() {
+      try {
+        setTeamReportLoading(true);
+        setTeamReportError(null);
+        if (!user || !effectiveOrgId) {
+          if (mounted) setTeamReportTeams([]);
+          return;
+        }
+        const { effectiveTeamIds, isSuperuser: isSuperuserScope } =
+          await resolveOrgTeamScope(supabase, user, activeOrgId);
+        if (!isSuperuserScope && !effectiveTeamIds.length) {
+          if (mounted) setTeamReportTeams([]);
+          return;
+        }
+        let teamReportQuery = supabase
+          .from('teams')
+          .select('id, name, sport, org_id, organisations(name)')
+          .eq('org_id', effectiveOrgId)
+          .order('name');
+        if (!isSuperuserScope && effectiveTeamIds.length) {
+          teamReportQuery = teamReportQuery.in('id', effectiveTeamIds);
+        }
+        const { data, error: teamsError } = await teamReportQuery;
+        if (teamsError) throw teamsError;
+        if (!mounted) return;
+        setTeamReportTeams(data ?? []);
+        setSelectedTeamReportTeamId((current) => current || data?.[0]?.id || '');
+      } catch (err) {
+        console.error('[Reports] loadTeamReportTeams failed:', err);
+        if (mounted) setTeamReportError(err.message);
+      } finally {
+        if (mounted) setTeamReportLoading(false);
+      }
+    }
+
+    void loadTeamReportTeams();
+    return () => {
+      mounted = false;
+    };
+  }, [user?.id, activeOrgId, effectiveOrgId]);
+
+  const selectedTeamReportTeam = teamReportTeams.find((team) => team.id === selectedTeamReportTeamId);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
+            Select a squad and choose report data sources
+          </p>
+          <h2 className="text-3xl font-black uppercase tracking-tighter text-[var(--color-on-surface)]">Team Reports</h2>
+        </div>
+        <select
+          value={selectedTeamReportTeamId}
+          onChange={(event) => setSelectedTeamReportTeamId(event.target.value)}
+          className="min-w-64 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-4 py-3 text-sm font-bold text-[var(--color-on-surface)]"
+        >
+          {teamReportTeams.map((team) => (
+            <option key={team.id} value={team.id}>
+              {user?.isSuperuser ? `${team.name} (${team.organisations?.name ?? 'Org'})` : team.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {teamReportLoading && (
+        <div className="flex items-center justify-center py-16">
+          <span className="material-symbols-outlined animate-spin text-4xl text-[var(--color-primary)]">refresh</span>
+        </div>
+      )}
+      {teamReportError && (
+        <div className="rounded-xl border border-[var(--color-error-container)] bg-[var(--color-error-container)]/20 p-4 text-sm text-[var(--color-error)]">
+          Failed to load teams: {teamReportError}
+        </div>
+      )}
+      {!teamReportLoading && !teamReportError && teamReportTeams.length === 0 && (
+        <div className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-8 text-center text-sm text-[var(--color-on-surface-variant)]">
+          No teams available for team reports.
+        </div>
+      )}
+      {!teamReportLoading && selectedTeamReportTeam && (
+        <TeamReportConfig
+          teamId={selectedTeamReportTeam.id}
+          teamName={selectedTeamReportTeam.name}
+          onReportGenerated={(id) => navigate(`/reports/team/${id}`)}
+        />
+      )}
     </div>
   );
 }
@@ -29,14 +281,9 @@ export default function Reports() {
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState(null);
   const [activeTab, setActiveTab]           = useState('individual');
-  const [teamReportTeams, setTeamReportTeams] = useState([]);
-  const [teamReportLoading, setTeamReportLoading] = useState(false);
-  const [teamReportError, setTeamReportError] = useState(null);
-  const [selectedTeamReportTeamId, setSelectedTeamReportTeamId] = useState('');
 
   const navigate = useNavigate();
   const { user, activeOrgId, loading: userLoading } = useUser();
-  const isSuperuser = user?.isSuperuser === true;
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
   const [selectedAthlete, setSelectedAthlete] = useState(null);
@@ -48,10 +295,6 @@ export default function Reports() {
     if (userLoading || !user || !effectiveOrgId) return;
     void loadAthletes();
   }, [effectiveOrgId, userLoading, user?.id]);
-
-  useEffect(() => {
-    if (activeTab === 'team' && user && effectiveOrgId) void loadTeamReportTeams();
-  }, [activeTab, user?.id, effectiveOrgId]);
 
   async function loadAthletes() {
     setLoading(true);
@@ -123,40 +366,6 @@ export default function Reports() {
       setError(err.message);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function loadTeamReportTeams() {
-    try {
-      setTeamReportLoading(true);
-      setTeamReportError(null);
-      if (!user || !effectiveOrgId) {
-        setTeamReportTeams([]);
-        return;
-      }
-      const { effectiveTeamIds, isSuperuser: isSuperuserScope } =
-        await resolveOrgTeamScope(supabase, user, activeOrgId);
-      if (!isSuperuserScope && !effectiveTeamIds.length) {
-        setTeamReportTeams([]);
-        return;
-      }
-      let teamReportQuery = supabase
-        .from('teams')
-        .select('id, name, sport, org_id, organisations(name)')
-        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
-        .order('name');
-      if (!isSuperuserScope && effectiveTeamIds.length) {
-        teamReportQuery = teamReportQuery.in('id', effectiveTeamIds);
-      }
-      const { data, error: teamsError } = await teamReportQuery;
-      if (teamsError) throw teamsError;
-      setTeamReportTeams(data ?? []);
-      setSelectedTeamReportTeamId((current) => current || data?.[0]?.id || '');
-    } catch (err) {
-      console.error('[Reports] loadTeamReportTeams failed:', err);
-      setTeamReportError(err.message);
-    } finally {
-      setTeamReportLoading(false);
     }
   }
 
@@ -271,7 +480,25 @@ export default function Reports() {
     return athletes.filter((a) => (athleteTeamsMap[a.id] ?? []).includes(teamFilter));
   }, [athletes, teamFilter, athleteTeamsMap]);
 
-  const selectedTeamReportTeam = teamReportTeams.find((team) => team.id === selectedTeamReportTeamId);
+  const panels = useMemo(
+    () => ({
+      individual: () => (
+        <IndividualReportsPanel
+          loading={loading}
+          error={error}
+          teams={teams}
+          teamFilter={teamFilter}
+          setTeamFilter={setTeamFilter}
+          filteredAthletes={filteredAthletes}
+          onGenerateReport={generateReport}
+        />
+      ),
+      team: () => (
+        <TeamReportsPanel user={user} activeOrgId={activeOrgId} effectiveOrgId={effectiveOrgId} />
+      ),
+    }),
+    [loading, error, teams, teamFilter, filteredAthletes, user, activeOrgId, effectiveOrgId],
+  );
 
   if (user && !user.isSuperuser && !isReportsNavVisible(user)) {
     return <VisibilityDenied title="Reports" />;
@@ -310,184 +537,15 @@ export default function Reports() {
       <main className="pt-24 pb-32 px-6 lg:pl-72 max-w-7xl mx-auto">
 
         {!selectedAthlete && !reportLoading && (
-          <div className="mb-6 flex flex-wrap gap-2 rounded-2xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] p-2">
-            {[
-              { id: 'individual', label: 'Individual Reports' },
-              { id: 'team', label: 'Team Reports' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
-                    : 'text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Loading */}
-        {activeTab === 'individual' && loading && (
-          <div className="flex items-center justify-center py-20">
-            <span className="material-symbols-outlined text-[#F97316] animate-spin text-4xl">refresh</span>
-          </div>
-        )}
-
-        {/* Error */}
-        {activeTab === 'individual' && error && (
-          <div className="bg-[#93000a]/20 border border-[#93000a]/40 p-4 rounded-lg text-[#EF4444] text-sm">
-            Failed to load athletes: {error}
-          </div>
-        )}
-
-        {/* Athlete List */}
-        {activeTab === 'individual' && !loading && !error && !selectedAthlete && (
-          <div className="space-y-6">
-
-            {/* Team filter pills */}
-            {teams.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setTeamFilter('All')}
-                  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
-                    teamFilter === 'All'
-                      ? 'bg-[#F97316] text-[#552100]'
-                      : 'bg-[#2a2a2c] text-gray-400 hover:text-white'
-                  }`}
-                  style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-                >
-                  All Teams
-                </button>
-                {teams.map((team) => (
-                  <button
-                    key={team.id}
-                    onClick={() => setTeamFilter(team.id)}
-                    className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
-                      teamFilter === team.id
-                        ? 'bg-[#F97316] text-[#552100]'
-                        : 'bg-[#2a2a2c] text-gray-400 hover:text-white'
-                    }`}
-                    style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-                  >
-                    {team.name}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-end justify-between">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                  {filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? 's' : ''} · select to generate report
-                </p>
-                <h2 className="text-3xl font-black tracking-tighter text-white uppercase">Athlete Reports</h2>
-              </div>
-            </div>
-
-            {filteredAthletes.length === 0 ? (
-              <div className="bg-[#2a2a2c] p-8 rounded-xl text-center text-gray-500 text-sm" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-                No active athletes found.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredAthletes.map((athlete) => {
-                  const age = athlete.date_of_birth
-                    ? (() => {
-                        const d = new Date(athlete.date_of_birth);
-                        const t = new Date();
-                        let a = t.getFullYear() - d.getFullYear();
-                        if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a--;
-                        return a;
-                      })()
-                    : null;
-
-                  return (
-                    <div
-                      key={athlete.id}
-                      className="bg-[#2a2a2c] rounded-xl p-5 flex flex-col gap-4 hover:bg-[#39393b] transition-colors"
-                      style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-                    >
-                      <div className="flex items-center gap-3">
-                        {athlete.photo_url ? (
-                          <img
-                            src={athlete.photo_url}
-                            alt={athleteDisplayName(athlete)}
-                            className="w-12 h-12 rounded-full object-cover shrink-0"
-                          />
-                        ) : (
-                          <AthleteInitials athlete={athlete} />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-white text-sm truncate">{athleteDisplayName(athlete)}</h4>
-                          <p className="text-[10px] text-gray-500 uppercase font-bold tracking-tight truncate">
-                            {[athlete.position, athlete.organisations?.sport, age ? `Age ${age}` : null].filter(Boolean).join(' · ')}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => generateReport(athlete)}
-                        className="w-full py-2.5 bg-gradient-to-br from-[#FFB690] to-[#F97316] text-[#552100] font-black uppercase tracking-widest text-[10px] rounded-lg hover:brightness-110 transition-all active:scale-95 flex items-center justify-center gap-2"
-                      >
-                        <span className="material-symbols-outlined text-sm">assessment</span>
-                        Generate Report
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'team' && !selectedAthlete && (
-          <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
-                  Select a squad and choose report data sources
-                </p>
-            <h2 className="text-3xl font-black tracking-tighter text-[var(--color-on-surface)] uppercase">Team Reports</h2>
-              </div>
-              <select
-                value={selectedTeamReportTeamId}
-                onChange={(event) => setSelectedTeamReportTeamId(event.target.value)}
-                className="min-w-64 rounded-xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] px-4 py-3 text-sm font-bold text-[var(--color-on-surface)]"
-              >
-                {teamReportTeams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {user?.isSuperuser ? `${team.name} (${team.organisations?.name ?? 'Org'})` : team.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {teamReportLoading && (
-              <div className="flex items-center justify-center py-16">
-                <span className="material-symbols-outlined text-[var(--color-primary)] animate-spin text-4xl">refresh</span>
-              </div>
-            )}
-            {teamReportError && (
-              <div className="rounded-xl bg-[var(--color-error-container)]/20 border border-[var(--color-error-container)] p-4 text-sm text-[var(--color-error)]">
-                Failed to load teams: {teamReportError}
-              </div>
-            )}
-            {!teamReportLoading && !teamReportError && teamReportTeams.length === 0 && (
-              <div className="rounded-xl bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] p-8 text-center text-sm text-[var(--color-on-surface-variant)]">
-                No teams available for team reports.
-              </div>
-            )}
-            {!teamReportLoading && selectedTeamReportTeam && (
-              <TeamReportConfig
-                teamId={selectedTeamReportTeam.id}
-                teamName={selectedTeamReportTeam.name}
-                onReportGenerated={(id) => navigate(`/reports/team/${id}`)}
-              />
-            )}
-          </div>
+          <TabShell
+            tabs={REPORT_TABS}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            panels={panels}
+            scopeKey={effectiveOrgId ?? 'reports'}
+            className="space-y-0"
+            renderTabBar={(tabBarProps) => <ReportsTabBar {...tabBarProps} />}
+          />
         )}
 
         {/* Report Loading */}

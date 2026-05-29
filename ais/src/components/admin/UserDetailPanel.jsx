@@ -1,14 +1,41 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import ImageCropModal from '../athletes/ImageCropModal';
 import UserPermissionsTab from './UserPermissionsTab';
 import UserProfileTab from './UserProfileTab';
 import UserDangerZone from './UserDangerZone';
+import TabShell from '../layout/TabShell';
 import { useUserProfilePanel } from '../../hooks/useUserProfilePanel';
 import { useUserPermissions } from '../../hooks/useUserPermissions';
 import { useUser } from '../../context/UserContext';
 import { formatRoleOrPosition } from '../../lib/adminUserConstants';
 
-const TABS = ['profile', 'permissions'];
+const USER_PANEL_TABS = [
+  { id: 'profile', label: 'Profile' },
+  { id: 'permissions', label: 'Permissions' },
+];
+
+function UserPanelTabBar({ tabs, activeTab, onTabChange, onTabHover }) {
+  return (
+    <div className="flex gap-1 border-b border-[var(--color-outline-variant)] p-2">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onTabChange(tab.id)}
+          onPointerEnter={onTabHover ? () => onTabHover(tab.id) : undefined}
+          onFocus={onTabHover ? () => onTabHover(tab.id) : undefined}
+          className={`flex-1 rounded-lg py-2 text-xs font-black uppercase tracking-widest ${
+            activeTab === tab.id
+              ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
+              : 'text-[var(--color-on-surface-variant)]'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function UserDetailPanel({ target, onClose, onUpdated }) {
   const { activeOrgId, user, refreshUser } = useUser();
@@ -39,6 +66,22 @@ export default function UserDetailPanel({ target, onClose, onUpdated }) {
   const subtitle = profile.isStaff
     ? formatRoleOrPosition(profile.staffForm.roleLabel)
     : formatRoleOrPosition(profile.athleteForm.position || 'Athlete');
+
+  const panels = useMemo(
+    () => ({
+      profile: () => <UserProfileTab profile={profile} onPickPhoto={handlePickPhoto} />,
+      permissions: () => (
+        canShowPermissions ? (
+          <UserPermissionsTab permissions={permissions} />
+        ) : (
+          <p className="text-sm text-[var(--color-on-surface-variant)]">
+            Permissions are available after the user has an account. Send an invite first.
+          </p>
+        )
+      ),
+    }),
+    [profile, permissions, canShowPermissions],
+  );
 
   return (
     <>
@@ -87,44 +130,29 @@ export default function UserDetailPanel({ target, onClose, onUpdated }) {
           </button>
         </div>
 
-        <div className="flex gap-1 border-b border-[var(--color-outline-variant)] p-2">
-          {TABS.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 rounded-lg py-2 text-xs font-black uppercase tracking-widest ${
-                activeTab === tab
-                  ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
-                  : 'text-[var(--color-on-surface-variant)]'
-              }`}
-            >
-              {tab === 'profile' ? 'Profile' : 'Permissions'}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {profile.loading && (
-            <p className="text-sm text-[var(--color-outline)]">Loading profile…</p>
+            <p className="p-5 text-sm text-[var(--color-outline)]">Loading profile…</p>
           )}
           {!profile.loading && profile.error && (
-            <p className="text-sm text-[var(--color-error)]">{profile.error}</p>
-          )}
-          {!profile.loading && !profile.error && activeTab === 'profile' && (
-            <UserProfileTab profile={profile} onPickPhoto={handlePickPhoto} />
-          )}
-          {!profile.loading && !profile.error && activeTab === 'permissions' && (
-            canShowPermissions ? (
-              <UserPermissionsTab permissions={permissions} />
-            ) : (
-              <p className="text-sm text-[var(--color-on-surface-variant)]">
-                Permissions are available after the user has an account. Send an invite first.
-              </p>
-            )
+            <p className="p-5 text-sm text-[var(--color-error)]">{profile.error}</p>
           )}
           {!profile.loading && !profile.error && (
-            <UserDangerZone profile={profile} onRoleChanged={permissions.reload} />
+            <>
+              <TabShell
+                tabs={USER_PANEL_TABS}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                panels={panels}
+                scopeKey={profile.userId ?? target?.id ?? 'user-panel'}
+                className="flex min-h-0 flex-1 flex-col space-y-0"
+                panelClassName="relative flex-1 p-5"
+                renderTabBar={(tabBarProps) => <UserPanelTabBar {...tabBarProps} />}
+              />
+              <div className="border-t border-[var(--color-outline-variant)] p-5">
+                <UserDangerZone profile={profile} onRoleChanged={permissions.reload} />
+              </div>
+            </>
           )}
         </div>
       </aside>

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import UserPermissionsTab from '../components/admin/UserPermissionsTab';
+import TabShell from '../components/layout/TabShell';
 import { getCurrentUser } from '../lib/auth';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
@@ -9,9 +10,39 @@ import { setUserActive } from '../lib/adminUserActions';
 import { formatRoleOrPosition } from '../lib/adminUserConstants';
 import { useUserPermissions } from '../hooks/useUserPermissions';
 
+const USER_DETAIL_TABS = [
+  { id: 'profile', label: 'Profile' },
+  { id: 'permissions', label: 'Permissions' },
+];
+
+const labelClass = 'text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)]';
+
 function formatDate(value) {
   if (!value) return '—';
   return new Date(value).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function UserDetailTabBar({ tabs, activeTab, onTabChange, onTabHover }) {
+  return (
+    <div className="mb-6 flex w-fit gap-1 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-1">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onTabChange(tab.id)}
+          onPointerEnter={onTabHover ? () => onTabHover(tab.id) : undefined}
+          onFocus={onTabHover ? () => onTabHover(tab.id) : undefined}
+          className={`rounded-lg px-4 py-2 text-xs font-black uppercase tracking-widest ${
+            activeTab === tab.id
+              ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
+              : 'text-[var(--color-on-surface-variant)]'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export default function UserDetailPage() {
@@ -95,6 +126,39 @@ export default function UserDetailPage() {
     return joined || profile?.role || '—';
   })();
 
+  const panels = useMemo(
+    () => ({
+      profile: () => (
+        <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-6">
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <div><dt className={labelClass}>Phone</dt><dd>{profile?.phone || '—'}</dd></div>
+            <div><dt className={labelClass}>Title</dt><dd>{profile?.title || '—'}</dd></div>
+            <div><dt className={labelClass}>Role</dt><dd>{formatRoleOrPosition(roleName)}</dd></div>
+            <div>
+              <dt className={labelClass}>Status</dt>
+              <dd>
+                <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${profile?.is_active ? 'bg-[var(--color-tertiary-container)]/20 text-[var(--color-tertiary-fixed-dim)]' : 'bg-[var(--color-surface-variant)] text-[var(--color-on-surface-variant)]'}`}>
+                  {profile?.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </dd>
+            </div>
+            <div><dt className={labelClass}>Last active</dt><dd>{formatDate(profile?.created_at)}</dd></div>
+            <div className="sm:col-span-2">
+              <dt className={labelClass}>Teams</dt>
+              <dd>{teams.length ? teams.map((t) => t.name).join(', ') : '—'}</dd>
+            </div>
+          </dl>
+        </section>
+      ),
+      permissions: () => (
+        <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-6">
+          <UserPermissionsTab permissions={permissions} />
+        </section>
+      ),
+    }),
+    [profile, teams, roleName, permissions],
+  );
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-[var(--color-surface)]">
@@ -148,50 +212,16 @@ export default function UserDetailPage() {
           </button>
         </div>
 
-        <div className="mb-6 flex gap-1 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-1 w-fit">
-          {['profile', 'permissions'].map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-lg px-4 py-2 text-xs font-black uppercase tracking-widest ${
-                activeTab === tab
-                  ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
-                  : 'text-[var(--color-on-surface-variant)]'
-              }`}
-            >
-              {tab === 'profile' ? 'Profile' : 'Permissions'}
-            </button>
-          ))}
-        </div>
-
-        <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-6">
-          {activeTab === 'profile' ? (
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <div><dt className={labelClass}>Phone</dt><dd>{profile.phone || '—'}</dd></div>
-              <div><dt className={labelClass}>Title</dt><dd>{profile.title || '—'}</dd></div>
-              <div><dt className={labelClass}>Role</dt><dd>{formatRoleOrPosition(roleName)}</dd></div>
-              <div>
-                <dt className={labelClass}>Status</dt>
-                <dd>
-                  <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${profile.is_active ? 'bg-[var(--color-tertiary-container)]/20 text-[var(--color-tertiary-fixed-dim)]' : 'bg-[var(--color-surface-variant)] text-[var(--color-on-surface-variant)]'}`}>
-                    {profile.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </dd>
-              </div>
-              <div><dt className={labelClass}>Last active</dt><dd>{formatDate(profile.created_at)}</dd></div>
-              <div className="sm:col-span-2">
-                <dt className={labelClass}>Teams</dt>
-                <dd>{teams.length ? teams.map((t) => t.name).join(', ') : '—'}</dd>
-              </div>
-            </dl>
-          ) : (
-            <UserPermissionsTab permissions={permissions} />
-          )}
-        </section>
+        <TabShell
+          tabs={USER_DETAIL_TABS}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          panels={panels}
+          scopeKey={userId ?? 'user-detail'}
+          className="space-y-0"
+          renderTabBar={(tabBarProps) => <UserDetailTabBar {...tabBarProps} />}
+        />
       </main>
     </div>
   );
 }
-
-const labelClass = 'text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)]';
