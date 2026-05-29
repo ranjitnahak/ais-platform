@@ -17,14 +17,18 @@ function formatDate(value) {
 export default function UserDetailPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const { loading: authLoading, activeOrgId } = useUser();
+  const { loading: authLoading, activeOrgId, user, refreshUser } = useUser();
   const [profile, setProfile] = useState(null);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('profile');
   const [statusSaving, setStatusSaving] = useState(false);
-  const permissions = useUserPermissions(userId, activeOrgId);
+  const permissions = useUserPermissions(userId, activeOrgId, {
+    onSaved: ({ targetUserId, isSelfEdit }) => {
+      if (isSelfEdit && targetUserId === user?.id) void refreshUser();
+    },
+  });
 
   useEffect(() => {
     if (!userId || authLoading) return;

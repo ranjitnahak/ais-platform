@@ -74,7 +74,10 @@ export default function UserPermissionsTab({ permissions }) {
           <span className="text-[var(--color-error)]">Red = override off</span>
         </p>
         <div className="flex items-center gap-3">
-          {permissions.savedAt && (
+          {permissions.isDirty && !permissions.saving && (
+            <span className="text-xs font-bold uppercase tracking-widest text-[var(--color-primary)]">Unsaved changes</span>
+          )}
+          {permissions.savedAt && !permissions.isDirty && (
             <span className="text-xs font-bold uppercase tracking-widest text-[var(--color-tertiary-fixed-dim)]">Saved</span>
           )}
           <button
@@ -87,8 +90,14 @@ export default function UserPermissionsTab({ permissions }) {
         </div>
       </div>
 
-      {permissions.toggleError && (
-        <p className="text-sm text-[var(--color-error)]">{permissions.toggleError}</p>
+      {!permissions.isSelfEdit && (
+        <p className="rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 py-2 text-xs text-[var(--color-on-surface-variant)]">
+          You are editing another user&apos;s permissions. Dashboard and Log tabs update for them after they refresh the page or sign in again.
+        </p>
+      )}
+
+      {permissions.saveError && (
+        <p className="text-sm text-[var(--color-error)]">{permissions.saveError}</p>
       )}
 
       <div className="overflow-x-auto rounded-xl border border-[var(--color-outline-variant)]">
@@ -165,6 +174,27 @@ export default function UserPermissionsTab({ permissions }) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="sticky bottom-0 -mx-5 border-t border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-5 py-4">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <button
+            type="button"
+            disabled={!permissions.isDirty || permissions.saving}
+            onClick={() => permissions.discardDraft()}
+            className="rounded-lg border border-[var(--color-outline-variant)] px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface-variant)] disabled:opacity-40"
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            disabled={!permissions.isDirty || permissions.saving}
+            onClick={() => permissions.saveAll()}
+            className="rounded-lg bg-[var(--color-primary-container)] px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-primary)] disabled:opacity-40"
+          >
+            {permissions.saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
       </div>
 
       {confirmResetAll && (

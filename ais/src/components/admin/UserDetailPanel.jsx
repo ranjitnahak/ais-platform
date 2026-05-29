@@ -11,10 +11,14 @@ import { formatRoleOrPosition } from '../../lib/adminUserConstants';
 const TABS = ['profile', 'permissions'];
 
 export default function UserDetailPanel({ target, onClose, onUpdated }) {
-  const { activeOrgId } = useUser();
+  const { activeOrgId, user, refreshUser } = useUser();
   const [activeTab, setActiveTab] = useState('profile');
   const profile = useUserProfilePanel({ target, activeOrgId, onUpdated });
-  const permissions = useUserPermissions(profile.userId, target?.orgId ?? activeOrgId);
+  const permissions = useUserPermissions(profile.userId, target?.orgId ?? activeOrgId, {
+    onSaved: ({ targetUserId, isSelfEdit }) => {
+      if (isSelfEdit && targetUserId === user?.id) void refreshUser();
+    },
+  });
   const canShowPermissions = Boolean(profile.userId);
 
   function handlePickPhoto() {
