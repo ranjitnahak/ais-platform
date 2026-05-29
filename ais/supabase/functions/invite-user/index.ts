@@ -8,32 +8,6 @@ const corsHeaders = {
 }
 
 const SITE_URL = 'https://ais-platform-omega.vercel.app/reset-password'
-const DEBUG_INGEST_URL = 'http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1'
-const DEBUG_SESSION_ID = 'e95f85'
-
-function sendDebugLog(
-  runId: string,
-  hypothesisId: string,
-  location: string,
-  message: string,
-  data: Record<string, unknown>,
-) {
-  // #region agent log
-  fetch(DEBUG_INGEST_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': DEBUG_SESSION_ID },
-    body: JSON.stringify({
-      sessionId: DEBUG_SESSION_ID,
-      runId,
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -42,12 +16,6 @@ serve(async (req) => {
 
   try {
     const { email, fullName, orgId, roleEnum, userType, athleteId } = await req.json()
-    sendDebugLog('email-fix-1', 'E1', 'invite-user:index:req', 'invite-user request received', {
-      userType,
-      hasAthleteId: Boolean(athleteId),
-      hasOrgId: Boolean(orgId),
-      emailLength: typeof email === 'string' ? email.length : null,
-    })
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -66,10 +34,6 @@ serve(async (req) => {
       })
 
     if (inviteError) {
-      sendDebugLog('email-fix-1', 'E2', 'invite-user:index:inviteError', 'inviteUserByEmail failed', {
-        errorCode: inviteError.code ?? null,
-        errorMessage: inviteError.message ?? null,
-      })
       if (inviteError.code === 'email_exists' || inviteError.message?.includes('already been registered')) {
         // Existing auth user path:
         // 1) resolve authId from existing profile row (or fallback generateLink for lookup),
@@ -92,10 +56,6 @@ serve(async (req) => {
           if (linkError) throw linkError
           authId = linkData.user.id
         }
-        sendDebugLog('email-fix-1', 'E3', 'invite-user:index:existingUserResolved', 'Resolved existing auth user id', {
-          hasUserId: Boolean(authId),
-        })
-
         const { error: recoverError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
           redirectTo: SITE_URL,
         })
@@ -106,17 +66,11 @@ serve(async (req) => {
           }
           throw recoverError
         }
-        sendDebugLog('email-fix-1', 'E4', 'invite-user:index:recoverySent', 'Sent recovery email for existing user', {
-          hasRecoveryError: false,
-        })
       } else {
         throw inviteError
       }
     } else {
       authId = inviteData.user.id
-      sendDebugLog('email-fix-1', 'E5', 'invite-user:index:inviteSuccess', 'inviteUserByEmail succeeded for new user', {
-        hasUserId: Boolean(authId),
-      })
     }
 
     // Step 2: Create or update identity rows
@@ -236,10 +190,6 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err) {
-    sendDebugLog('email-fix-1', 'E6', 'invite-user:index:catch', 'invite-user failed', {
-      errorMessage: err?.message ?? null,
-      errorName: err?.name ?? null,
-    })
     console.error('[invite-user]', err)
     return new Response(
       JSON.stringify({ error: err.message }),
