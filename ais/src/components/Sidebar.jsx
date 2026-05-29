@@ -13,7 +13,7 @@ export default function Sidebar() {
   const visibleItems = user?.role === 'superuser' ? [...items, SUPERUSER_NAV_ITEM] : items;
 
   return (
-    <aside className="hidden md:flex flex-col h-full w-64 fixed left-0 top-0 bg-[var(--color-surface)] border-r border-[var(--color-outline-variant)] shadow-2xl py-6 z-50">
+    <aside className="hidden lg:flex flex-col h-full w-64 fixed left-0 top-0 bg-[var(--color-surface)] border-r border-[var(--color-outline-variant)] shadow-2xl py-6 z-50">
       <div className="px-6 mb-10">
         <span className="text-2xl font-black tracking-tighter text-[var(--color-on-surface)] uppercase">AIS</span>
       </div>

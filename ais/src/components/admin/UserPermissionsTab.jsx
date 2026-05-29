@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { PERMISSION_ACTIONS, PERMISSION_RESOURCES } from '../../lib/adminUserConstants';
+import { Fragment, useState } from 'react';
+import { PERMISSION_ACTIONS, PERMISSION_CATEGORIES } from '../../lib/adminUserConstants';
 
 function PermissionCheckbox({ cell, onToggle }) {
   const { state, value } = cell;
@@ -65,10 +65,14 @@ export default function UserPermissionsTab({ permissions }) {
             onClick={() => setConfirmResetAll(true)}
             className="rounded-lg border border-[var(--color-outline-variant)] px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]"
           >
-            Reset all overrides
+            Reset to Role Defaults
           </button>
         </div>
       </div>
+
+      {permissions.toggleError && (
+        <p className="text-sm text-[var(--color-error)]">{permissions.toggleError}</p>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-[var(--color-outline-variant)]">
         <table className="w-full min-w-[720px] text-left text-sm">
@@ -82,38 +86,47 @@ export default function UserPermissionsTab({ permissions }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--color-outline-variant)]">
-            {PERMISSION_RESOURCES.map((resource) => (
-              <tr key={resource}>
-                <td className="px-4 py-3 font-bold text-[var(--color-on-surface)]">{resource}</td>
-                {PERMISSION_ACTIONS.map(([, action]) => (
-                  <td key={action} className="px-4 py-3 text-center">
-                    <PermissionCheckbox
-                      cell={permissions.resolvedMap[resource][action]}
-                      onToggle={() => permissions.toggleOverride(resource, action)}
-                    />
+            {PERMISSION_CATEGORIES.map((category) => (
+              <Fragment key={category.label}>
+                <tr key={`cat-${category.label}`} className="bg-[var(--color-surface-container-high)]">
+                  <td colSpan={PERMISSION_ACTIONS.length + 2} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)]">
+                    {category.label}
                   </td>
+                </tr>
+                {category.resources.map((resource) => (
+                  <tr key={resource}>
+                    <td className="px-4 py-3 font-bold text-[var(--color-on-surface)]">{resource}</td>
+                    {PERMISSION_ACTIONS.map(([, action]) => (
+                      <td key={action} className="px-4 py-3 text-center">
+                        <PermissionCheckbox
+                          cell={permissions.resolvedMap[resource]?.[action] ?? { state: 'inherited', value: false }}
+                          onToggle={() => permissions.toggleOverride(resource, action)}
+                        />
+                      </td>
+                    ))}
+                    <td className="px-4 py-3 text-right">
+                      {permissions.overrides[resource] && (
+                        <button
+                          type="button"
+                          onClick={() => permissions.resetResource(resource)}
+                          className="text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)] hover:text-[var(--color-on-surface)]"
+                        >
+                          Reset row
+                        </button>
+                      )}
+                    </td>
+                  </tr>
                 ))}
-                <td className="px-4 py-3 text-right">
-                  {permissions.overrides[resource] && (
-                    <button
-                      type="button"
-                      onClick={() => permissions.resetResource(resource)}
-                      className="text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)] hover:text-[var(--color-on-surface)]"
-                    >
-                      Reset row
-                    </button>
-                  )}
-                </td>
-              </tr>
+              </Fragment>
             ))}
           </tbody>
         </table>
       </div>
 
       {confirmResetAll && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[var(--color-surface-container-lowest)]/90 p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[var(--color-surface-container-lowest)]/90 p-4">
           <div className="w-full max-w-md rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-6">
-            <h3 className="text-lg font-black text-[var(--color-on-surface)]">Reset all overrides?</h3>
+            <h3 className="text-lg font-black text-[var(--color-on-surface)]">Reset to role defaults?</h3>
             <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
               This will remove all custom permissions for this user. They will revert to their role defaults.
             </p>

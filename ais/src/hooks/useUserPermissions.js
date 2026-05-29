@@ -56,7 +56,7 @@ export async function saveOverride(userId, orgId, resource, action, value, creat
   payload[field] = value;
   const { error } = await supabase
     .from('user_permission_overrides')
-    .upsert(payload, { onConflict: 'org_id,user_id,resource' });
+    .upsert(payload, { onConflict: 'user_id,resource' });
   if (error) throw error;
   return payload;
 }
@@ -87,6 +87,7 @@ export function useUserPermissions(userId, activeOrgId) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [savedAt, setSavedAt] = useState(null);
+  const [toggleError, setToggleError] = useState(null);
 
   const flashSaved = useCallback(() => {
     setSavedAt(Date.now());
@@ -167,6 +168,7 @@ export function useUserPermissions(userId, activeOrgId) {
   }
 
   const toggleOverride = async (resource, action) => {
+    setToggleError(null);
     try {
       const currentUser = await getCurrentUser();
       const orgId = activeOrgId ?? currentUser?.orgId;
@@ -187,6 +189,7 @@ export function useUserPermissions(userId, activeOrgId) {
       flashSaved();
     } catch (err) {
       console.error('[useUserPermissions] toggleOverride', err);
+      setToggleError(err.message || 'Could not save permission override.');
       throw err;
     }
   };
@@ -231,6 +234,7 @@ export function useUserPermissions(userId, activeOrgId) {
     overrides,
     resolvedMap,
     savedAt,
+    toggleError,
     reload: load,
     toggleOverride,
     resetResource,

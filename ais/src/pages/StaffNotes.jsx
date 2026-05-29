@@ -178,7 +178,7 @@ function Shell({ children }) {
   return (
     <div className="min-h-screen bg-[var(--color-surface)] font-['Inter'] text-[var(--color-on-surface)]">
       <Sidebar />
-      <main className="space-y-6 px-4 py-8 pb-16 pt-20 md:pl-72 md:px-8">{children}</main>
+      <main className="space-y-6 px-4 py-8 pb-28 pt-20 lg:pb-16 lg:pl-72 md:px-8">{children}</main>
     </div>
   )
 }

@@ -20,7 +20,7 @@ function AccessDenied() {
   return (
     <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-on-surface)] font-['Inter']">
       <Sidebar />
-      <main className="px-6 py-24 md:pl-72">
+      <main className="px-6 py-24 lg:pl-72">
         <section className="max-w-xl rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-8">
           <p className="text-xs font-black uppercase tracking-widest text-[var(--color-primary-container)]">Access Denied</p>
           <h1 className="mt-3 text-2xl font-black">Superuser access required</h1>
@@ -115,7 +115,7 @@ export default function SuperuserPanel() {
     return (
       <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-on-surface)]">
         <Sidebar />
-        <main className="px-6 py-24 md:pl-72">Loading superuser panel...</main>
+        <main className="px-6 py-24 lg:pl-72">Loading superuser panel...</main>
       </div>
     );
   }
@@ -124,7 +124,7 @@ export default function SuperuserPanel() {
   return (
     <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-on-surface)] font-['Inter']">
       <Sidebar />
-      <main className="px-4 pb-16 pt-20 md:pl-72 md:pr-8">
+      <main className="px-4 pb-28 pt-20 lg:pb-16 lg:pl-72 md:pr-8">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary-container)]">Platform</p>

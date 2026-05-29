@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { filterUserListRows, formatUserListDate, userListStatusBadge } from '../../lib/adminUserListFilters';
 import { formatRoleOrPosition } from '../../lib/adminUserConstants';
 import AddUserModal from './AddUserModal';
 import DeleteUserModal from './DeleteUserModal';
 import AdminUserRowMenu from './AdminUserRowMenu';
+import UserDetailPanel from './UserDetailPanel';
 import { setUserActive } from '../../lib/adminUserActions';
 
 async function resolveFunctionErrorMessage(fnError, fnData) {
@@ -23,8 +23,8 @@ async function resolveFunctionErrorMessage(fnError, fnData) {
 }
 
 export default function UserList({ user }) {
-  const navigate = useNavigate();
   const [items, setItems] = useState([]);
+  const [panelTarget, setPanelTarget] = useState(null);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -328,10 +328,7 @@ export default function UserList({ user }) {
               {rows.map((row) => (
                 <tr
                   key={row.key}
-                  onClick={() => {
-                    if (row.kind === 'staff') navigate(`/admin/users/${row.userId}`);
-                    else if (row.athleteId) navigate(`/athletes/${row.athleteId}`);
-                  }}
+                  onClick={() => setPanelTarget(row)}
                   className={`cursor-pointer transition-colors hover:bg-[var(--color-surface-container-high)] ${row.status === 'INACTIVE' ? 'opacity-60' : ''}`}
                 >
                   <td className="px-5 py-4 font-bold text-[var(--color-on-surface)]">
@@ -359,10 +356,7 @@ export default function UserList({ user }) {
                       actions={[
                         {
                           label: 'View Profile',
-                          onClick: (item) => {
-                            if (item.kind === 'staff') navigate(`/admin/users/${item.userId}`);
-                            else if (item.athleteId) navigate(`/athletes/${item.athleteId}`);
-                          },
+                          onClick: (item) => setPanelTarget(item),
                         },
                         {
                           label: 'Resend Invite',
@@ -420,6 +414,14 @@ export default function UserList({ user }) {
           orgId={deleteTarget.orgId ?? user.orgId}
           onClose={() => setDeleteTarget(null)}
           onDeleted={loadUsers}
+        />
+      )}
+
+      {panelTarget && (
+        <UserDetailPanel
+          target={panelTarget}
+          onClose={() => setPanelTarget(null)}
+          onUpdated={loadUsers}
         />
       )}
     </section>

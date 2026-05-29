@@ -95,7 +95,7 @@ export default function UserDetailPage() {
     return (
       <div className="min-h-screen bg-[var(--color-surface)]">
         <Sidebar />
-        <main className="px-6 py-24 md:pl-72"><p className="text-sm text-[var(--color-outline)]">Loading…</p></main>
+        <main className="px-6 py-24 lg:pl-72"><p className="text-sm text-[var(--color-outline)]">Loading…</p></main>
       </div>
     );
   }
@@ -104,7 +104,7 @@ export default function UserDetailPage() {
     return (
       <div className="min-h-screen bg-[var(--color-surface)]">
         <Sidebar />
-        <main className="px-6 py-24 md:pl-72">
+        <main className="px-6 py-24 lg:pl-72">
           <p className="text-sm text-[var(--color-error)]">{error || 'User not found.'}</p>
           <button type="button" onClick={() => navigate('/admin')} className="mt-4 text-sm text-[var(--color-primary-container)]">Back to admin</button>
         </main>
@@ -115,7 +115,7 @@ export default function UserDetailPage() {
   return (
     <div className="min-h-screen bg-[var(--color-surface)] text-[var(--color-on-surface)] font-['Inter']">
       <Sidebar />
-      <main className="px-4 pb-16 pt-20 md:pl-72 md:pr-8">
+      <main className="px-4 pb-28 pt-20 lg:pb-16 lg:pl-72 md:pr-8">
         <button type="button" onClick={() => navigate('/admin')} className="mb-4 text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)] hover:text-[var(--color-on-surface)]">
           ← Admin
         </button>

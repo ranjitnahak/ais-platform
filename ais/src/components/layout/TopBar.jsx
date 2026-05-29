@@ -74,7 +74,7 @@ export function TopBarUserMenu({ showSearch = true }) {
 
 export default function TopBar({ title, children, showSearch = true }) {
   return (
-    <header className="fixed top-0 z-40 flex h-16 w-full items-center justify-between border-b border-[var(--color-outline-variant)] bg-[var(--color-surface)]/90 px-6 backdrop-blur-xl md:pl-72">
+    <header className="fixed top-0 z-40 flex h-16 w-full items-center justify-between border-b border-[var(--color-outline-variant)] bg-[var(--color-surface)]/90 px-6 backdrop-blur-xl lg:pl-72">
       <div className="flex min-w-0 items-center gap-4">{children ?? <h1 className="truncate text-xl font-bold tracking-tight text-[var(--color-on-surface)]">{title}</h1>}</div>
       <TopBarUserMenu showSearch={showSearch} />
     </header>

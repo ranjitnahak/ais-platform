@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.user_permission_overrides (
   can_delete boolean,
   created_by uuid REFERENCES public.users (id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (org_id, user_id, resource)
+  UNIQUE (user_id, resource)
 );
 
 ALTER TABLE public.users

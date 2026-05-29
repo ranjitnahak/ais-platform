@@ -61,14 +61,21 @@ export function UserProvider({ children }) {
   }, [user, activeOrgId]);
 
   useEffect(() => {
-    void loadUser();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN') void loadUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
         setActiveOrgIdState(null);
         window.localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
+        return;
+      }
+      if (session) {
+        void loadUser();
+        return;
+      }
+      if (event === 'INITIAL_SESSION') {
+        setUser(null);
+        setLoading(false);
       }
     });
     return () => subscription.unsubscribe();

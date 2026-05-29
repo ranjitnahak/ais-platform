@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import { TopBarUserMenu } from '../layout/TopBar';
 import { supabase } from '../../lib/supabase';
@@ -383,45 +382,20 @@ export default function SquadDashboard({ embedded = false }) {
   return (
     <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
       <Sidebar />
-      <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 md:pl-72">
+      <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 lg:pl-72">
         <div className="flex items-center gap-4">
-          <span className="material-symbols-outlined text-gray-400 md:hidden">menu</span>
+          <span className="material-symbols-outlined text-gray-400 lg:hidden">menu</span>
           <h1 className="font-['Inter'] text-xl font-bold tracking-tight text-white">Squad Dashboard</h1>
         </div>
         <TopBarUserMenu />
       </header>
-      <main className="pt-24 pb-32 px-6 md:pl-72">{mainContent}</main>
+      <main className="pt-24 pb-32 px-6 lg:pl-72">{mainContent}</main>
       <button
         type="button"
-        className="fixed bottom-24 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-primary-container)] text-[var(--color-on-primary)] shadow-2xl md:hidden active:scale-90 transition-transform"
+        className="fixed bottom-24 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-primary-container)] text-[var(--color-on-primary)] shadow-2xl lg:hidden active:scale-90 transition-transform"
       >
         <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
       </button>
-      <footer className="md:hidden fixed bottom-0 left-0 z-50 flex h-20 w-full items-center justify-around rounded-t-2xl border-t border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]/90 backdrop-blur-2xl">
-        {[
-          { icon: 'dashboard', label: 'Live', to: '/dashboard' },
-          { icon: 'sensors', label: 'Data', to: '/dashboard' },
-          { icon: 'edit_note', label: 'Reports', to: '/reports' },
-          { icon: 'settings', label: 'Sets', to: '/settings' },
-        ].map(({ icon, label, to }) => (
-          <NavLink
-            key={label}
-            to={to}
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center p-2 active:scale-90 transition-transform ${
-                isActive ? 'text-[var(--color-primary-container)] scale-110' : 'text-[var(--color-outline)]'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <span className="material-symbols-outlined" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>{icon}</span>
-                <span className="mt-1 font-['Inter'] text-[10px] uppercase tracking-widest">{label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
-      </footer>
     </div>
   );
 }

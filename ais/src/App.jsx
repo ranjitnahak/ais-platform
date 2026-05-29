@@ -18,8 +18,11 @@ import ResetPassword from './pages/ResetPassword';
 import { supabase } from './lib/supabase';
 import { useUser } from './context/UserContext';
 import AthleteLayout from './components/layout/AthleteLayout';
+import BottomNav from './components/layout/BottomNav';
 import AthleteData from './pages/AthleteData';
+import AthleteLog from './pages/AthleteLog';
 import AthleteProfileSelf from './pages/AthleteProfileSelf';
+import AthleteSettings from './pages/AthleteSettings';
 
 const PUBLIC_PATHS = ['/login', '/reset-password'];
 
@@ -122,7 +125,12 @@ function AthleteRouteGuard({ user }) {
 function StaffRouteGuard({ user }) {
   if (!user) return <RoleLoading />;
   if (user.role?.toLowerCase() === 'athlete') return <Navigate to="/athlete-home" replace />;
-  return <Outlet />;
+  return (
+    <>
+      <BottomNav variant="staff" />
+      <Outlet />
+    </>
+  );
 }
 
 export default function App() {
@@ -139,7 +147,9 @@ export default function App() {
 
           <Route element={<AthleteRouteGuard user={checkingUser ? null : resolvedUser} />}>
             <Route path="/athlete-home" element={<AthleteHome />} />
+            <Route path="/athlete-log" element={<AthleteLog />} />
             <Route path="/athlete-data" element={<AthleteData />} />
+            <Route path="/athlete-settings" element={<AthleteSettings />} />
             <Route path="/athlete-profile" element={<AthleteProfileSelf />} />
             <Route path="*" element={<Navigate to="/athlete-home" replace />} />
           </Route>

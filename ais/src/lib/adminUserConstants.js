@@ -39,16 +39,16 @@ export const STAFF_ROLE_DB_NAME = {
   Admin: 'Admin',
 };
 
-export const PERMISSION_RESOURCES = [
-  'assessments',
-  'periodisation',
-  'reports',
-  'wellness',
-  'rpe_logging',
-  'staff_notes',
-  'athleteRoster',
-  'adminConfig',
+export const PERMISSION_CATEGORIES = [
+  { label: 'Dashboard', resources: ['wellness', 'rpe_logging', 'injury_surveillance'] },
+  { label: 'Log', resources: ['assessments', 'staff_notes'] },
+  { label: 'Reports', resources: ['reports', 'unified_reports'] },
+  { label: 'Planning', resources: ['periodisation', 'sessionLibrary', 'sc_pro'] },
+  { label: 'Roster', resources: ['athleteRoster', 'athlete_portal'] },
+  { label: 'Admin', resources: ['adminConfig'] },
 ];
+
+export const PERMISSION_RESOURCES = PERMISSION_CATEGORIES.flatMap((category) => category.resources);
 
 export const PERMISSION_ACTIONS = [
   ['can_view', 'view', 'View'],

@@ -338,7 +338,7 @@ export default function AthleteProfile() {
       <Sidebar />
 
       {/* Top bar */}
-      <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 md:pl-72">
+      <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 lg:pl-72">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/athletes')}
@@ -352,7 +352,7 @@ export default function AthleteProfile() {
       </header>
 
       {/* Main */}
-      <main className="pt-24 pb-32 px-6 md:pl-72 max-w-4xl mx-auto space-y-8">
+      <main className="pt-24 pb-32 px-6 lg:pl-72 max-w-4xl mx-auto space-y-8">
 
         {/* ── Photo + name banner ── */}
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6" style={{ border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', padding: '28px', backgroundColor: '#1b1b1d' }}>
@@ -670,31 +670,6 @@ export default function AthleteProfile() {
         </div>
       </main>
 
-      {/* Bottom nav — mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center h-20 bg-[#2A2A2C]/80 backdrop-blur-2xl border-t border-white/10 z-50 rounded-t-2xl">
-        {[
-          { icon: 'dashboard', label: 'Home',     to: '/'        },
-          { icon: 'person',    label: 'Athletes',  to: '/athletes'},
-          { icon: 'edit_note', label: 'Reports',  to: '/reports' },
-          { icon: 'settings',  label: 'Settings', to: '/settings'},
-        ].map(({ icon, label, to }) => (
-          <NavLink
-            key={label}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center p-2 transition-transform ${isActive ? 'text-[#F97316] scale-110' : 'text-gray-500 hover:text-white'}`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <span className="material-symbols-outlined" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>{icon}</span>
-                <span className="font-['Inter'] text-[10px] uppercase tracking-widest mt-1">{label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
     </div>
 
     {dangerDialog && athlete && (

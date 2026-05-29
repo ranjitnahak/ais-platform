@@ -304,7 +304,7 @@ export default function Settings() {
     return (
       <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
         <Sidebar />
-        <div className="pt-24 pb-32 px-6 md:pl-72 flex items-center justify-center min-h-screen">
+        <div className="pt-24 pb-32 px-6 lg:pl-72 flex items-center justify-center min-h-screen">
           <p className="text-gray-500">Access restricted — admin permission required</p>
         </div>
       </div>
@@ -316,7 +316,7 @@ export default function Settings() {
       <Sidebar />
 
       {/* Fixed header */}
-      <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 md:pl-72">
+      <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 lg:pl-72">
         <div>
           <h1 className="font-['Inter'] text-xl font-bold tracking-tight text-white uppercase leading-none">
             Settings
@@ -337,7 +337,7 @@ export default function Settings() {
       </header>
 
       {/* Main */}
-      <main className="pt-24 pb-32 px-6 md:pl-72">
+      <main className="pt-24 pb-32 px-6 lg:pl-72">
         <div className="flex min-h-[calc(100vh-6rem)]">
 
           {/* Settings nav */}
