@@ -14,6 +14,19 @@ const COL_SPAN = 2 + COLUMNS.length;
 
 const CRUD_FIELDS = ['can_view', 'can_create', 'can_edit', 'can_delete'];
 
+function buildUpsertRow(row, orgId) {
+  return {
+    role_id: row.role_id,
+    resource: row.resource,
+    org_id: orgId,
+    visible: row.visible !== false,
+    can_view: Boolean(row.can_view),
+    can_create: Boolean(row.can_create),
+    can_edit: Boolean(row.can_edit),
+    can_delete: Boolean(row.can_delete),
+  };
+}
+
 function keyFor(roleId, resource) {
   return `${roleId}:${resource}`;
 }
@@ -81,7 +94,7 @@ export default function RolePermissionsGrid({ user }) {
     try {
       const { error: upsertError } = await supabase
         .from('role_permissions')
-        .upsert({ ...next, org_id: user.orgId }, { onConflict: 'role_id,resource' });
+        .upsert(buildUpsertRow(next, user.orgId), { onConflict: 'role_id,resource' });
       if (upsertError) throw upsertError;
     } catch (err) {
       console.error('[RolePermissionsGrid] save failed:', err);
