@@ -220,12 +220,16 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
           address: athleteForm.address?.trim() || null,
           ...(nextPhotoUrl ? { photo_url: nextPhotoUrl } : {}),
         };
-        const { error: athleteError } = await supabase
+        const { data: updatedAthleteRows, error: athleteError } = await supabase
           .from('athletes')
           .update(patch)
           .eq('id', athleteId)
-          .eq('org_id', orgId);
+          .eq('org_id', orgId)
+          .select('id');
         if (athleteError) throw athleteError;
+        if (!updatedAthleteRows?.length) {
+          throw new Error('Save was blocked or no profile matched. Check organisation access and try again.');
+        }
 
         if (userId) {
           const { error: userError } = await supabase
