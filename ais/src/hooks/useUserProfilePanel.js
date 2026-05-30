@@ -7,6 +7,22 @@ import { setUserActive } from '../lib/adminUserActions';
 import { STAFF_ROLE_DB_NAME, STAFF_ROLE_ENUM, USER_ROLE_DISPLAY } from '../lib/adminUserConstants';
 import { resolveGroupIdsForTeams, resolveTeamIdsForGroups } from '../lib/teamGroups';
 
+async function loadTeamsForOrg(orgId) {
+  const actor = await getCurrentUser();
+  if (actor?.isSuperuser && orgId && actor.allTeams?.length) {
+    const cached = actor.allTeams
+      .filter((team) => team.org_id === orgId)
+      .map((team) => ({ id: team.id, name: team.name, sport: team.sport ?? null, gender: team.gender ?? null }));
+    if (cached.length) return cached;
+  }
+
+  let query = supabase.from('teams').select('id, name, sport, gender').order('name');
+  if (orgId) query = query.eq('org_id', orgId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
 const EMPTY_ATHLETE = {
   first_name: '',
   last_name: '',
@@ -137,7 +153,7 @@ async function syncStaffTeams(orgId, userId, roleId, selectedTeamIds) {
 export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
   const isStaff = target?.kind === 'staff';
   const isAthlete = !isStaff;
-  const orgId = target?.orgId ?? activeOrgId;
+  const orgId = target?.orgId ?? target?.org_id ?? activeOrgId;
   const userId = target?.userId ?? null;
   const athleteId = target?.athleteId ?? null;
 
@@ -159,19 +175,23 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
   const [selectedTeamIds, setSelectedTeamIds] = useState([]);
 
   const load = useCallback(async () => {
-    if (!target || !orgId) return;
+    if (!target || !orgId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     setSaveMsg(null);
     try {
-      const [{ data: roleRows, error: rolesError }, { data: teamRows, error: teamsError }] = await Promise.all([
-        supabase.from('roles').select('id, name').eq('org_id', orgId).order('name'),
-        supabase.from('teams').select('id, name, sport, gender').eq('org_id', orgId).order('name'),
+      const [{ data: roleRows, error: rolesError }, teamRows] = await Promise.all([
+        orgId
+          ? supabase.from('roles').select('id, name').eq('org_id', orgId).order('name')
+          : Promise.resolve({ data: [], error: null }),
+        loadTeamsForOrg(orgId),
       ]);
       if (rolesError) throw rolesError;
-      if (teamsError) throw teamsError;
       setAvailableRoles(roleRows ?? []);
-      setTeams(teamRows ?? []);
+      setTeams(teamRows);
 
       if (isStaff && userId) {
         const [{ data, error: userError }, { data: userRoleRows, error: userRolesError }] = await Promise.all([

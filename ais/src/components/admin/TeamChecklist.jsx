@@ -1,7 +1,14 @@
 const labelClass = 'mb-1.5 block text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)]';
 
 export default function TeamChecklist({ teams, selectedTeamIds, onToggle }) {
-  if (!teams.length) return null;
+  if (!teams.length) {
+    return (
+      <div>
+        <p className={labelClass}>Team assignment</p>
+        <p className="text-sm text-[var(--color-on-surface-variant)]">No teams are configured for this organisation.</p>
+      </div>
+    );
+  }
   return (
     <div>
       <p className={labelClass}>Team assignment</p>
