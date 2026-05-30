@@ -81,7 +81,7 @@ export default function RolePermissionsGrid({ user }) {
     try {
       const { error: upsertError } = await supabase
         .from('role_permissions')
-        .upsert({ ...next, org_id: user.orgId }, { onConflict: 'org_id,role_id,resource' });
+        .upsert({ ...next, org_id: user.orgId }, { onConflict: 'role_id,resource' });
       if (upsertError) throw upsertError;
     } catch (err) {
       console.error('[RolePermissionsGrid] save failed:', err);
