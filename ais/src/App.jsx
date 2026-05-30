@@ -55,7 +55,7 @@ function AuthGate({ children }) {
   const navigate = useNavigate();
   const isPublicPath = PUBLIC_PATHS.includes(location.pathname);
   const needsProfile = Boolean(session && !isPublicPath);
-  const profileChecking = needsProfile && userLoading;
+  const profileChecking = needsProfile && userLoading && !user;
   const profileFailed = needsProfile && !userLoading && !user;
 
   useEffect(() => {

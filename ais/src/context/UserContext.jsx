@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 
@@ -13,10 +13,16 @@ export function UserProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeOrgId, setActiveOrgIdState] = useState(() => getInitialActiveOrgId());
+  const userRef = useRef(null);
 
-  const loadUser = useCallback(async () => {
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const loadUser = useCallback(async (opts = {}) => {
+    const silent = typeof opts === 'string' ? false : Boolean(opts.silent);
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const currentUser = await getCurrentUser();
       if (!currentUser) {
         console.error('[UserContext] loadUser failed: getCurrentUser returned null');
@@ -38,7 +44,7 @@ export function UserProvider({ children }) {
       setUser(null);
       setActiveOrgIdState(null);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -70,7 +76,7 @@ export function UserProvider({ children }) {
         return;
       }
       if (session) {
-        void loadUser();
+        void loadUser({ silent: Boolean(userRef.current) });
         return;
       }
       if (event === 'INITIAL_SESSION') {
