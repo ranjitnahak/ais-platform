@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { SPORT_OPTIONS, SPORT_OTHER, resolveSportValue } from '../../lib/sportOptions';
 
-const EMPTY_TEAM = { name: '', sport: '' };
+const EMPTY_TEAM = { name: '', sportSelect: '', customSport: '' };
+const fieldClassName =
+  'rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-on-surface)] outline-none';
 
 function memberCount(team) {
   const countRow = Array.isArray(team.athlete_teams) ? team.athlete_teams[0] : null;
@@ -12,7 +15,7 @@ function athleteName(athlete) {
   return athlete.full_name || [athlete.first_name, athlete.last_name].filter(Boolean).join(' ') || 'Unnamed athlete';
 }
 
-export default function TeamManagement({ user }) {
+export default function TeamManagement({ user, effectiveOrgId }) {
   const [teams, setTeams] = useState([]);
   const [newTeam, setNewTeam] = useState(EMPTY_TEAM);
   const [selectedTeam, setSelectedTeam] = useState(null);
@@ -21,15 +24,17 @@ export default function TeamManagement({ user }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  const orgId = effectiveOrgId ?? user?.orgId;
+
   async function loadTeams() {
-    if (!user?.orgId) return;
+    if (!orgId) return;
     setLoading(true);
     setError(null);
     try {
       const { data, error: teamError } = await supabase
         .from('teams')
         .select('id, name, sport, athlete_teams(count)')
-        .eq('org_id', user.orgId)
+        .eq('org_id', orgId)
         .order('name');
       if (teamError) throw teamError;
       setTeams(data ?? []);
@@ -43,19 +48,23 @@ export default function TeamManagement({ user }) {
 
   useEffect(() => {
     void loadTeams();
-  }, [user?.orgId]);
+  }, [orgId]);
 
   async function createTeam() {
-    if (!user?.orgId || !newTeam.name.trim()) {
+    const sport = resolveSportValue(newTeam.sportSelect, newTeam.customSport);
+    const payload = {
+      org_id: orgId,
+      name: newTeam.name.trim(),
+      sport,
+    };
+    if (!orgId || !newTeam.name.trim()) {
       setError('Team name is required.');
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      const { error: insertError } = await supabase
-        .from('teams')
-        .insert({ org_id: user.orgId, name: newTeam.name.trim(), sport: newTeam.sport.trim() || null });
+      const { error: insertError } = await supabase.from('teams').insert(payload);
       if (insertError) throw insertError;
       setNewTeam(EMPTY_TEAM);
       await loadTeams();
@@ -68,14 +77,14 @@ export default function TeamManagement({ user }) {
   }
 
   async function loadMembers(team) {
-    if (!user?.orgId) return;
+    if (!orgId) return;
     setSelectedTeam(team);
     setMembers([]);
     try {
       const { data, error: memberError } = await supabase
         .from('athletes')
         .select('id, first_name, last_name, full_name, position, athlete_teams!inner(team_id)')
-        .eq('org_id', user.orgId)
+        .eq('org_id', orgId)
         .eq('athlete_teams.team_id', team.id)
         .order('full_name');
       if (memberError) throw memberError;
@@ -98,14 +107,28 @@ export default function TeamManagement({ user }) {
           value={newTeam.name}
           onChange={(e) => setNewTeam((current) => ({ ...current, name: e.target.value }))}
           placeholder="Team name"
-          className="rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-on-surface)] outline-none"
+          className={fieldClassName}
         />
-        <input
-          value={newTeam.sport}
-          onChange={(e) => setNewTeam((current) => ({ ...current, sport: e.target.value }))}
-          placeholder="Sport"
-          className="rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-on-surface)] outline-none"
-        />
+        <div className="grid gap-2">
+          <select
+            value={newTeam.sportSelect}
+            onChange={(e) => setNewTeam((current) => ({ ...current, sportSelect: e.target.value, customSport: '' }))}
+            className={fieldClassName}
+          >
+            <option value="">Select sport</option>
+            {SPORT_OPTIONS.map((sport) => (
+              <option key={sport} value={sport}>{sport}</option>
+            ))}
+          </select>
+          {newTeam.sportSelect === SPORT_OTHER && (
+            <input
+              value={newTeam.customSport}
+              onChange={(e) => setNewTeam((current) => ({ ...current, customSport: e.target.value }))}
+              placeholder="Enter sport name"
+              className={fieldClassName}
+            />
+          )}
+        </div>
         <button
           type="button"
           disabled={saving}

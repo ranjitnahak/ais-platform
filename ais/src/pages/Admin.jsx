@@ -48,9 +48,9 @@ export default function Admin() {
     () => ({
       users: () => <UserList user={user} />,
       roles: () => <RolePermissionsGrid user={user} />,
-      teams: () => <TeamManagement user={user} />,
+      teams: () => <TeamManagement user={user} effectiveOrgId={effectiveOrgId} />,
     }),
-    [user],
+    [user, effectiveOrgId],
   );
 
   if (loading) {
