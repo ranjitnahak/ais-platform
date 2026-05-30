@@ -135,17 +135,22 @@ export default function TeamDetailModal({ team, orgId: orgIdProp, onClose, onSav
         });
         if (insErr) throw insErr;
       } else {
-        const { error: updErr } = await supabase
+        const updatePayload = {
+          name: name.trim(),
+          sport: sport.trim() || null,
+          gender: gender || null,
+          logo_url: finalLogoUrl,
+        };
+        const { data: updatedRows, error: updErr } = await supabase
           .from('teams')
-          .update({
-            name: name.trim(),
-            sport: sport.trim() || null,
-            gender: gender || null,
-            logo_url: finalLogoUrl,
-          })
+          .update(updatePayload)
           .eq('id', team.id)
-          .eq('org_id', orgId);
+          .eq('org_id', orgId)
+          .select('id');
         if (updErr) throw updErr;
+        if (!updatedRows?.length) {
+          throw new Error('Save was blocked or no team matched. Check organisation access and try again.');
+        }
 
         const added   = [...memberIds].filter((id) => !originalMemberIds.has(id));
         const removed = [...originalMemberIds].filter((id) => !memberIds.has(id));
