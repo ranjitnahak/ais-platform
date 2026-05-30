@@ -5,6 +5,7 @@ import { canonicalFullName } from '../lib/athleteName';
 import { normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
 import { setUserActive } from '../lib/adminUserActions';
 import { STAFF_ROLE_DB_NAME, STAFF_ROLE_ENUM, USER_ROLE_DISPLAY } from '../lib/adminUserConstants';
+import { resolveGroupIdsForTeams, resolveTeamIdsForGroups } from '../lib/teamGroups';
 
 const EMPTY_ATHLETE = {
   first_name: '',
@@ -37,6 +38,30 @@ function roleLabelToDbName(label) {
   return STAFF_ROLE_DB_NAME[label] ?? label;
 }
 
+async function resolveStaffRoleId(orgId, userRow, userRoleRows, roleLabel) {
+  const primary = userRoleRows?.[0];
+  if (primary?.role_id) return primary.role_id;
+
+  const candidates = [
+    roleLabel ? roleLabelToDbName(roleLabel) : null,
+    userRow?.role ? String(userRow.role) : null,
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).trim().toLowerCase());
+  if (!candidates.length) return null;
+
+  const { data: roleRows, error } = await supabase
+    .from('roles')
+    .select('id, name')
+    .eq('org_id', orgId);
+  if (error) throw error;
+
+  const match = (roleRows ?? []).find((row) =>
+    candidates.includes(String(row.name).trim().toLowerCase()),
+  );
+  return match?.id ?? null;
+}
+
 async function uploadPhoto(blob, fileName, folder) {
   const path = `${folder}/${Date.now()}-${fileName}`;
   const { error: uploadErr } = await supabase.storage
@@ -45,6 +70,68 @@ async function uploadPhoto(blob, fileName, folder) {
   if (uploadErr) throw uploadErr;
   const { data: urlData } = supabase.storage.from('Athletes').getPublicUrl(path);
   return urlData?.publicUrl ?? null;
+}
+
+async function syncAthleteTeams(athleteId, selectedTeamIds) {
+  const { data: existing, error } = await supabase
+    .from('athlete_teams')
+    .select('team_id')
+    .eq('athlete_id', athleteId);
+  if (error) throw error;
+
+  const existingIds = (existing ?? []).map((row) => row.team_id);
+  const toAdd = selectedTeamIds.filter((id) => !existingIds.includes(id));
+  const toRemove = existingIds.filter((id) => !selectedTeamIds.includes(id));
+
+  if (toRemove.length) {
+    const { error: delErr } = await supabase
+      .from('athlete_teams')
+      .delete()
+      .eq('athlete_id', athleteId)
+      .in('team_id', toRemove);
+    if (delErr) throw delErr;
+  }
+  if (toAdd.length) {
+    const rows = toAdd.map((teamId) => ({
+      athlete_id: athleteId,
+      team_id: teamId,
+      joined_at: new Date().toISOString(),
+    }));
+    const { error: insErr } = await supabase.from('athlete_teams').insert(rows);
+    if (insErr) throw insErr;
+  }
+}
+
+async function syncStaffTeams(orgId, userId, roleId, selectedTeamIds) {
+  if (!roleId) throw new Error('Staff role is not configured for this user.');
+
+  const { error: delErr } = await supabase
+    .from('user_roles')
+    .delete()
+    .eq('user_id', userId)
+    .eq('org_id', orgId);
+  if (delErr) throw delErr;
+
+  if (!selectedTeamIds.length) {
+    const { error: insErr } = await supabase.from('user_roles').insert({
+      org_id: orgId,
+      user_id: userId,
+      role_id: roleId,
+      group_id: null,
+    });
+    if (insErr) throw insErr;
+    return;
+  }
+
+  const groupIds = await resolveGroupIdsForTeams(orgId, selectedTeamIds);
+  const rows = groupIds.map((groupId) => ({
+    org_id: orgId,
+    user_id: userId,
+    role_id: roleId,
+    group_id: groupId,
+  }));
+  const { error: insErr } = await supabase.from('user_roles').insert(rows);
+  if (insErr) throw insErr;
 }
 
 export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
@@ -68,6 +155,8 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
   const [photoBlob, setPhotoBlob] = useState(null);
   const [photoName, setPhotoName] = useState('');
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [teams, setTeams] = useState([]);
+  const [selectedTeamIds, setSelectedTeamIds] = useState([]);
 
   const load = useCallback(async () => {
     if (!target || !orgId) return;
@@ -75,30 +164,46 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
     setError(null);
     setSaveMsg(null);
     try {
-      const [{ data: roleRows, error: rolesError }] = await Promise.all([
+      const [{ data: roleRows, error: rolesError }, { data: teamRows, error: teamsError }] = await Promise.all([
         supabase.from('roles').select('id, name').eq('org_id', orgId).order('name'),
+        supabase.from('teams').select('id, name, sport, gender').eq('org_id', orgId).order('name'),
       ]);
       if (rolesError) throw rolesError;
+      if (teamsError) throw teamsError;
       setAvailableRoles(roleRows ?? []);
+      setTeams(teamRows ?? []);
 
       if (isStaff && userId) {
-        const { data, error: userError } = await supabase
-          .from('users')
-          .select('id, full_name, email, phone, title, role, photo_url, is_active, user_roles(role_id, roles(name))')
-          .eq('id', userId)
-          .eq('org_id', orgId)
-          .single();
+        const [{ data, error: userError }, { data: userRoleRows, error: userRolesError }] = await Promise.all([
+          supabase
+            .from('users')
+            .select('id, full_name, email, phone, title, role, photo_url, is_active')
+            .eq('id', userId)
+            .eq('org_id', orgId)
+            .single(),
+          supabase
+            .from('user_roles')
+            .select('role_id, group_id, roles(name)')
+            .eq('user_id', userId)
+            .eq('org_id', orgId),
+        ]);
         if (userError) throw userError;
+        if (userRolesError) throw userRolesError;
         const names = splitFullName(data.full_name);
-        const primaryRole = data.user_roles?.[0];
-        setRoleId(primaryRole?.role_id ?? null);
+        const primaryRole = userRoleRows?.[0];
+        const roleLabel = roleLabelFromUser(data, primaryRole);
+        const resolvedRoleId = await resolveStaffRoleId(orgId, data, userRoleRows, roleLabel);
+        const staffGroupIds = [...new Set((userRoleRows ?? []).map((r) => r.group_id).filter(Boolean))];
+        const staffTeamIds = await resolveTeamIdsForGroups(orgId, staffGroupIds);
+        setSelectedTeamIds(staffTeamIds);
+        setRoleId(resolvedRoleId);
         setStaffForm({
           first_name: names.first_name,
           last_name: names.last_name,
           email: data.email ?? '',
           phone: data.phone ?? '',
           title: data.title ?? '',
-          roleLabel: roleLabelFromUser(data, primaryRole),
+          roleLabel,
         });
         setPhotoUrl(data.photo_url ?? null);
         setPhotoPreview(data.photo_url ?? null);
@@ -130,6 +235,13 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
         setPhotoUrl(data.photo_url ?? null);
         setPhotoPreview(data.photo_url ?? null);
         setIsActive(Boolean(data.is_active));
+        const { data: athleteTeamRows, error: athleteTeamsError } = await supabase
+          .from('athlete_teams')
+          .select('team_id')
+          .eq('athlete_id', athleteId);
+        if (athleteTeamsError) throw athleteTeamsError;
+        const athleteTeamIds = (athleteTeamRows ?? []).map((r) => r.team_id);
+        setSelectedTeamIds(athleteTeamIds);
       }
     } catch (err) {
       console.error('[useUserProfilePanel] load', err);
@@ -149,6 +261,12 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
 
   function setStaffField(field, value) {
     setStaffForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function toggleTeam(teamId) {
+    setSelectedTeamIds((prev) =>
+      prev.includes(teamId) ? prev.filter((id) => id !== teamId) : [...prev, teamId],
+    );
   }
 
   function handlePhotoChange(file) {
@@ -194,6 +312,17 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
           .eq('id', userId)
           .eq('org_id', orgId);
         if (updateError) throw updateError;
+        const effectiveRoleId = roleId ?? await resolveStaffRoleId(
+          orgId,
+          { role: staffForm.roleLabel ? STAFF_ROLE_ENUM[staffForm.roleLabel] : null },
+          null,
+          staffForm.roleLabel,
+        );
+        if (!effectiveRoleId) {
+          throw new Error('Could not resolve staff role for team assignment.');
+        }
+        await syncStaffTeams(orgId, userId, effectiveRoleId, selectedTeamIds);
+        setRoleId(effectiveRoleId);
         if (nextPhotoUrl) setPhotoUrl(nextPhotoUrl);
         setSaveMsg({ type: 'success', text: 'Changes saved.' });
         await onUpdated?.();
@@ -239,6 +368,7 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
             .eq('org_id', orgId);
           if (userError) console.error('[useUserProfilePanel] sync user name', userError);
         }
+        await syncAthleteTeams(athleteId, selectedTeamIds);
         if (nextPhotoUrl) setPhotoUrl(nextPhotoUrl);
         setSaveMsg({ type: 'success', text: 'Changes saved.' });
         await onUpdated?.();
@@ -338,6 +468,9 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
     staffForm,
     availableRoles,
     roleId,
+    teams,
+    selectedTeamIds,
+    toggleTeam,
     photoPreview,
     pendingFile,
     setAthleteField,

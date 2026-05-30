@@ -1,4 +1,5 @@
 import { BLOOD_GROUP_OPTIONS } from '../../lib/athleteProfileFields';
+import TeamChecklist from './TeamChecklist';
 
 const STAFF_ROLES = [
   'S&C Coach',
@@ -141,6 +142,9 @@ export default function UserProfileTab({ profile, onPickPhoto }) {
     staffForm,
     setAthleteField,
     setStaffField,
+    teams,
+    selectedTeamIds,
+    toggleTeam,
     photoPreview,
     saving,
     saveMsg,
@@ -161,6 +165,8 @@ export default function UserProfileTab({ profile, onPickPhoto }) {
       ) : (
         <AthleteFields form={athleteForm} setField={setAthleteField} />
       )}
+
+      <TeamChecklist teams={teams} selectedTeamIds={selectedTeamIds} onToggle={toggleTeam} />
 
       {saveMsg && (
         <p className={`text-sm ${saveMsg.type === 'error' ? 'text-[var(--color-error)]' : 'text-[var(--color-tertiary-fixed-dim)]'}`}>

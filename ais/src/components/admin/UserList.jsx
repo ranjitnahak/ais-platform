@@ -7,6 +7,7 @@ import DeleteUserModal from './DeleteUserModal';
 import AdminUserRowMenu from './AdminUserRowMenu';
 import UserDetailPanel from './UserDetailPanel';
 import { setUserActive } from '../../lib/adminUserActions';
+import { buildGroupToTeamMap } from '../../lib/teamGroups';
 
 async function resolveFunctionErrorMessage(fnError, fnData) {
   if (fnData?.error) return String(fnData.error);
@@ -85,6 +86,18 @@ export default function UserList({ user }) {
       if (userRolesRes.error) throw userRolesRes.error;
       if (athleteTeamsRes.error) throw athleteTeamsRes.error;
 
+      const groupIdsByOrg = {};
+      for (const row of userRolesRes.data ?? []) {
+        if (!row.group_id || !row.org_id) continue;
+        if (!groupIdsByOrg[row.org_id]) groupIdsByOrg[row.org_id] = [];
+        groupIdsByOrg[row.org_id].push(row.group_id);
+      }
+      const groupToTeam = new Map();
+      for (const [oid, gids] of Object.entries(groupIdsByOrg)) {
+        const partial = await buildGroupToTeamMap(oid, gids);
+        for (const [groupId, teamId] of partial) groupToTeam.set(groupId, teamId);
+      }
+
       const athleteTeamMap = {};
       for (const row of athleteTeamsRes.data ?? []) {
         if (!athleteTeamMap[row.athlete_id]) athleteTeamMap[row.athlete_id] = [];
@@ -92,9 +105,10 @@ export default function UserList({ user }) {
       }
       const staffTeamMap = {};
       for (const row of userRolesRes.data ?? []) {
-        if (!row.group_id || !teamIds.includes(row.group_id)) continue;
+        const teamId = groupToTeam.get(row.group_id);
+        if (!teamId || !teamIds.includes(teamId)) continue;
         if (!staffTeamMap[row.user_id]) staffTeamMap[row.user_id] = [];
-        staffTeamMap[row.user_id].push(row.group_id);
+        staffTeamMap[row.user_id].push(teamId);
       }
 
       const staffItems = (staffRes.data ?? []).map((row) => ({

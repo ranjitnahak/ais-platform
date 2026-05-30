@@ -4,6 +4,7 @@ import { getCurrentUser } from '../lib/auth';
 import { canonicalFullName } from '../lib/athleteName';
 import { normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
 import { STAFF_ROLE_DB_NAME, STAFF_ROLE_ENUM } from '../lib/adminUserConstants';
+import { resolveGroupIdsForTeams } from '../lib/teamGroups';
 
 async function resolveFunctionErrorMessage(fnError, fnData) {
   if (fnData?.error) return String(fnData.error);
@@ -128,12 +129,23 @@ export function useAddUser({ onSuccess, onClose }) {
   };
 
   const assignStaffTeams = async (orgId, userId, roleId, teamIds) => {
-    if (!teamIds.length || !roleId) return;
-    const rows = teamIds.map((teamId) => ({
+    if (!roleId) return;
+    if (!teamIds.length) {
+      const { error: roleErr } = await supabase.from('user_roles').insert({
+        org_id: orgId,
+        user_id: userId,
+        role_id: roleId,
+        group_id: null,
+      });
+      if (roleErr) console.error('[useAddUser] staff team assignment', roleErr);
+      return;
+    }
+    const groupIds = await resolveGroupIdsForTeams(orgId, teamIds);
+    const rows = groupIds.map((groupId) => ({
       org_id: orgId,
       user_id: userId,
       role_id: roleId,
-      group_id: teamId,
+      group_id: groupId,
     }));
     const { error: roleErr } = await supabase.from('user_roles').insert(rows);
     if (roleErr) console.error('[useAddUser] staff team assignment', roleErr);
@@ -279,16 +291,7 @@ export function useAddUser({ onSuccess, onClose }) {
     if (roleLookupErr) console.error('[useAddUser] role lookup', roleLookupErr);
 
     if (roleRow?.id) {
-      const { error: roleInsertErr } = await supabase.from('user_roles').insert({
-        org_id: user.orgId,
-        user_id: newUserId,
-        role_id: roleRow.id,
-        group_id: selectedTeamIds[0] ?? null,
-      });
-      if (roleInsertErr) console.error('[useAddUser] user_roles insert', roleInsertErr);
-      if (selectedTeamIds.length > 1) {
-        await assignStaffTeams(user.orgId, newUserId, roleRow.id, selectedTeamIds.slice(1));
-      }
+      await assignStaffTeams(user.orgId, newUserId, roleRow.id, selectedTeamIds);
     }
 
     setSuccessMessage(`Invite sent to ${emailValue}`);

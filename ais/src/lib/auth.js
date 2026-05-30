@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { formatRoleOrPosition } from './adminUserConstants';
+import { resolveTeamIdsForGroups } from './teamGroups';
 
 const ACTION_MAP = { view: 'canView', create: 'canCreate', edit: 'canEdit', delete: 'canDelete', admin: 'canEdit' };
 const PERMISSION_COLUMN = { canView: 'can_view', canCreate: 'can_create', canEdit: 'can_edit', canDelete: 'can_delete' };
@@ -177,7 +178,12 @@ export async function getCurrentUser() {
       return null;
     }
 
-    const [teamsResult, permissionsResult, overridesResult] = await Promise.all([
+    const normalizedRole = roleName?.toLowerCase();
+    const athleteTeamsPromise = normalizedRole === 'athlete' && user.athlete_id
+      ? supabase.from('athlete_teams').select('team_id').eq('athlete_id', user.athlete_id)
+      : Promise.resolve({ data: [], error: null });
+
+    const [teamsResult, permissionsResult, overridesResult, athleteTeamsResult] = await Promise.all([
       supabase.from('teams').select('id').eq('org_id', user.org_id),
       supabase
         .from('role_permissions')
@@ -189,14 +195,25 @@ export async function getCurrentUser() {
         .select('resource, can_view, can_create, can_edit, can_delete, visible')
         .eq('user_id', user.id)
         .eq('org_id', user.org_id),
+      athleteTeamsPromise,
     ]);
     if (teamsResult.error) throw teamsResult.error;
     if (permissionsResult.error) throw permissionsResult.error;
     if (overridesResult.error) throw overridesResult.error;
+    if (athleteTeamsResult.error) throw athleteTeamsResult.error;
 
     const teamRows = teamsResult.data;
     const permissionRows = permissionsResult.data;
     const overrideRows = overridesResult.data;
+    const allOrgTeamIds = (teamRows ?? []).map((team) => team.id);
+    const assignedStaffGroupIds = [...new Set(orgScopedRows.map((row) => row.group_id).filter(Boolean))];
+    const resolvedStaffTeamIds = assignedStaffGroupIds.length
+      ? await resolveTeamIdsForGroups(user.org_id, assignedStaffGroupIds)
+      : [];
+    const athleteTeamIds = (athleteTeamsResult.data ?? []).map((row) => row.team_id);
+    const teamIds = normalizedRole === 'athlete'
+      ? athleteTeamIds
+      : (resolvedStaffTeamIds.length > 0 ? resolvedStaffTeamIds : allOrgTeamIds);
 
     const permissions = {};
     for (const row of permissionRows ?? []) {
@@ -210,7 +227,6 @@ export async function getCurrentUser() {
     }
 
     const resolvedPermissions = applyPermissionOverrides(permissions, overrideRows);
-    const normalizedRole = roleName?.toLowerCase();
     const [orgProfile, athleteProfile] = await Promise.all([
       loadOrgProfile(user.org_id),
       normalizedRole === 'athlete'
@@ -221,7 +237,7 @@ export async function getCurrentUser() {
     return {
       id: user.id, orgId: user.org_id, fullName: user.full_name ?? null,
       role: normalizedRole, permissions: resolvedPermissions,
-      teamIds: (teamRows ?? []).map((team) => team.id),
+      teamIds,
       athleteId: user.athlete_id ?? null,
       isSuperuser: false,
       allOrgs: [],

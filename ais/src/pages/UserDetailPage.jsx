@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 import { setUserActive } from '../lib/adminUserActions';
 import { formatRoleOrPosition } from '../lib/adminUserConstants';
 import { useUserPermissions } from '../hooks/useUserPermissions';
+import { resolveTeamIdsForGroups } from '../lib/teamGroups';
 
 const USER_DETAIL_TABS = [
   { id: 'profile', label: 'Profile' },
@@ -81,12 +82,13 @@ export default function UserDetailPage() {
         setProfile(data);
 
         const groupIds = [...new Set((data.user_roles ?? []).map((r) => r.group_id).filter(Boolean))];
-        if (groupIds.length) {
+        const teamIds = await resolveTeamIdsForGroups(actor.orgId, groupIds);
+        if (teamIds.length) {
           const { data: teamRows } = await supabase
             .from('teams')
             .select('id, name')
             .eq('org_id', actor.orgId)
-            .in('id', groupIds);
+            .in('id', teamIds);
           if (mounted) setTeams(teamRows ?? []);
         } else {
           setTeams([]);
