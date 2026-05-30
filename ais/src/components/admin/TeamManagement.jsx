@@ -1,28 +1,23 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { SPORT_OPTIONS, SPORT_OTHER, resolveSportValue } from '../../lib/sportOptions';
+import TeamDetailModal from './TeamDetailModal';
 
-const EMPTY_TEAM = { name: '', sportSelect: '', customSport: '' };
-const fieldClassName =
-  'rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-on-surface)] outline-none';
-
-function memberCount(team) {
-  const countRow = Array.isArray(team.athlete_teams) ? team.athlete_teams[0] : null;
-  return countRow?.count ?? 0;
-}
-
-function athleteName(athlete) {
-  return athlete.full_name || [athlete.first_name, athlete.last_name].filter(Boolean).join(' ') || 'Unnamed athlete';
+function teamInitials(name) {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 }
 
 export default function TeamManagement({ user, effectiveOrgId }) {
   const [teams, setTeams] = useState([]);
-  const [newTeam, setNewTeam] = useState(EMPTY_TEAM);
-  const [selectedTeam, setSelectedTeam] = useState(null);
-  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
 
   const orgId = effectiveOrgId ?? user?.orgId;
 
@@ -31,13 +26,30 @@ export default function TeamManagement({ user, effectiveOrgId }) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: teamError } = await supabase
+      const { data: teamRows, error: teamError } = await supabase
         .from('teams')
-        .select('id, name, sport, athlete_teams(count)')
+        .select('id, name, sport, gender, logo_url')
         .eq('org_id', orgId)
         .order('name');
       if (teamError) throw teamError;
-      setTeams(data ?? []);
+
+      const teamIds = (teamRows ?? []).map((t) => t.id);
+      const { data: memberRows, error: memberErr } = teamIds.length
+        ? await supabase.from('athlete_teams').select('team_id').in('team_id', teamIds)
+        : { data: [], error: null };
+      if (memberErr) throw memberErr;
+
+      const countMap = {};
+      for (const row of memberRows ?? []) {
+        countMap[row.team_id] = (countMap[row.team_id] ?? 0) + 1;
+      }
+
+      setTeams(
+        (teamRows ?? []).map((t) => ({
+          ...t,
+          memberCount: countMap[t.id] ?? 0,
+        })),
+      );
     } catch (err) {
       console.error('[TeamManagement] load teams failed:', err);
       setError('Could not load teams.');
@@ -50,151 +62,103 @@ export default function TeamManagement({ user, effectiveOrgId }) {
     void loadTeams();
   }, [orgId]);
 
-  async function createTeam() {
-    const sport = resolveSportValue(newTeam.sportSelect, newTeam.customSport);
-    const payload = {
-      org_id: orgId,
-      name: newTeam.name.trim(),
-      sport,
-    };
-    if (!orgId || !newTeam.name.trim()) {
-      setError('Team name is required.');
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const { error: insertError } = await supabase.from('teams').insert(payload);
-      if (insertError) throw insertError;
-      setNewTeam(EMPTY_TEAM);
-      await loadTeams();
-    } catch (err) {
-      console.error('[TeamManagement] create failed:', err);
-      setError('Could not create team.');
-    } finally {
-      setSaving(false);
-    }
+  function handleCloseModal() {
+    setSelectedTeam(null);
+    setShowCreateTeam(false);
   }
 
-  async function loadMembers(team) {
-    if (!orgId) return;
-    setSelectedTeam(team);
-    setMembers([]);
-    try {
-      const { data, error: memberError } = await supabase
-        .from('athletes')
-        .select('id, first_name, last_name, full_name, position, athlete_teams!inner(team_id)')
-        .eq('org_id', orgId)
-        .eq('athlete_teams.team_id', team.id)
-        .order('full_name');
-      if (memberError) throw memberError;
-      setMembers(data ?? []);
-    } catch (err) {
-      console.error('[TeamManagement] load members failed:', err);
-      setError('Could not load team members.');
-    }
+  function handleSaved() {
+    handleCloseModal();
+    void loadTeams();
   }
+
+  const modalOpen = selectedTeam !== null || showCreateTeam;
 
   return (
     <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]">
-      <div className="border-b border-[var(--color-outline-variant)] p-5">
-        <h2 className="text-lg font-black text-[var(--color-on-surface)]">Teams</h2>
-        <p className="text-sm text-[var(--color-on-surface-variant)]">Create teams and inspect current athlete membership.</p>
-      </div>
-
-      <div className="grid gap-3 border-b border-[var(--color-outline-variant)] p-5 md:grid-cols-[1fr_1fr_auto]">
-        <input
-          value={newTeam.name}
-          onChange={(e) => setNewTeam((current) => ({ ...current, name: e.target.value }))}
-          placeholder="Team name"
-          className={fieldClassName}
-        />
-        <div className="grid gap-2">
-          <select
-            value={newTeam.sportSelect}
-            onChange={(e) => setNewTeam((current) => ({ ...current, sportSelect: e.target.value, customSport: '' }))}
-            className={fieldClassName}
-          >
-            <option value="">Select sport</option>
-            {SPORT_OPTIONS.map((sport) => (
-              <option key={sport} value={sport}>{sport}</option>
-            ))}
-          </select>
-          {newTeam.sportSelect === SPORT_OTHER && (
-            <input
-              value={newTeam.customSport}
-              onChange={(e) => setNewTeam((current) => ({ ...current, customSport: e.target.value }))}
-              placeholder="Enter sport name"
-              className={fieldClassName}
-            />
-          )}
+      <div className="flex items-center justify-between border-b border-[var(--color-outline-variant)] p-5">
+        <div>
+          <h2 className="text-lg font-black text-[var(--color-on-surface)]">Teams</h2>
+          <p className="text-sm text-[var(--color-on-surface-variant)]">
+            Create and manage squads, upload team logos
+          </p>
         </div>
         <button
           type="button"
-          disabled={saving}
-          onClick={createTeam}
-          className="rounded-lg bg-[var(--color-primary-container)] px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-primary)] disabled:opacity-50"
+          onClick={() => setShowCreateTeam(true)}
+          className="rounded-lg bg-[var(--color-primary-container)] px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-primary)]"
         >
-          Create Team
+          + Create team
         </button>
       </div>
 
-      {error && <p className="p-5 text-sm text-[var(--color-error)]">{error}</p>}
-      {loading && <p className="p-5 text-sm text-[var(--color-outline)]">Loading teams...</p>}
+      {error && <p className="px-5 pt-4 text-sm text-[var(--color-error)]">{error}</p>}
 
-      {!loading && (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] text-left text-sm">
-            <thead className="text-[10px] uppercase tracking-widest text-[var(--color-outline)]">
-              <tr>
-                {['Team Name', 'Sport', 'Member Count', 'Actions'].map((header) => (
-                  <th key={header} className="px-5 py-3 font-black">{header}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-outline-variant)]">
-              {teams.map((team) => (
-                <tr key={team.id}>
-                  <td className="px-5 py-4 font-bold text-[var(--color-on-surface)]">{team.name}</td>
-                  <td className="px-5 py-4 text-[var(--color-on-surface-variant)]">{team.sport || '-'}</td>
-                  <td className="px-5 py-4 text-[var(--color-on-surface-variant)]">{memberCount(team)}</td>
-                  <td className="px-5 py-4">
-                    <button
-                      type="button"
-                      onClick={() => loadMembers(team)}
-                      className="rounded-lg border border-[var(--color-outline-variant)] px-3 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface)]"
-                    >
-                      Manage Members
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {!teams.length && (
-                <tr>
-                  <td colSpan="4" className="px-5 py-8 text-center text-[var(--color-outline)]">No teams found.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="space-y-3 p-5">
+        {loading ? (
+          <p className="py-12 text-center text-sm text-[var(--color-outline)]">Loading teams...</p>
+        ) : teams.length === 0 ? (
+          <div
+            className="rounded-xl p-8 text-center text-sm text-[var(--color-outline)]"
+            style={{ border: '1px dashed var(--color-outline-variant)' }}
+          >
+            No teams yet. Click &quot;+ Create team&quot; to get started.
+          </div>
+        ) : (
+          teams.map((team) => {
+            const meta = [team.sport, team.gender, `${team.memberCount} athletes`]
+              .filter(Boolean)
+              .join(' · ');
+            return (
+              <button
+                key={team.id}
+                type="button"
+                onClick={() => setSelectedTeam(team)}
+                className="flex w-full cursor-pointer items-center gap-4 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-4 py-3 text-left transition-colors hover:bg-[var(--color-surface-container-high)]"
+              >
+                <div
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg"
+                  style={{ background: team.logo_url ? undefined : 'var(--color-surface-container-highest)' }}
+                >
+                  {team.logo_url ? (
+                    <img src={team.logo_url} alt={team.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-black text-[var(--color-primary-container)]">
+                      {teamInitials(team.name)}
+                    </span>
+                  )}
+                </div>
 
-      {selectedTeam && (
-        <aside className="border-t border-[var(--color-outline-variant)] p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-black text-[var(--color-on-surface)]">{selectedTeam.name} Members</h3>
-            <button type="button" onClick={() => setSelectedTeam(null)} className="text-sm text-[var(--color-outline)]">Close</button>
-          </div>
-          <div className="grid gap-2">
-            {members.map((athlete) => (
-              <div key={athlete.id} className="rounded-lg bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-on-surface)]">
-                {athleteName(athlete)}
-                {athlete.position && <span className="ml-2 text-[var(--color-outline)]">{athlete.position}</span>}
-              </div>
-            ))}
-            {!members.length && <p className="text-sm text-[var(--color-outline)]">No members found for this team.</p>}
-          </div>
-        </aside>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-[var(--color-on-surface)]">{team.name}</p>
+                  {meta && (
+                    <p className="mt-0.5 truncate text-[10px] uppercase tracking-wide text-[var(--color-on-surface-variant)]">
+                      {meta}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  <span className="rounded-full bg-[#22C55E]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#22C55E]">
+                    Active
+                  </span>
+                  <span className="material-symbols-outlined text-sm text-[var(--color-outline)]">
+                    chevron_right
+                  </span>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      {modalOpen && (
+        <TeamDetailModal
+          team={showCreateTeam ? null : selectedTeam}
+          orgId={orgId}
+          onClose={handleCloseModal}
+          onSaved={handleSaved}
+        />
       )}
     </section>
   );

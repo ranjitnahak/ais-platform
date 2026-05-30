@@ -100,12 +100,16 @@ async function syncAthleteTeams(athleteId, selectedTeamIds) {
   const toRemove = existingIds.filter((id) => !selectedTeamIds.includes(id));
 
   if (toRemove.length) {
-    const { error: delErr } = await supabase
+    const { data: deletedRows, error: delErr } = await supabase
       .from('athlete_teams')
       .delete()
       .eq('athlete_id', athleteId)
-      .in('team_id', toRemove);
+      .in('team_id', toRemove)
+      .select('team_id');
     if (delErr) throw delErr;
+    if ((deletedRows ?? []).length < toRemove.length) {
+      throw new Error('Team unassignment was blocked. Check organisation access and try again.');
+    }
   }
   if (toAdd.length) {
     const rows = toAdd.map((teamId) => ({

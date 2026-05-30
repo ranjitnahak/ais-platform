@@ -5,42 +5,22 @@ import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
 import Sidebar from '../components/Sidebar';
 import TabShell from '../components/layout/TabShell';
-import TeamDetailModal from '../components/settings/TeamDetailModal';
 
 const SETTINGS_TABS = [
-  { id: 'teams', label: 'Teams' },
   { id: 'tests', label: 'Test Setup' },
 ];
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function teamInitials(name) {
-  if (!name) return '?';
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-}
-
-// ── Nav item ───────────────────────────────────────────────────────────────────
-
-function NavItem({ label, tabKey, activeTab, onClick, onPrefetch, disabled, badge }) {
-  const isActive = activeTab === tabKey && !disabled;
+function NavItem({ label, tabKey, activeTab, onClick, onPrefetch }) {
+  const isActive = activeTab === tabKey;
   return (
     <button
-      onClick={disabled ? undefined : onClick}
-      onPointerEnter={disabled ? undefined : onPrefetch}
-      onFocus={disabled ? undefined : onPrefetch}
-      disabled={disabled}
+      type="button"
+      onClick={onClick}
+      onPointerEnter={onPrefetch}
+      onFocus={onPrefetch}
       className={[
-        'w-full text-left px-4 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors flex items-center justify-between',
-        isActive
-          ? 'bg-[#2a2a2c] text-white'
-          : disabled
-          ? 'text-gray-600 cursor-default'
-          : 'text-gray-500 hover:text-white',
+        'w-full text-left px-4 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors',
+        isActive ? 'bg-[#2a2a2c] text-white' : 'text-gray-500 hover:text-white',
       ].join(' ')}
       style={
         isActive
@@ -48,180 +28,20 @@ function NavItem({ label, tabKey, activeTab, onClick, onPrefetch, disabled, badg
           : { borderLeft: '2px solid transparent' }
       }
     >
-      <span>{label}</span>
-      {badge && (
-        <span className="bg-[#2a2a2c] text-gray-600 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">
-          {badge}
-        </span>
-      )}
+      {label}
     </button>
   );
 }
 
-// ── Teams tab ──────────────────────────────────────────────────────────────────
-
-function TeamsTab() {
-  const [teams, setTeams]               = useState([]);
-  const [loadingTeams, setLoadingTeams] = useState(true);
-  const [selectedTeam, setSelectedTeam] = useState(null);
-  const [showCreateTeam, setShowCreateTeam] = useState(false);
-
-  useEffect(() => { loadTeams(); }, []);
-
-  async function loadTeams() {
-    setLoadingTeams(true);
-    try {
-      const user = await getCurrentUser();
-
-      const { data: teamRows, error: teamErr } = await supabase
-        .from('teams')
-        .select('id, name, sport, gender, logo_url')
-        .eq('org_id', user.orgId)
-        .order('name');
-      console.log('orgId:', user.orgId)
-      console.log('teams data:', teamRows)
-      console.log('teams error:', teamErr)
-      if (teamErr) throw teamErr;
-
-      const { data: memberRows } = await supabase
-        .from('athlete_teams')
-        .select('team_id')
-        .eq('org_id', user.orgId)
-        .in('team_id', (teamRows ?? []).map(t => t.id));
-
-      const countMap = {};
-      for (const row of memberRows ?? []) {
-        countMap[row.team_id] = (countMap[row.team_id] ?? 0) + 1;
-      }
-
-      const teamsWithCounts = (teamRows ?? []).map(t => ({
-        ...t,
-        memberCount: countMap[t.id] ?? 0,
-      }));
-      setTeams(teamsWithCounts);
-    } catch (err) {
-      console.error('[Settings] loadTeams failed:', err);
-    } finally {
-      setLoadingTeams(false);
-    }
-  }
-
-  function handleClose() {
-    setSelectedTeam(null);
-    setShowCreateTeam(false);
-  }
-
-  function handleSaved() {
-    setSelectedTeam(null);
-    setShowCreateTeam(false);
-    loadTeams();
-  }
-
-  return (
-    <div>
-      {/* Section header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-white font-bold text-base">Teams</h2>
-          <p className="text-[11px] text-gray-500 mt-0.5">
-            Create and manage squads, upload team logos
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreateTeam(true)}
-          className="bg-[#F97316] text-[#552100] text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-lg active:scale-95 transition-transform"
-        >
-          + Create team
-        </button>
-      </div>
-
-      {/* List */}
-      <div className="space-y-3 mt-4">
-        {loadingTeams ? (
-          <div className="flex justify-center py-12">
-            <span className="material-symbols-outlined animate-spin text-[#F97316] text-2xl">
-              progress_activity
-            </span>
-          </div>
-        ) : teams.length === 0 ? (
-          <div
-            className="rounded-xl p-8 text-center text-gray-600 text-sm"
-            style={{ border: '1px dashed rgba(255,255,255,0.1)' }}
-          >
-            No teams yet. Click '+ Create team' to get started.
-          </div>
-        ) : (
-          teams.map((team) => {
-            const meta = [team.sport, team.gender, team.memberCount != null ? `${team.memberCount} athletes` : null]
-              .filter(Boolean)
-              .join(' · ');
-            return (
-              <button
-                key={team.id}
-                onClick={() => setSelectedTeam(team)}
-                className="w-full bg-[#2a2a2c] rounded-xl px-4 py-3 flex items-center gap-4 hover:bg-[#39393b] transition-colors cursor-pointer text-left"
-                style={{ border: '1px solid rgba(255,255,255,0.05)' }}
-              >
-                {/* Logo / initials */}
-                <div
-                  className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center"
-                  style={{ background: team.logo_url ? undefined : '#353437' }}
-                >
-                  {team.logo_url ? (
-                    <img src={team.logo_url} alt={team.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-[#F97316] text-xs font-black">
-                      {teamInitials(team.name)}
-                    </span>
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-bold truncate">{team.name}</p>
-                  {meta && (
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5 truncate">
-                      {meta}
-                    </p>
-                  )}
-                </div>
-
-                {/* Badges + chevron */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="bg-[#22C55E]/10 text-[#22C55E] text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">
-                    Active
-                  </span>
-                  <span className="material-symbols-outlined text-gray-600 text-sm">
-                    chevron_right
-                  </span>
-                </div>
-              </button>
-            );
-          })
-        )}
-      </div>
-
-      {/* Modal */}
-      {(selectedTeam !== null || showCreateTeam) && (
-        <TeamDetailModal
-          team={showCreateTeam ? null : selectedTeam}
-          onClose={handleClose}
-          onSaved={handleSaved}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Test Setup tab ─────────────────────────────────────────────────────────────
-
-function TestSetupTab() {
-  const [tests, setTests]     = useState([]);
+function TestSetupPanel() {
+  const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
+      setLoadError(null);
       try {
         const user = await getCurrentUser();
         const { data, error } = await supabase
@@ -231,6 +51,8 @@ function TestSetupTab() {
           .order('name');
         if (error) throw error;
         setTests(data ?? []);
+      } catch (err) {
+        setLoadError(err.message ?? 'Could not load tests');
       } finally {
         setLoading(false);
       }
@@ -241,51 +63,59 @@ function TestSetupTab() {
   return (
     <div>
       <div className="mb-4">
-        <h2 className="text-white font-bold text-base">Test Setup</h2>
-        <p className="text-[11px] text-gray-500 mt-0.5">
+        <h2 className="text-base font-bold text-white">Test Setup</h2>
+        <p className="mt-0.5 text-[11px] text-gray-500">
           View the performance tests configured for your organisation
         </p>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <span className="material-symbols-outlined animate-spin text-[#F97316] text-2xl">
+          <span className="material-symbols-outlined animate-spin text-2xl text-[#F97316]">
             progress_activity
           </span>
         </div>
+      ) : loadError ? (
+        <p className="text-sm text-[#EF4444]">{loadError}</p>
       ) : (
         <div className="space-y-2">
-          {tests.map((test) => {
-            const isHigher = test.direction !== 'lower';
-            return (
-              <div
-                key={test.id}
-                className="bg-[#2a2a2c] rounded-lg px-4 py-3 flex items-center gap-4"
-                style={{ border: '1px solid rgba(255,255,255,0.05)' }}
-              >
-                <span className="text-white text-sm font-bold flex-1">{test.name}</span>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {test.unit && (
-                    <span className="bg-[#353437] text-gray-400 text-[10px] px-2 py-0.5 rounded">
-                      {test.unit}
+          {tests.length === 0 ? (
+            <p className="rounded-lg bg-[#2a2a2c] px-4 py-6 text-center text-sm text-gray-500">
+              No tests configured for this organisation yet.
+            </p>
+          ) : (
+            tests.map((test) => {
+              const isHigher = test.direction !== 'lower';
+              return (
+                <div
+                  key={test.id}
+                  className="flex items-center gap-4 rounded-lg bg-[#2a2a2c] px-4 py-3"
+                  style={{ border: '1px solid rgba(255,255,255,0.05)' }}
+                >
+                  <span className="flex-1 text-sm font-bold text-white">{test.name}</span>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    {test.unit && (
+                      <span className="rounded bg-[#353437] px-2 py-0.5 text-[10px] text-gray-400">
+                        {test.unit}
+                      </span>
+                    )}
+                    <span
+                      className={[
+                        'rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-widest',
+                        isHigher
+                          ? 'bg-[#22C55E]/10 text-[#22C55E]'
+                          : 'bg-[#3B82F6]/10 text-[#3B82F6]',
+                      ].join(' ')}
+                    >
+                      {isHigher ? 'Higher is better' : 'Lower is better'}
                     </span>
-                  )}
-                  <span
-                    className={[
-                      'text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded',
-                      isHigher
-                        ? 'bg-[#22C55E]/10 text-[#22C55E]'
-                        : 'bg-[#3B82F6]/10 text-[#3B82F6]',
-                    ].join(' ')}
-                  >
-                    {isHigher ? 'Higher is better' : 'Lower is better'}
-                  </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
 
-          <p className="text-[10px] text-gray-600 mt-4 px-1">
+          <p className="mt-4 px-1 text-[10px] text-gray-600">
             Test definitions are configured at the platform level.
             Contact your administrator to add or modify tests.
           </p>
@@ -295,24 +125,41 @@ function TestSetupTab() {
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+function PreferencesPlaceholder() {
+  return (
+    <div>
+      <h2 className="text-base font-bold text-white">Personal preferences</h2>
+      <p className="mt-2 text-sm text-gray-500">
+        Theme and view defaults will appear here in a future update.
+      </p>
+    </div>
+  );
+}
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState('teams');
+  const [activeTab, setActiveTab] = useState('tests');
   const { user, activeOrgId, loading } = useUser();
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
   const panels = useMemo(
     () => ({
-      teams: () => <TeamsTab />,
-      tests: () => <TestSetupTab />,
+      tests: () => <TestSetupPanel />,
+      preferences: () => <PreferencesPlaceholder />,
     }),
+    [],
+  );
+
+  const tabs = useMemo(
+    () => [
+      ...SETTINGS_TABS,
+      { id: 'preferences', label: 'Preferences' },
+    ],
     [],
   );
 
   if (loading) {
     return (
-      <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
+      <div className="min-h-screen bg-[#131315] font-['Inter'] text-[#e4e2e4]">
         <Sidebar />
       </div>
     );
@@ -320,9 +167,9 @@ export default function Settings() {
 
   if (!canSync(user, 'adminConfig', 'admin') && !user?.isSuperuser) {
     return (
-      <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
+      <div className="min-h-screen bg-[#131315] font-['Inter'] text-[#e4e2e4]">
         <Sidebar />
-        <div className="pt-24 pb-32 px-6 lg:pl-72 flex items-center justify-center min-h-screen">
+        <div className="flex min-h-screen items-center justify-center px-6 pb-32 pt-24 lg:pl-72">
           <p className="text-gray-500">Access restricted — admin permission required</p>
         </div>
       </div>
@@ -330,69 +177,52 @@ export default function Settings() {
   }
 
   return (
-    <div className="bg-[#131315] text-[#e4e2e4] font-['Inter'] min-h-screen">
+    <div className="min-h-screen bg-[#131315] font-['Inter'] text-[#e4e2e4]">
       <Sidebar />
 
-      {/* Fixed header */}
-      <header className="fixed top-0 w-full z-40 bg-[#131315]/70 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 h-16 lg:pl-72">
-        <div>
-          <h1 className="font-['Inter'] text-xl font-bold tracking-tight text-white uppercase leading-none">
-            Settings
-          </h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <span
-            className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full"
-            style={{
-              color: '#F97316',
-              background: 'rgba(249,115,22,0.1)',
-              border: '1px solid rgba(249,115,22,0.2)',
-            }}
-          >
-            Admin
-          </span>
-        </div>
+      <header className="fixed top-0 z-40 flex h-16 w-full items-center justify-between border-b border-white/5 bg-[#131315]/70 px-6 backdrop-blur-xl lg:pl-72">
+        <h1 className="font-['Inter'] text-xl font-bold uppercase leading-none tracking-tight text-white">
+          Settings
+        </h1>
+        <span
+          className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest"
+          style={{
+            color: '#F97316',
+            background: 'rgba(249,115,22,0.1)',
+            border: '1px solid rgba(249,115,22,0.2)',
+          }}
+        >
+          Admin
+        </span>
       </header>
 
-      {/* Main */}
-      <main className="pt-24 pb-32 px-6 lg:pl-72">
+      <main className="px-6 pb-32 pt-24 lg:pl-72">
         <TabShell
-          tabs={SETTINGS_TABS}
+          tabs={tabs}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           panels={panels}
           scopeKey={effectiveOrgId ?? 'settings'}
           className="flex min-h-[calc(100vh-6rem)] space-y-0"
           panelClassName="relative flex-1 pl-8 pt-2"
-          renderTabBar={({ tabs, activeTab, onTabChange, onTabHover }) => (
+          renderTabBar={({ tabs: shellTabs, activeTab: tab, onTabChange, onTabHover }) => (
             <aside
               className="flex-shrink-0 pt-2"
               style={{ width: 180, borderRight: '1px solid rgba(255,255,255,0.05)' }}
             >
-              <p className="text-[10px] uppercase tracking-widest text-gray-500 px-4 pb-2 mt-4">
-                Setup
+              <p className="px-4 pb-2 pt-4 text-[10px] uppercase tracking-widest text-gray-500">
+                Configuration
               </p>
-              {tabs.map((tab) => (
+              {shellTabs.map((t) => (
                 <NavItem
-                  key={tab.id}
-                  label={tab.label}
-                  tabKey={tab.id}
-                  activeTab={activeTab}
-                  onClick={() => onTabChange(tab.id)}
-                  onPrefetch={onTabHover ? () => onTabHover(tab.id) : undefined}
+                  key={t.id}
+                  label={t.label}
+                  tabKey={t.id}
+                  activeTab={tab}
+                  onClick={() => onTabChange(t.id)}
+                  onPrefetch={onTabHover ? () => onTabHover(t.id) : undefined}
                 />
               ))}
-
-              <p className="text-[10px] uppercase tracking-widest text-gray-500 px-4 pb-2 mt-4">
-                Access
-              </p>
-              <NavItem label="Users" tabKey="users-v2" activeTab={activeTab} disabled badge="V2" />
-              <NavItem label="Roles" tabKey="roles-v2" activeTab={activeTab} disabled badge="V2" />
-
-              <p className="text-[10px] uppercase tracking-widest text-gray-500 px-4 pb-2 mt-4">
-                Organisation
-              </p>
-              <NavItem label="Organisation" tabKey="org-v2" activeTab={activeTab} disabled badge="V2" />
             </aside>
           )}
         />

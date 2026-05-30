@@ -21,7 +21,7 @@ function AthleteInitials({ athlete, size = 28 }) {
   );
 }
 
-export default function TeamDetailModal({ team, onClose, onSaved }) {
+export default function TeamDetailModal({ team, orgId: orgIdProp, onClose, onSaved }) {
   const isEdit = team !== null;
 
   const [name, setName]                     = useState(team?.name ?? '');
@@ -40,6 +40,12 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
 
   const logoInputRef = useRef(null);
 
+  async function resolveOrgId() {
+    if (orgIdProp) return orgIdProp;
+    const user = await getCurrentUser();
+    return user.orgId;
+  }
+
   useEffect(() => {
     if (!isEdit) return;
     loadAthletesAndMembers();
@@ -48,7 +54,7 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
   async function loadAthletesAndMembers() {
     setLoadingAthletes(true);
     try {
-      const { orgId } = await getCurrentUser();
+      const orgId = await resolveOrgId();
 
       const { data: athRows, error: athErr } = await supabase
         .from('athletes')
@@ -62,7 +68,6 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
       const { data: memberRows, error: memErr } = await supabase
         .from('athlete_teams')
         .select('athlete_id')
-        .eq('org_id', orgId)
         .eq('team_id', team.id);
       if (memErr) throw memErr;
 
@@ -103,7 +108,13 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
         return;
       }
 
-      const { orgId } = await getCurrentUser();
+      const orgId = await resolveOrgId();
+      if (!orgId) {
+        setError('No organisation selected');
+        setSaving(false);
+        return;
+      }
+
       let finalLogoUrl = existingLogoUrl;
 
       if (logoFile) {
@@ -142,7 +153,13 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
         if (added.length > 0) {
           const { error: addErr } = await supabase
             .from('athlete_teams')
-            .insert(added.map((athleteId) => ({ org_id: orgId, athlete_id: athleteId, team_id: team.id })));
+            .insert(
+              added.map((athleteId) => ({
+                athlete_id: athleteId,
+                team_id: team.id,
+                joined_at: new Date().toISOString(),
+              })),
+            );
           if (addErr) throw addErr;
         }
 
@@ -150,7 +167,6 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
           const { error: delErr } = await supabase
             .from('athlete_teams')
             .delete()
-            .eq('org_id', orgId)
             .eq('team_id', team.id)
             .in('athlete_id', removed);
           if (delErr) throw delErr;
@@ -176,12 +192,12 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
       <div className="bg-[#1a1a1c] rounded-2xl border border-white/[0.08] w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
 
-        {/* Header */}
         <div className="flex-shrink-0 px-6 py-4 border-b border-white/5 flex items-center justify-between">
           <span className="text-white font-bold text-base">
             {isEdit ? team.name : 'Create team'}
           </span>
           <button
+            type="button"
             onClick={onClose}
             className="text-gray-500 hover:text-white transition-colors text-lg leading-none"
           >
@@ -189,13 +205,8 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-
-          {/* Section A — Logo + basic info */}
           <div className="flex gap-4 items-start">
-
-            {/* Logo zone */}
             <div className="flex-shrink-0 flex flex-col items-center gap-1">
               <div
                 className="w-16 h-16 rounded-xl cursor-pointer overflow-hidden relative group"
@@ -235,7 +246,6 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
               <span className="text-[9px] text-gray-600">Shown in PDF reports</span>
             </div>
 
-            {/* Fields */}
             <div className="flex-1 space-y-3">
               <div>
                 <label className="block text-[10px] uppercase tracking-widest text-gray-500 mb-1">
@@ -282,7 +292,6 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
             </div>
           </div>
 
-          {/* Section B — Athletes (edit mode only) */}
           {isEdit && (
             <div>
               <div className="flex justify-between items-center">
@@ -324,7 +333,6 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
                         onClick={() => toggleMember(athlete.id)}
                         className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-[#2a2a2c] transition-colors"
                       >
-                        {/* Checkbox */}
                         <div
                           className="flex-shrink-0 flex items-center justify-center rounded"
                           style={{
@@ -340,7 +348,6 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
                           )}
                         </div>
 
-                        {/* Avatar */}
                         {athlete.photo_url ? (
                           <img
                             src={athlete.photo_url}
@@ -352,12 +359,10 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
                           <AthleteInitials athlete={athlete} size={28} />
                         )}
 
-                        {/* Name */}
                         <span className="text-white text-sm flex-1 truncate">
                           {athleteDisplayName(athlete)}
                         </span>
 
-                        {/* Position badge */}
                         {athlete.position && (
                           <span className="text-[9px] text-gray-500 bg-[#353437] px-2 py-0.5 rounded text-center flex-shrink-0">
                             {athlete.position}
@@ -375,7 +380,6 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
             </div>
           )}
 
-          {/* Error */}
           {error && (
             <div className="text-[#EF4444] text-xs px-3 py-2 bg-[#EF4444]/10 rounded-lg">
               {error}
@@ -383,15 +387,16 @@ export default function TeamDetailModal({ team, onClose, onSaved }) {
           )}
         </div>
 
-        {/* Footer */}
         <div className="flex-shrink-0 px-6 py-4 border-t border-white/5 flex gap-3 justify-end">
           <button
+            type="button"
             onClick={onClose}
             className="text-gray-500 border border-white/10 hover:text-white px-4 py-2 rounded-lg text-sm transition-colors"
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving}
             className="bg-[#F97316] text-[#552100] font-black text-[10px] uppercase tracking-widest px-5 py-2 rounded-lg disabled:opacity-50 transition-opacity"
