@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { userHasOperationalData, deleteUser } from '../../lib/adminUserActions';
+import { userHasOperationalData, deleteUser, formatDeleteUserError } from '../../lib/adminUserActions';
 
 export default function DeleteUserModal({ target, orgId, onClose, onDeleted }) {
   const [hasData, setHasData] = useState(false);
@@ -32,7 +32,7 @@ export default function DeleteUserModal({ target, orgId, onClose, onDeleted }) {
       onClose();
     } catch (err) {
       console.error('[DeleteUserModal] delete', err);
-      setError('Could not delete user.');
+      setError(formatDeleteUserError(err));
     } finally {
       setDeleting(false);
     }

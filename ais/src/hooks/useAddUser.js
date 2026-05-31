@@ -171,10 +171,7 @@ export function useAddUser({ onSuccess, onClose }) {
       .ilike('email', emailValue)
       .limit(5);
     if (existingUserErr) throw existingUserErr;
-    const existingUserByEmail = Array.isArray(existingUserRows) ? existingUserRows[0] ?? null : null;
-    if (existingUserByEmail?.org_id && existingUserByEmail.org_id !== user.orgId) {
-      throw new Error('This email is already linked to an athlete account in another organisation. Use a different email.');
-    }
+    const existingUserInOrg = (existingUserRows ?? []).find((row) => row.org_id === user.orgId) ?? null;
 
     const { data: existingAthleteRows, error: existingAthleteErr } = await supabase
       .from('athletes')
@@ -189,6 +186,15 @@ export function useAddUser({ onSuccess, onClose }) {
       throw new Error('Multiple athlete profiles already exist with this email in this organisation. Delete duplicates first, then retry invite.');
     }
     let athleteId = existingAthleteByEmail?.id ?? null;
+
+    if (existingUserInOrg) {
+      if (!existingUserInOrg.athlete_id) {
+        throw new Error('This email is already linked to a staff account in this organisation. Use a different email.');
+      }
+      if (athleteId && existingUserInOrg.athlete_id !== athleteId) {
+        throw new Error('This email is already linked to another athlete in this organisation. Use a different email.');
+      }
+    }
 
     const payload = {
       first_name,
@@ -258,6 +264,17 @@ export function useAddUser({ onSuccess, onClose }) {
 
     const fullName = canonicalFullName(staffForm.first_name.trim(), staffForm.last_name.trim());
     const emailValue = staffForm.email.trim();
+
+    const { data: staffConflict, error: staffConflictErr } = await supabase.rpc('get_users_email_conflict', {
+      p_email: emailValue,
+      p_org_id: user.orgId,
+      p_exclude_user_id: null,
+    });
+    if (staffConflictErr) throw staffConflictErr;
+    if (staffConflict?.[0]) {
+      const who = staffConflict[0].full_name?.trim() || 'another user';
+      throw new Error(`This email is already used by ${who} in this organisation. Use a different email.`);
+    }
 
     const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
       body: { email: emailValue, fullName, orgId: user.orgId, userType: 'staff', roleEnum },

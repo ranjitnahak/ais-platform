@@ -122,6 +122,52 @@ async function syncAthleteTeams(athleteId, selectedTeamIds) {
   }
 }
 
+function formatSaveError(err) {
+  const msg = String(err?.message ?? '');
+  if (err?.code === '23505' && (msg.includes('users_org_email_key') || msg.includes('users_email_key'))) {
+    return 'This email is already used by another user in this organisation. Choose a different email.';
+  }
+  return msg || 'Could not save changes.';
+}
+
+function emailConflictMessage(fullName, orgName) {
+  const who = fullName?.trim() || 'another user';
+  const org = orgName?.trim() || 'this organisation';
+  return `This email is already used by ${who} in ${org}. Choose a different email.`;
+}
+
+/** Block profile saves that would violate global users.email uniqueness or org athlete email clashes. */
+async function ensureEmailAvailableForProfile({ email, orgId, userId, athleteId }) {
+  const emailValue = email?.trim();
+  if (!emailValue) return;
+
+  const { data: conflicts, error: rpcErr } = await supabase.rpc('get_users_email_conflict', {
+    p_email: emailValue,
+    p_org_id: orgId,
+    p_exclude_user_id: userId ?? null,
+  });
+  if (rpcErr) throw rpcErr;
+  const userConflict = conflicts?.[0];
+  if (userConflict) {
+    throw new Error(emailConflictMessage(userConflict.full_name, userConflict.org_name));
+  }
+
+  if (athleteId && orgId) {
+    const { data: athleteRows, error: athleteErr } = await supabase
+      .from('athletes')
+      .select('id, first_name, last_name')
+      .eq('org_id', orgId)
+      .ilike('email', emailValue)
+      .limit(5);
+    if (athleteErr) throw athleteErr;
+    const athleteConflict = (athleteRows ?? []).find((row) => row.id !== athleteId);
+    if (athleteConflict) {
+      const who = [athleteConflict.first_name, athleteConflict.last_name].filter(Boolean).join(' ') || 'another athlete';
+      throw new Error(`This email is already used by ${who}. Choose a different email.`);
+    }
+  }
+}
+
 async function syncStaffTeams(orgId, userId, roleId, selectedTeamIds) {
   if (!roleId) throw new Error('Staff role is not configured for this user.');
 
@@ -324,11 +370,13 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
         const first_name = staffForm.first_name.trim();
         const last_name = staffForm.last_name.trim();
         const full_name = canonicalFullName(first_name, last_name);
+        const nextEmail = staffForm.email.trim() || null;
+        await ensureEmailAvailableForProfile({ email: nextEmail, orgId, userId, athleteId: null });
         const { error: updateError } = await supabase
           .from('users')
           .update({
             full_name,
-            email: staffForm.email.trim() || null,
+            email: nextEmail,
             phone: staffForm.phone.trim() || null,
             title: staffForm.title.trim() || null,
             ...(nextPhotoUrl ? { photo_url: nextPhotoUrl } : {}),
@@ -358,6 +406,8 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
         const first_name = athleteForm.first_name.trim();
         const last_name = athleteForm.last_name.trim();
         const full_name = canonicalFullName(first_name, last_name);
+        const nextEmail = athleteForm.email.trim() || null;
+        await ensureEmailAvailableForProfile({ email: nextEmail, orgId, userId, athleteId });
         const patch = {
           first_name,
           last_name: last_name || null,
@@ -366,7 +416,7 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
           gender: normalizeGenderForDb(athleteForm.gender),
           position: normalizePositionForDb(athleteForm.position),
           jersey_number: athleteForm.jersey_number !== '' ? Number(athleteForm.jersey_number) : null,
-          email: athleteForm.email.trim() || null,
+          email: nextEmail,
           phone: athleteForm.phone.trim() || null,
           emergency_contact_phone: athleteForm.emergency_contact_phone?.trim() || null,
           blood_group: athleteForm.blood_group?.trim() || null,
@@ -399,7 +449,7 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
       }
     } catch (err) {
       console.error('[useUserProfilePanel] saveProfile', err);
-      setSaveMsg({ type: 'error', text: err.message || 'Could not save changes.' });
+      setSaveMsg({ type: 'error', text: formatSaveError(err) });
     } finally {
       setSaving(false);
     }

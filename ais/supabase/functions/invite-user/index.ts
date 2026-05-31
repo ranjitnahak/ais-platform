@@ -71,11 +71,26 @@ serve(async (req) => {
         // 2) send one recovery email call (never pair with generateLink — it self-rate-limits).
         const { data: existingProfileRows, error: existingProfileErr } = await supabaseAdmin
           .from('users')
-          .select('id')
+          .select('id, org_id, organisations(name)')
           .ilike('email', email)
-          .limit(1)
+          .limit(5)
         if (existingProfileErr) throw existingProfileErr
-        authId = existingProfileRows?.[0]?.id ?? ''
+        const existingInOtherOrg = (existingProfileRows ?? []).find(
+          (row: { org_id?: string }) => row.org_id && row.org_id !== orgId,
+        )
+        if (existingInOtherOrg) {
+          const orgName =
+            (existingInOtherOrg as { organisations?: { name?: string } | { name?: string }[] })
+              .organisations
+          const resolvedOrg = Array.isArray(orgName) ? orgName[0]?.name : orgName?.name
+          throw new Error(
+            `This email already has a login in ${resolvedOrg ?? 'another organisation'}. Use a different email for a separate account, or add organisation access to the existing user.`,
+          )
+        }
+        const existingInTargetOrg = (existingProfileRows ?? []).find(
+          (row: { org_id?: string }) => row.org_id === orgId,
+        )
+        authId = existingInTargetOrg?.id ?? existingProfileRows?.[0]?.id ?? ''
 
         if (!authId) {
           authId = await lookupAuthUserIdByEmail(supabaseUrl, serviceRoleKey, email)
@@ -151,9 +166,15 @@ serve(async (req) => {
     } else {
       const { data: existingUser } = await supabaseAdmin
         .from('users')
-        .select('id')
+        .select('id, org_id')
         .eq('id', authId)
         .maybeSingle()
+
+      if (existingUser?.org_id && existingUser.org_id !== orgId) {
+        throw new Error(
+          'This email already has a login in another organisation. Use a different email for a separate account.',
+        )
+      }
 
       if (!existingUser) {
         const { error: userError } = await supabaseAdmin

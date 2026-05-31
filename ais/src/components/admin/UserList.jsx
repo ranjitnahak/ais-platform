@@ -219,6 +219,12 @@ export default function UserList({ user }) {
       setError(err.message || 'Could not reactivate user.');
     }
   }
+  function canResendInvite(row) {
+    if (row.kind === 'athlete_pending' || row.kind === 'athlete_auth') return true;
+    if (row.kind === 'staff' && row.status === 'INACTIVE') return true;
+    return false;
+  }
+
   async function sendAthleteInvite(item) {
     try {
       if (!item.athleteId) throw new Error('No athlete id found.');
@@ -244,6 +250,39 @@ export default function UserList({ user }) {
       setSuccessMessage(null);
       setError(err.message || 'Could not send invite.');
     }
+  }
+
+  async function sendStaffInvite(item) {
+    try {
+      if (!item.userId) throw new Error('No user id found.');
+      if (!item.email) throw new Error('Staff email is missing.');
+      setError(null);
+      setSuccessMessage(null);
+      const orgId = item.orgId ?? user.orgId;
+      const roleEnum = item.roleOrPosition || 'sc_coach';
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
+        body: {
+          email: item.email,
+          fullName: item.fullName,
+          orgId,
+          userType: 'staff',
+          roleEnum,
+        },
+      });
+      if (fnError) throw new Error(await resolveFunctionErrorMessage(fnError, fnData));
+      if (fnData?.error) throw new Error(fnData.error);
+      setSuccessMessage(`Invite sent to ${item.email}. Ask them to check spam if it is not in their inbox.`);
+      await loadUsers();
+    } catch (err) {
+      console.error('[UserList] send staff invite', err);
+      setSuccessMessage(null);
+      setError(err.message || 'Could not send invite.');
+    }
+  }
+
+  async function resendInvite(item) {
+    if (item.kind === 'staff') return sendStaffInvite(item);
+    return sendAthleteInvite(item);
   }
   async function deleteAthleteProfile(item) {
     try {
@@ -381,8 +420,8 @@ export default function UserList({ user }) {
                         },
                         {
                           label: 'Resend Invite',
-                          hidden: row.kind !== 'athlete_pending' && row.kind !== 'athlete_auth',
-                          onClick: sendAthleteInvite,
+                          hidden: !canResendInvite(row),
+                          onClick: resendInvite,
                         },
                         {
                           label: row.status === 'ACTIVE' ? 'Deactivate' : 'Reactivate',
