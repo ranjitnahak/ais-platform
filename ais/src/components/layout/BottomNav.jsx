@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
+import { getUserAccountLabels, signOutAndRedirect } from '../../lib/authSession';
 import {
   STAFF_BOTTOM_NAV,
   STAFF_MORE_NAV,
@@ -44,8 +45,9 @@ function NavIcon({ icon, active }) {
   );
 }
 
-function MoreSheet({ open, items, onClose, pathname }) {
+function MoreSheet({ open, items, onClose, pathname, user }) {
   const navigate = useNavigate();
+  const { displayName, roleLabel } = getUserAccountLabels(user);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -75,6 +77,16 @@ function MoreSheet({ open, items, onClose, pathname }) {
         <div className="flex justify-center pt-3 pb-2">
           <span className="h-1 w-10 rounded-full bg-[var(--color-outline-variant)]" aria-hidden />
         </div>
+        <div className="flex items-center gap-4 px-6 py-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] text-[var(--color-outline)]">
+            <span className="material-symbols-outlined text-lg">person</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold text-[var(--color-on-surface)]">{displayName}</p>
+            <p className="mt-0.5 truncate text-xs text-[var(--color-on-surface-variant)]">{roleLabel}</p>
+          </div>
+        </div>
+        <div className="mx-4 border-t border-[var(--color-outline-variant)]" />
         <ul className="pb-2">
           {items.map((item, index) => {
             const active = isRouteActive(pathname, item.to);
@@ -105,6 +117,20 @@ function MoreSheet({ open, items, onClose, pathname }) {
             );
           })}
         </ul>
+        <div className="mx-4 border-t border-[var(--color-outline-variant)]" />
+        <button
+          type="button"
+          className="flex w-full items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-[var(--color-error-container)]/15"
+          onClick={() => void signOutAndRedirect()}
+        >
+          <span
+            className="material-symbols-outlined leading-none"
+            style={{ fontSize: 22, color: 'var(--color-error)' }}
+          >
+            logout
+          </span>
+          <span className="text-sm font-bold tracking-tight text-[var(--color-error)]">Log out</span>
+        </button>
       </div>
     </div>
   );
@@ -190,6 +216,7 @@ export default function BottomNav({ variant = 'staff' }) {
         items={moreItems}
         onClose={() => setMoreOpen(false)}
         pathname={pathname}
+        user={user}
       />
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 border-t-[0.5px] border-[var(--color-outline-variant)] bg-[var(--color-surface)] pb-[env(safe-area-inset-bottom)] lg:hidden"

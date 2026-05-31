@@ -54,7 +54,7 @@ export default function Log() {
   }, [visibleTabs, activeTab]);
 
   return (
-    <StaffPageLayout title="Log" subtitle="Record training and wellness data" showSearch={false}>
+    <StaffPageLayout title="Log" showSearch={false}>
       {userLoading ? (
         <LogSkeleton />
       ) : visibleTabs.length === 0 ? (
