@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { ALL } from './staffLogsConstants';
+import { shareOrigin } from './siteUrl';
 
 export const STAFF_LOGS_REPORT_TYPE = 'Staff Logs Report';
 
@@ -74,7 +75,7 @@ export function snapshotToReportData(snapshot) {
 }
 
 export function staffLogsShareUrl(reportId) {
-  return `${window.location.origin}/reports/staff-logs/${reportId}`;
+  return `${shareOrigin()}/reports/staff-logs/${reportId}`;
 }
 
 export async function createStaffLogsShare({

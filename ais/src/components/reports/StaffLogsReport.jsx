@@ -50,11 +50,18 @@ export default function StaffLogsReport({
     : roster;
 
   async function handleDownloadPdf() {
-    if (!reportRef.current) return;
     setExporting(true);
     setExportError(null);
     try {
-      await downloadStaffLogsPdf(reportRef.current, { team, dateFrom, dateTo });
+      await downloadStaffLogsPdf({
+        team,
+        dateFrom,
+        dateTo,
+        generatedOn,
+        roster: displayRoster,
+        notesByAthleteId,
+        teamNotes,
+      });
     } catch (err) {
       console.error('[StaffLogsReport]', err);
       setExportError(err.message ?? 'PDF download failed.');

@@ -1,5 +1,6 @@
 import { formatRangeLabel, initials } from '../../lib/staffLogsConstants';
 import { STAFF_LOGS_REPORT_TYPE } from '../../lib/staffLogsShare';
+import { AIS_LOGO_URL } from '../../lib/buildReportPDF';
 
 function LogoBadge({ src, alt, fallback }) {
   if (src) {
@@ -35,7 +36,7 @@ export default function ShareStaffLogsModal({
 }) {
   const teamName = team?.name ?? 'Team';
   const rangeLabel = formatRangeLabel(dateFrom, dateTo);
-  const aisLogo = org?.logo_url ?? '/favicon.svg';
+  const aisLogo = AIS_LOGO_URL;
 
   return (
     <div

@@ -1,93 +1,34 @@
 /**
  * Branded multi-page PDF export via paginated html2canvas + jsPDF.
- * Lazy-loads heavy deps on first use. Logos and footer are drawn per page in jsPDF
- * so browser print headers (URL, date/time) never appear.
+ * Used for Team Reports. Staff Logs uses native-text buildStaffLogsPDF instead.
  */
+import {
+  AIS_LOGO_URL,
+  AIS_SITE_FOOTER,
+  drawPdfPageFooters,
+  drawPdfPageHeader,
+  loadLogoData,
+  pdfContentTop,
+  pdfContentWidth,
+  PDF_PAGE,
+} from './pdfPageChrome';
 
-export const AIS_LOGO_URL = '/favicon.svg';
-export const AIS_SITE_FOOTER = 'app.athleteintelligencesystem.in';
+export { AIS_LOGO_URL, AIS_SITE_FOOTER };
 
-const PAGE_W = 210;
-const PAGE_H = 297;
-const MARGIN = 15;
-const HEADER_H = 18;
-const FOOTER_H = 10;
-const CONTENT_W = PAGE_W - MARGIN * 2;
-const CONTENT_H = PAGE_H - MARGIN * 2 - HEADER_H - FOOTER_H;
-
+const CONTENT_W = pdfContentWidth();
 const CAPTURE_WIDTH = 680;
 const SCALE = 1.5;
 const JPEG_QUALITY = 0.92;
-
-const MUTED = '#666666';
-const BORDER = '#dddddd';
 const TEXT = '#111111';
+const BORDER = '#dddddd';
 
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
+function maxContentImgH() {
+  const top = pdfContentTop();
+  return PDF_PAGE.H - PDF_PAGE.MARGIN - PDF_PAGE.FOOTER_H - 4 - top;
 }
 
-async function urlToBase64(url) {
-  try {
-    const res = await fetch(url, { mode: 'cors', cache: 'no-cache' });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
-
-async function rasterizeSvg(url, size = 128) {
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const svgText = await res.text();
-  const blob = new Blob([svgText], { type: 'image/svg+xml' });
-  const blobUrl = URL.createObjectURL(blob);
-  try {
-    const img = await loadImage(blobUrl);
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, size, size);
-    return canvas.toDataURL('image/png');
-  } catch {
-    return null;
-  } finally {
-    URL.revokeObjectURL(blobUrl);
-  }
-}
-
-async function loadLogoData(url) {
-  if (!url) return { base64: null, dims: null };
-  const isSvg = /\.svg($|\?)/i.test(url);
-  const base64 = isSvg ? await rasterizeSvg(url) : await urlToBase64(url);
-  if (!base64) return { base64: null, dims: null };
-  const dims = await new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-    img.onerror = () => resolve(null);
-    img.src = base64;
-  });
-  return { base64, dims };
-}
-
-function imageFormat(base64) {
-  if (base64?.startsWith('data:image/png')) return 'PNG';
-  if (base64?.startsWith('data:image/webp')) return 'WEBP';
-  return 'JPEG';
+function domSliceHeightLimit() {
+  return Math.floor((maxContentImgH() / CONTENT_W) * CAPTURE_WIDTH);
 }
 
 function applyPrintStyles(root) {
@@ -105,26 +46,21 @@ function prepareCaptureRoot(contentEl) {
   const container = document.createElement('div');
   container.setAttribute('aria-hidden', 'true');
   container.style.cssText = [
-    'position:fixed',
-    'left:-10000px',
-    'top:0',
-    'width:0',
-    'height:0',
-    'overflow:hidden',
-    'pointer-events:none',
+    'position:fixed', 'left:-10000px', 'top:0', 'width:0', 'height:0',
+    'overflow:hidden', 'pointer-events:none',
   ].join(';');
 
   const clone = contentEl.cloneNode(true);
   clone.style.width = `${CAPTURE_WIDTH}px`;
   clone.style.boxSizing = 'border-box';
   clone.style.background = '#ffffff';
+  clone.style.paddingTop = '8px';
   applyPrintStyles(clone);
 
   const viewport = document.createElement('div');
   viewport.style.width = `${CAPTURE_WIDTH}px`;
   viewport.style.overflow = 'hidden';
   viewport.style.background = '#ffffff';
-
   viewport.appendChild(clone);
   container.appendChild(viewport);
   document.body.appendChild(container);
@@ -132,54 +68,62 @@ function prepareCaptureRoot(contentEl) {
   return { container, viewport, clone };
 }
 
-function drawPageHeader(pdf, { teamLogo, aisLogo }) {
-  const y = MARGIN;
-  const logoH = 12;
-  const logoY = y + (HEADER_H - logoH) / 2;
-
-  if (teamLogo.base64 && teamLogo.dims?.w > 0 && teamLogo.dims?.h > 0) {
-    const lw = Math.min((teamLogo.dims.w / teamLogo.dims.h) * logoH, 40);
-    try {
-      pdf.addImage(teamLogo.base64, imageFormat(teamLogo.base64), MARGIN, logoY, lw, logoH);
-    } catch { /* skip broken logo */ }
+function collectBreakBlocks(clone) {
+  const blocks = [];
+  function addEl(el) {
+    if (!el) return;
+    blocks.push({ top: el.offsetTop, height: el.offsetHeight, bottom: el.offsetTop + el.offsetHeight });
   }
-
-  if (aisLogo.base64 && aisLogo.dims?.w > 0 && aisLogo.dims?.h > 0) {
-    const lw = Math.min((aisLogo.dims.w / aisLogo.dims.h) * logoH, 40);
-    try {
-      pdf.addImage(
-        aisLogo.base64,
-        imageFormat(aisLogo.base64),
-        PAGE_W - MARGIN - lw,
-        logoY,
-        lw,
-        logoH,
-      );
-    } catch { /* skip broken logo */ }
-  }
-
-  pdf.setDrawColor(BORDER);
-  pdf.setLineWidth(0.3);
-  pdf.line(MARGIN, y + HEADER_H, PAGE_W - MARGIN, y + HEADER_H);
+  addEl(clone.querySelector(':scope > header'));
+  clone.querySelectorAll(':scope > section').forEach((section) => {
+    const articles = section.querySelectorAll(':scope > article');
+    if (articles.length > 0) {
+      addEl(section.querySelector(':scope > h2, :scope > h3'));
+      articles.forEach((article) => addEl(article));
+    } else {
+      addEl(section);
+    }
+  });
+  return blocks.filter((b) => b.height > 0);
 }
 
-function drawPageFooter(pdf, pageNum, totalPages, footerText) {
-  const y = PAGE_H - MARGIN;
-  pdf.setDrawColor(BORDER);
-  pdf.setLineWidth(0.3);
-  pdf.line(MARGIN, y - FOOTER_H + 2, PAGE_W - MARGIN, y - FOOTER_H + 2);
+function computeSliceRanges(clone, maxSliceHeight) {
+  const blocks = collectBreakBlocks(clone);
+  if (blocks.length === 0) {
+    return [{ offsetY: 0, sliceHeight: Math.max(clone.scrollHeight, 1) }];
+  }
 
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8);
-  pdf.setTextColor(MUTED);
-  pdf.text(footerText, MARGIN, y - 3);
-  pdf.text(`Page ${pageNum} of ${totalPages}`, PAGE_W - MARGIN, y - 3, { align: 'right' });
+  const ranges = [];
+  let pageStart = blocks[0].top;
+  let pageEnd = blocks[0].bottom;
+
+  for (let i = 1; i < blocks.length; i += 1) {
+    const block = blocks[i];
+    const nextEnd = block.bottom;
+    const nextHeight = nextEnd - pageStart;
+    if (nextHeight > maxSliceHeight && pageEnd > pageStart) {
+      ranges.push({ offsetY: pageStart, sliceHeight: pageEnd - pageStart });
+      pageStart = block.top;
+      pageEnd = block.bottom;
+    } else {
+      pageEnd = nextEnd;
+    }
+  }
+  if (pageEnd > pageStart) {
+    ranges.push({ offsetY: pageStart, sliceHeight: pageEnd - pageStart });
+  }
+
+  if (ranges[0]?.offsetY > 0 && ranges[0].offsetY < 8) {
+    ranges[0].sliceHeight += ranges[0].offsetY;
+    ranges[0].offsetY = 0;
+  }
+
+  return ranges;
 }
 
 async function captureSlice(html2canvas, viewport, clone, offsetY, sliceHeight) {
   clone.style.marginTop = `-${offsetY}px`;
   viewport.style.height = `${sliceHeight}px`;
-
   return html2canvas(viewport, {
     scale: SCALE,
     width: CAPTURE_WIDTH,
@@ -191,14 +135,6 @@ async function captureSlice(html2canvas, viewport, clone, offsetY, sliceHeight) 
   });
 }
 
-/**
- * @param {object} opts
- * @param {HTMLElement} opts.contentEl — report DOM to capture (cloned off-screen)
- * @param {string} [opts.teamLogoUrl]
- * @param {string} [opts.aisLogoUrl='/favicon.svg']
- * @param {string} [opts.footerText='app.athleteintelligencesystem.in']
- * @param {string} opts.filename — saved PDF filename
- */
 export async function buildReportPDF({
   contentEl,
   teamLogoUrl,
@@ -221,37 +157,28 @@ export async function buildReportPDF({
   const { container, viewport, clone } = prepareCaptureRoot(contentEl);
 
   try {
-    const totalHeight = clone.scrollHeight;
-    const chunkHeight = Math.max(1, Math.floor((CONTENT_H / CONTENT_W) * CAPTURE_WIDTH));
+    const maxImgH = maxContentImgH();
+    const maxSliceHeight = domSliceHeightLimit();
+    const sliceRanges = computeSliceRanges(clone, maxSliceHeight);
 
     const slices = [];
-    for (let offsetY = 0; offsetY < totalHeight; offsetY += chunkHeight) {
-      const sliceHeight = Math.min(chunkHeight, totalHeight - offsetY);
-      const canvas = await captureSlice(html2canvas, viewport, clone, offsetY, sliceHeight);
-      slices.push(canvas);
-    }
-
-    if (slices.length === 0) {
-      const canvas = await captureSlice(html2canvas, viewport, clone, 0, Math.max(clone.scrollHeight, 1));
-      slices.push(canvas);
+    for (const { offsetY, sliceHeight } of sliceRanges) {
+      slices.push(await captureSlice(html2canvas, viewport, clone, offsetY, sliceHeight));
     }
 
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const totalPages = slices.length;
-    const contentTop = MARGIN + HEADER_H + 2;
+    const top = pdfContentTop();
 
     slices.forEach((canvas, index) => {
       if (index > 0) pdf.addPage();
-
-      drawPageHeader(pdf, { teamLogo, aisLogo });
-
+      drawPdfPageHeader(pdf, { teamLogo, aisLogo });
       const imgData = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
-      const imgH = (canvas.height / canvas.width) * CONTENT_W;
-      pdf.addImage(imgData, 'JPEG', MARGIN, contentTop, CONTENT_W, imgH);
-
-      drawPageFooter(pdf, index + 1, totalPages, footerText);
+      const rawImgH = (canvas.height / canvas.width) * CONTENT_W;
+      const imgH = Math.min(rawImgH, maxImgH);
+      pdf.addImage(imgData, 'JPEG', PDF_PAGE.MARGIN, top, CONTENT_W, imgH);
     });
 
+    drawPdfPageFooters(pdf, footerText);
     pdf.save(filename);
   } finally {
     container.remove();
