@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { canSync, getCurrentUser } from '../lib/auth'
 import { useUser } from '../context/UserContext'
-import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope'
+import { getEffectiveOrgId } from '../lib/orgScope'
 import { getStaffDomain, useStaffNotes } from '../hooks/useStaffNotes'
 import { useIsMobile } from '../hooks/useIsMobile'
 import AthleteNoteRow from '../components/staffnotes/AthleteNoteRow'
@@ -21,11 +21,10 @@ const DOMAIN_VARS = {
 }
 
 export default function StaffNotes({ embedded = false }) {
-  const { user, loading: userLoading, activeOrgId } = useUser()
-  const [teams, setTeams] = useState([])
+  const { user, loading: userLoading, activeOrgId, activeTeamId } = useUser()
   const [athletes, setAthletes] = useState([])
   const [counts, setCounts] = useState({})
-  const [selectedTeamId, setSelectedTeamId] = useState('')
+  const selectedTeamId = activeTeamId ?? ''
   const [selectedAthleteId, setSelectedAthleteId] = useState('')
   const [tab, setTab] = useState('team')
   const [loadError, setLoadError] = useState(null)
@@ -40,38 +39,8 @@ export default function StaffNotes({ embedded = false }) {
   const selectedAthlete = athletes.find((athlete) => athlete.id === selectedAthleteId)
 
   useEffect(() => {
-    if (!canView || !user) return
-    async function loadTeams() {
-      try {
-        if (!effectiveOrgId) return
-        const { effectiveTeamIds, isSuperuser: isSuperuserScope } =
-          await resolveOrgTeamScope(supabase, user, activeOrgId)
-        if (!isSuperuserScope && !effectiveTeamIds.length) {
-          setTeams([])
-          setSelectedTeamId('')
-          return
-        }
-        let teamsQuery = supabase
-          .from('teams')
-          .select('id, name')
-          .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
-          .order('name', { ascending: true })
-        if (!isSuperuserScope && effectiveTeamIds.length) {
-          teamsQuery = teamsQuery.in('id', effectiveTeamIds)
-        }
-        const { data, error } = await teamsQuery
-        if (error) throw error
-        setTeams(data ?? [])
-        setSelectedTeamId((current) => (
-          current && data?.some((team) => team.id === current) ? current : data?.[0]?.id ?? ''
-        ))
-      } catch (err) {
-        console.error('[StaffNotes] loadTeams failed:', err)
-        setLoadError(err.message)
-      }
-    }
-    loadTeams()
-  }, [canView, user?.id, activeOrgId])
+    setSelectedAthleteId('')
+  }, [activeTeamId])
 
   useEffect(() => {
     if (!canView || !selectedTeamId) return
@@ -127,15 +96,7 @@ export default function StaffNotes({ embedded = false }) {
           <h1 className="mt-2 text-3xl font-black tracking-tight">Staff Notes</h1>
           <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Append-only athlete and team observations.</p>
         </div>
-        <select value={selectedTeamId} onChange={(event) => { setSelectedTeamId(event.target.value); setSelectedAthleteId('') }} className="min-h-12 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-4 text-sm font-bold outline-none">
-          {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-        </select>
       </header>
-      )}
-      {embedded && (
-        <select value={selectedTeamId} onChange={(event) => { setSelectedTeamId(event.target.value); setSelectedAthleteId('') }} className="min-h-12 w-full max-w-xs rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-4 text-sm font-bold outline-none">
-          {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-        </select>
       )}
 
       {(loadError || teamNotes.error || athleteNotes.error) && (

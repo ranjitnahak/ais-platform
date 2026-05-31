@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUser } from '../../lib/auth';
-import { resolveOrgTeamScope } from '../../lib/orgScope';
+import { useUser } from '../../context/UserContext';
 import { athleteDisplayName } from '../../lib/athleteName';
 import { formatRoleOrPosition } from '../../lib/adminUserConstants';
 import {
@@ -15,17 +15,15 @@ import StaffLogsReport from './StaffLogsReport';
 const selectClass =
   'rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-3 py-2 text-xs font-bold text-[var(--color-on-surface)]';
 
-const teamSelectClass =
-  'min-w-64 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-4 py-3 text-sm font-bold text-[var(--color-on-surface)]';
-
 function relation(row) {
   return Array.isArray(row) ? row[0] : row;
 }
 
 export default function ObservationsTab({ user, activeOrgId, effectiveOrgId }) {
+  const { activeTeamId, availableTeams } = useUser();
   const defaults = useMemo(() => monthBounds(), []);
-  const [teams, setTeams] = useState([]);
-  const [selectedTeamId, setSelectedTeamId] = useState('');
+  const selectedTeamId = activeTeamId ?? '';
+  const teams = availableTeams;
   const [roster, setRoster] = useState([]);
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,54 +36,6 @@ export default function ObservationsTab({ user, activeOrgId, effectiveOrgId }) {
   const [dateFrom, setDateFrom] = useState(defaults.from);
   const [dateTo, setDateTo] = useState(defaults.to);
   const [orgProfile, setOrgProfile] = useState(null);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadTeams() {
-      try {
-        if (!user || !effectiveOrgId) {
-          if (mounted) {
-            setTeams([]);
-            setSelectedTeamId('');
-          }
-          return;
-        }
-        const { effectiveTeamIds, isSuperuser } =
-          await resolveOrgTeamScope(supabase, user, activeOrgId);
-        if (!isSuperuser && !effectiveTeamIds.length) {
-          if (mounted) {
-            setTeams([]);
-            setSelectedTeamId('');
-          }
-          return;
-        }
-        let teamsQuery = supabase
-          .from('teams')
-          .select('id, name, sport, logo_url, org_id, organisations(name)')
-          .eq('org_id', effectiveOrgId)
-          .order('name');
-        if (!isSuperuser && effectiveTeamIds.length) {
-          teamsQuery = teamsQuery.in('id', effectiveTeamIds);
-        }
-        const { data, error: teamsError } = await teamsQuery;
-        if (teamsError) throw teamsError;
-        if (!mounted) return;
-        setTeams(data ?? []);
-        setSelectedTeamId((current) => (
-          current && data?.some((team) => team.id === current) ? current : data?.[0]?.id ?? ''
-        ));
-      } catch (err) {
-        console.error('[ObservationsTab]', err);
-        if (mounted) setError(err.message ?? 'Failed to load teams.');
-      }
-    }
-
-    void loadTeams();
-    return () => {
-      mounted = false;
-    };
-  }, [user?.id, activeOrgId, effectiveOrgId]);
 
   useEffect(() => {
     let mounted = true;
@@ -232,23 +182,12 @@ export default function ObservationsTab({ user, activeOrgId, effectiveOrgId }) {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
-            Select a squad to view staff log entries
+            Staff log entries for the selected squad
           </p>
           <h2 className="text-3xl font-black uppercase tracking-tighter text-[var(--color-on-surface)]">
             Staff Logs
           </h2>
         </div>
-        <select
-          value={selectedTeamId}
-          onChange={(event) => setSelectedTeamId(event.target.value)}
-          className={teamSelectClass}
-        >
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>
-              {user?.isSuperuser ? `${team.name} (${team.organisations?.name ?? 'Org'})` : team.name}
-            </option>
-          ))}
-        </select>
       </div>
 
       {!teams.length && (

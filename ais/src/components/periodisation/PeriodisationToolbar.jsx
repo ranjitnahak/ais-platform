@@ -4,9 +4,6 @@ import { athleteDisplayName } from '../../lib/athleteName';
 const ZOOMS = ['4Y', '1Y', '6M', '1M', '1W'];
 
 export default function PeriodisationToolbar({
-  teams,
-  selectedTeamId,
-  setSelectedTeamId,
   viewMode,
   setViewMode,
   athletes,
@@ -50,17 +47,6 @@ export default function PeriodisationToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2 border border-white/10 rounded-lg bg-[#252528] p-3">
-      <select
-        value={selectedTeamId ?? ''}
-        onChange={(e) => setSelectedTeamId(e.target.value)}
-        className="bg-[#1C1C1E] border border-white/10 rounded px-2 py-1.5 text-xs min-w-[160px]"
-      >
-        {teams.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-          </option>
-        ))}
-      </select>
       <select
         value={viewMode}
         onChange={(e) => setViewMode(e.target.value)}

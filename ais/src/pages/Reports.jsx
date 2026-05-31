@@ -57,7 +57,7 @@ function IndividualReportsPanel({
   error,
   teams,
   teamFilter,
-  setTeamFilter,
+  onTeamFilterChange,
   filteredAthletes,
   onGenerateReport,
 }) {
@@ -82,7 +82,7 @@ function IndividualReportsPanel({
       {teams.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setTeamFilter('All')}
+            onClick={() => onTeamFilterChange('All')}
             className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-colors ${
               teamFilter === 'All'
                 ? 'bg-[#F97316] text-[#552100]'
@@ -95,7 +95,7 @@ function IndividualReportsPanel({
           {teams.map((team) => (
             <button
               key={team.id}
-              onClick={() => setTeamFilter(team.id)}
+              onClick={() => onTeamFilterChange(team.id)}
               className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-colors ${
                 teamFilter === team.id
                   ? 'bg-[#F97316] text-[#552100]'
@@ -174,97 +174,33 @@ function IndividualReportsPanel({
   );
 }
 
-function TeamReportsPanel({ user, activeOrgId, effectiveOrgId }) {
+function TeamReportsPanel() {
   const navigate = useNavigate();
-  const [teamReportTeams, setTeamReportTeams] = useState([]);
-  const [teamReportLoading, setTeamReportLoading] = useState(true);
-  const [teamReportError, setTeamReportError] = useState(null);
-  const [selectedTeamReportTeamId, setSelectedTeamReportTeamId] = useState('');
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadTeamReportTeams() {
-      try {
-        setTeamReportLoading(true);
-        setTeamReportError(null);
-        if (!user || !effectiveOrgId) {
-          if (mounted) setTeamReportTeams([]);
-          return;
-        }
-        const { effectiveTeamIds, isSuperuser: isSuperuserScope } =
-          await resolveOrgTeamScope(supabase, user, activeOrgId);
-        if (!isSuperuserScope && !effectiveTeamIds.length) {
-          if (mounted) setTeamReportTeams([]);
-          return;
-        }
-        let teamReportQuery = supabase
-          .from('teams')
-          .select('id, name, sport, org_id, organisations(name)')
-          .eq('org_id', effectiveOrgId)
-          .order('name');
-        if (!isSuperuserScope && effectiveTeamIds.length) {
-          teamReportQuery = teamReportQuery.in('id', effectiveTeamIds);
-        }
-        const { data, error: teamsError } = await teamReportQuery;
-        if (teamsError) throw teamsError;
-        if (!mounted) return;
-        setTeamReportTeams(data ?? []);
-        setSelectedTeamReportTeamId((current) => current || data?.[0]?.id || '');
-      } catch (err) {
-        console.error('[Reports] loadTeamReportTeams failed:', err);
-        if (mounted) setTeamReportError(err.message);
-      } finally {
-        if (mounted) setTeamReportLoading(false);
-      }
-    }
-
-    void loadTeamReportTeams();
-    return () => {
-      mounted = false;
-    };
-  }, [user?.id, activeOrgId, effectiveOrgId]);
-
-  const selectedTeamReportTeam = teamReportTeams.find((team) => team.id === selectedTeamReportTeamId);
+  const { activeTeamId, availableTeams, loading: userLoading } = useUser();
+  const selectedTeamReportTeam = availableTeams.find((team) => team.id === activeTeamId) ?? availableTeams[0];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
-            Select a squad and choose report data sources
+            Report data sources for the selected squad
           </p>
           <h2 className="text-3xl font-black uppercase tracking-tighter text-[var(--color-on-surface)]">Team Reports</h2>
         </div>
-        <select
-          value={selectedTeamReportTeamId}
-          onChange={(event) => setSelectedTeamReportTeamId(event.target.value)}
-          className="min-w-64 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-4 py-3 text-sm font-bold text-[var(--color-on-surface)]"
-        >
-          {teamReportTeams.map((team) => (
-            <option key={team.id} value={team.id}>
-              {user?.isSuperuser ? `${team.name} (${team.organisations?.name ?? 'Org'})` : team.name}
-            </option>
-          ))}
-        </select>
       </div>
 
-      {teamReportLoading && (
+      {userLoading && (
         <div className="flex items-center justify-center py-16">
           <span className="material-symbols-outlined animate-spin text-4xl text-[var(--color-primary)]">refresh</span>
         </div>
       )}
-      {teamReportError && (
-        <div className="rounded-xl border border-[var(--color-error-container)] bg-[var(--color-error-container)]/20 p-4 text-sm text-[var(--color-error)]">
-          Failed to load teams: {teamReportError}
-        </div>
-      )}
-      {!teamReportLoading && !teamReportError && teamReportTeams.length === 0 && (
+      {!userLoading && !availableTeams.length && (
         <div className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-8 text-center text-sm text-[var(--color-on-surface-variant)]">
           No teams available for team reports.
         </div>
       )}
-      {!teamReportLoading && selectedTeamReportTeam && (
+      {!userLoading && selectedTeamReportTeam && (
         <TeamReportConfig
           teamId={selectedTeamReportTeam.id}
           teamName={selectedTeamReportTeam.name}
@@ -285,7 +221,7 @@ export default function Reports() {
   const [activeTab, setActiveTab]           = useState('individual');
 
   const navigate = useNavigate();
-  const { user, activeOrgId, loading: userLoading } = useUser();
+  const { user, activeOrgId, activeTeamId, setActiveTeamId, loading: userLoading } = useUser();
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
   const [selectedAthlete, setSelectedAthlete] = useState(null);
@@ -296,7 +232,16 @@ export default function Reports() {
   useEffect(() => {
     if (userLoading || !user || !effectiveOrgId) return;
     void loadAthletes();
-  }, [effectiveOrgId, userLoading, user?.id]);
+  }, [effectiveOrgId, userLoading, user?.id, activeOrgId]);
+
+  useEffect(() => {
+    if (activeTeamId) setTeamFilter(activeTeamId);
+  }, [activeTeamId]);
+
+  function handleTeamFilterChange(nextFilter) {
+    setTeamFilter(nextFilter);
+    if (nextFilter !== 'All') setActiveTeamId(nextFilter);
+  }
 
   async function loadAthletes() {
     setLoading(true);
@@ -343,7 +288,7 @@ export default function Reports() {
       const { data: teamRows, error: teamErr } = await teamRowsQuery;
       if (teamErr) throw teamErr;
       setTeams(teamRows ?? []);
-      setTeamFilter('All');
+      setTeamFilter(activeTeamId ?? 'All');
 
       const teamIds = effectiveTeamIds;
       if (!teamIds.length) {
@@ -490,13 +435,13 @@ export default function Reports() {
           error={error}
           teams={teams}
           teamFilter={teamFilter}
-          setTeamFilter={setTeamFilter}
+          onTeamFilterChange={handleTeamFilterChange}
           filteredAthletes={filteredAthletes}
           onGenerateReport={generateReport}
         />
       ),
       team: () => (
-        <TeamReportsPanel user={user} activeOrgId={activeOrgId} effectiveOrgId={effectiveOrgId} />
+        <TeamReportsPanel />
       ),
       observations: () => (
         <ObservationsTab user={user} activeOrgId={activeOrgId} effectiveOrgId={effectiveOrgId} />

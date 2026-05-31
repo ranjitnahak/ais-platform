@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
 import { isVisibleSync } from '../lib/auth';
@@ -7,7 +7,6 @@ import VisibilityDenied from '../components/VisibilityDenied';
 import {
   getEffectiveOrgId,
   resolveOrgTeamScope,
-  scopeTeamsForDisplay,
   teamIdsForMembership,
 } from '../lib/orgScope';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
@@ -60,18 +59,15 @@ function formatTier(tier) {
 
 export default function Athletes() {
   const navigate = useNavigate();
-  const { user, activeOrgId, loading: userLoading } = useUser();
-  const isSuperuser = user?.isSuperuser === true;
+  const { user, activeOrgId, activeTeamId, availableTeams, loading: userLoading } = useUser();
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
   const [athletes, setAthletes]             = useState([]);
   const [classMap, setClassMap]             = useState({});
-  const [teams, setTeams]                   = useState([]);         // [{ id, name, gender, count }]
   const [athleteTeamsMap, setAthleteTeamsMap] = useState({});       // athleteId → [teamId]
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState(null);
   const [search, setSearch]                 = useState('');
-  const [teamFilter, setTeamFilter]         = useState('All');
   const [genderFilter, setGenderFilter]     = useState('All');
   const [posFilter, setPosFilter]           = useState('All');
   const [menuOpen, setMenuOpen]             = useState(null);
@@ -79,9 +75,12 @@ export default function Athletes() {
 
   useEffect(() => {
     if (userLoading || !effectiveOrgId || !user) return;
-    setTeamFilter('All');
     void load();
   }, [effectiveOrgId, userLoading, user?.id, activeOrgId]);
+
+  useEffect(() => {
+    setGenderFilter('All');
+  }, [activeTeamId]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -95,7 +94,7 @@ export default function Athletes() {
     setError(null);
     try {
       if (!user || !effectiveOrgId) throw new Error('No authenticated user found.');
-      const { effectiveOrgId: orgId, effectiveTeamIds, isSuperuser: isSuperuserScope } =
+      const { effectiveOrgId: orgId, effectiveTeamIds } =
         await resolveOrgTeamScope(supabase, user, activeOrgId);
 
 
@@ -118,8 +117,7 @@ export default function Athletes() {
 
       // ── Athlete–team membership ───────────────────────────────────────────
       const athleteIds = (rows ?? []).map((a) => a.id);
-      const atMap = {};      // athleteId → [teamId]
-      const teamCounts = {}; // teamId → count
+      const atMap = {};
 
       const membershipTeamIds = teamIdsForMembership(effectiveTeamIds, teamRows);
       if (athleteIds.length && membershipTeamIds.length) {
@@ -132,13 +130,10 @@ export default function Athletes() {
         for (const r of atRows ?? []) {
           if (!atMap[r.athlete_id]) atMap[r.athlete_id] = [];
           atMap[r.athlete_id].push(r.team_id);
-          teamCounts[r.team_id] = (teamCounts[r.team_id] ?? 0) + 1;
         }
       }
 
       setAthleteTeamsMap(atMap);
-      const scopedTeams = scopeTeamsForDisplay(teamRows, effectiveTeamIds, isSuperuserScope);
-      setTeams(scopedTeams.map((t) => ({ ...t, count: teamCounts[t.id] ?? 0 })));
 
       // ── Latest session classification ─────────────────────────────────────
       const { data: sessions } = await supabase
@@ -181,17 +176,9 @@ export default function Athletes() {
     }
   }
 
-  // When a team is selected, reset gender filter and derive locked gender
-  function selectTeam(teamId) {
-    setTeamFilter(teamId);
-    setGenderFilter('All');
-  }
-
-  const selectedTeam   = teams.find((t) => t.id === teamFilter) ?? null;
-  const selectedName   = selectedTeam?.name ?? '';
-  // Hide gender filter row entirely when a gendered team is selected
-  const showGenderRow  = teamFilter === 'All'
-    || (!selectedName.includes('Men') && !selectedName.includes('Women'));
+  const selectedTeam = availableTeams.find((t) => t.id === activeTeamId) ?? null;
+  const selectedName = selectedTeam?.name ?? '';
+  const showGenderRow = !selectedName.includes('Men') && !selectedName.includes('Women');
 
   const positions = ['All', 'Raider', 'Defender', 'All-Rounder'];
   const genders   = ['All', 'Male', 'Female'];
@@ -202,13 +189,13 @@ export default function Athletes() {
       if (q && !athleteDisplayName(a).toLowerCase().includes(q)) return false;
       if (genderFilter !== 'All' && a.gender?.toLowerCase() !== genderFilter.toLowerCase()) return false;
       if (posFilter !== 'All' && a.position?.toLowerCase() !== posFilter.toLowerCase()) return false;
-      if (teamFilter !== 'All') {
+      if (activeTeamId) {
         const memberOf = athleteTeamsMap[a.id] ?? [];
-        if (!memberOf.includes(teamFilter)) return false;
+        if (!memberOf.includes(activeTeamId)) return false;
       }
       return true;
     });
-  }, [athletes, search, genderFilter, posFilter, teamFilter, athleteTeamsMap]);
+  }, [athletes, search, genderFilter, posFilter, activeTeamId, athleteTeamsMap]);
 
   async function handleArchive(athlete) {
     try {
@@ -259,11 +246,6 @@ export default function Athletes() {
           </button>
           <div>
             <h1 className="font-['Inter'] text-xl font-bold tracking-tight text-white uppercase leading-none">Athletes</h1>
-            {selectedTeam && (
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mt-0.5">
-                {selectedTeam.name}
-              </p>
-            )}
           </div>
         </div>
         <TopBarUserMenu showSearch={false} />
@@ -289,37 +271,6 @@ export default function Athletes() {
               style={{ border: '1px solid rgba(255,255,255,0.06)', fontFamily: "'Inter', system-ui, sans-serif" }}
             />
           </div>
-
-          {/* Team filter pills */}
-          {teams.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => selectTeam('All')}
-                className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
-                  teamFilter === 'All'
-                    ? 'bg-[#F97316] text-[#552100]'
-                    : 'bg-[#2a2a2c] text-gray-400 hover:text-white'
-                }`}
-                style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-              >
-                All Teams
-              </button>
-              {teams.map((team) => (
-                <button
-                  key={team.id}
-                  onClick={() => selectTeam(team.id)}
-                  className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
-                    teamFilter === team.id
-                      ? 'bg-[#F97316] text-[#552100]'
-                      : 'bg-[#2a2a2c] text-gray-400 hover:text-white'
-                  }`}
-                  style={{ border: '1px solid rgba(255,255,255,0.06)' }}
-                >
-                  {team.name}{team.gender ? ` — ${team.gender}` : ''} ({team.count})
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Gender + Position filter pills */}
           <div className="flex flex-wrap gap-2">
@@ -360,7 +311,7 @@ export default function Athletes() {
         {!error && (
           <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
             {filtered.length} athlete{filtered.length !== 1 ? 's' : ''}
-            {(search || genderFilter !== 'All' || posFilter !== 'All' || teamFilter !== 'All') ? ' matching filters' : ''}
+            {(search || genderFilter !== 'All' || posFilter !== 'All') ? ' matching filters' : ''}
           </p>
         )}
 

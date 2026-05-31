@@ -67,9 +67,8 @@ export default function PeriodisationCanvas({
   onUpdateFromTeamPlan,
   showTeamPlan = 'on',
   setShowTeamPlan,
-  teams,
+  team,
   selectedTeamId,
-  setSelectedTeamId,
   viewMode,
   setViewMode,
   athletes,
@@ -250,14 +249,8 @@ export default function PeriodisationCanvas({
   }, [weeks, volumeRow, intensityRow, effectiveCells, patches, acwrSeries]);
 
   // Derived values for PDF export
-  const teamName = useMemo(
-    () => teams.find((t) => t.id === selectedTeamId)?.name ?? '',
-    [teams, selectedTeamId],
-  );
-  const selectedTeam = useMemo(
-    () => teams.find((t) => t.id === selectedTeamId) ?? null,
-    [teams, selectedTeamId],
-  );
+  const teamName = team?.name ?? '';
+  const selectedTeam = team ?? null;
 
   /** Same cell resolution as the grid (persisted rows + in-flight patches) for PDF export. */
   const cellsSnapshotForPdf = useMemo(() => {
@@ -585,9 +578,6 @@ export default function PeriodisationCanvas({
 
       {/* Top bar */}
       <PeriodisationToolbar
-        teams={teams}
-        selectedTeamId={selectedTeamId}
-        setSelectedTeamId={setSelectedTeamId}
         viewMode={viewMode}
         setViewMode={setViewMode}
         athletes={athletes}

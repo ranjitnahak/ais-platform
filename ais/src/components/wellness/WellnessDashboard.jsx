@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getCurrentUser, canSync } from '../../lib/auth'
+import { resolveOrgTeamScope, narrowTeamIds } from '../../lib/orgScope'
 import { useUser } from '../../context/UserContext'
 import WellnessTrend from './WellnessTrend'
 import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton'
 
 export default function WellnessDashboard({ embedded = false }) {
-  const { user, activeOrgId } = useUser()
+  const { user, activeOrgId, activeTeamId } = useUser()
   const [athletes, setAthletes] = useState([])
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -22,7 +23,9 @@ export default function WellnessDashboard({ embedded = false }) {
         const currentUser = await getCurrentUser()
         const orgId = activeOrgId ?? currentUser?.orgId
         if (!currentUser || !orgId) return
-        if (!currentUser.teamIds?.length) {
+        const { effectiveTeamIds } = await resolveOrgTeamScope(supabase, currentUser, activeOrgId)
+        const teamIds = narrowTeamIds(effectiveTeamIds, activeTeamId)
+        if (!teamIds.length) {
           setAthletes([])
           setLogs([])
           return
@@ -32,7 +35,7 @@ export default function WellnessDashboard({ embedded = false }) {
           .select('id, full_name, photo_url, athlete_teams!inner(team_id)')
           .eq('org_id', orgId)
           .eq('is_active', true)
-          .in('athlete_teams.team_id', currentUser.teamIds)
+          .in('athlete_teams.team_id', teamIds)
           .order('full_name', { ascending: true })
         if (athleteError) throw athleteError
         const athleteIds = [...new Set((athleteRows ?? []).map((athlete) => athlete.id))]
@@ -60,7 +63,7 @@ export default function WellnessDashboard({ embedded = false }) {
       }
     }
     loadDashboard()
-  }, [canView, activeOrgId])
+  }, [canView, activeOrgId, activeTeamId])
 
   const summary = useMemo(() => {
     const scored = logs.filter((log) => log.composite_score != null)

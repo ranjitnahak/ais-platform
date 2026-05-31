@@ -50,15 +50,15 @@ const DEFAULT_TEMPLATE_ROWS = [
 
 export default function Periodisation() {
   const navigate = useNavigate();
-  const { activeOrgId, user: contextUser } = useUser();
+  const { activeOrgId, activeTeamId, availableTeams, user: contextUser } = useUser();
   const [user, setUser] = useState(null);
   const authUser = user ?? contextUser;
   const isSuperuser = authUser?.isSuperuser === true;
   const effectiveOrgId = getEffectiveOrgId(authUser, activeOrgId);
   const [effectiveTeamIds, setEffectiveTeamIds] = useState([]);
 
-  const [teams, setTeams] = useState([]);
-  const [selectedTeamId, setSelectedTeamId] = useState(null);
+  const selectedTeamId = activeTeamId;
+  const teams = availableTeams;
   const [viewMode, setViewMode] = useState('team');
   const [selectedAthleteId, setSelectedAthleteId] = useState(null);
   const [athletes, setAthletes] = useState([]);
@@ -125,51 +125,20 @@ export default function Periodisation() {
     let cancelled = false;
     (async () => {
       const currentUser = await getCurrentUser();
-      if (!currentUser) {
-        if (!cancelled) setTeams([]);
-        return;
-      }
+      if (!currentUser) return;
       if (!cancelled) setUser(currentUser);
-      const { effectiveOrgId: orgId, effectiveTeamIds: teamIds } =
+      const { effectiveTeamIds: teamIds } =
         await resolveOrgTeamScope(supabase, currentUser, activeOrgId);
       if (!cancelled) setEffectiveTeamIds(teamIds);
-      let teamListQuery = supabase
-        .from('teams')
-        .select('id, name, logo_url, org_id, organisations(name)')
-        .eq('org_id', orgId) // SUPERUSER: uses activeOrgId
-        .order('name');
-      if (!currentUser.isSuperuser && teamIds.length) {
-        teamListQuery = teamListQuery.in('id', teamIds);
-      } else if (!currentUser.isSuperuser) {
-        if (!cancelled) {
-          setTeams([]);
-          setSelectedTeamId(null);
-        }
-        return;
-      }
-      const { data: teamList, error } = await teamListQuery;
-      if (cancelled) return;
-      if (error) {
-        console.error(error);
-        setTeams([]);
-        return;
-      }
-      const list = teamList ?? [];
-      setTeams(list);
-      if (list.length) {
-        setSelectedTeamId((current) =>
-          current && list.some((t) => t.id === current) ? current : list[0].id
-        );
-        setSelectedAthleteId(null);
-      } else {
-        setSelectedTeamId(null);
-        setSelectedAthleteId(null);
-      }
     })();
     return () => {
       cancelled = true;
     };
   }, [effectiveOrgId, activeOrgId]);
+
+  useEffect(() => {
+    setSelectedAthleteId(null);
+  }, [activeTeamId]);
 
   useEffect(() => {
     if (!effectiveOrgId) return;
@@ -422,23 +391,6 @@ export default function Periodisation() {
               <p className="text-gray-400 text-sm">No plan created yet for this team.</p>
             </div>
             <div className="flex flex-col gap-3 items-center">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 self-start w-full max-w-sm">
-                Team
-              </label>
-              <select
-                value={selectedTeamId ?? ''}
-                onChange={(e) => {
-                  setSelectedTeamId(e.target.value);
-                  setSelectedAthleteId(null);
-                }}
-                className="w-full max-w-sm bg-[#2a2a2c] border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
-              >
-                {teams.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {user?.isSuperuser ? `${t.name} (${t.organisations?.name ?? 'Org'})` : t.name}
-                  </option>
-                ))}
-              </select>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(true)}
@@ -461,12 +413,8 @@ export default function Periodisation() {
             hasTeamPlanForSync={hasTeamPlanForSync}
             onReplaceWithTeamPlan={handleReplaceWithTeamPlan}
             onUpdateFromTeamPlan={handleUpdateFromTeamPlan}
-            teams={teams}
+            team={selectedTeam}
             selectedTeamId={selectedTeamId}
-            setSelectedTeamId={(id) => {
-              setSelectedTeamId(id);
-              setSelectedAthleteId(null);
-            }}
             viewMode={viewMode}
             setViewMode={setViewMode}
             showTeamPlan={showTeamPlan}

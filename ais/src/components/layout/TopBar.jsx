@@ -3,6 +3,7 @@ import { useUser } from '../../context/UserContext';
 import { getUserAccountLabels, signOutAndRedirect } from '../../lib/authSession';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import OrgSwitcher from './OrgSwitcher';
+import TeamSwitcher from './TeamSwitcher';
 
 export function TopBarUserMenu({ showSearch = true, showProfile }) {
   const { user } = useUser();
@@ -25,6 +26,7 @@ export function TopBarUserMenu({ showSearch = true, showProfile }) {
   return (
     <div className="flex items-center gap-5">
       <OrgSwitcher />
+      <TeamSwitcher />
       {showSearch && (
         <span
           className="material-symbols-outlined cursor-pointer text-[var(--color-outline)] transition-opacity hover:opacity-80"

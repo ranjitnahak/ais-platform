@@ -43,3 +43,49 @@ export function teamIdsForMembership(effectiveTeamIds, teamRows) {
   if (effectiveTeamIds?.length) return effectiveTeamIds;
   return (teamRows ?? []).map((team) => team.id);
 }
+
+/** Resolve active team id against available teams; fall back to first or null. */
+export function getEffectiveTeamId(activeTeamId, availableTeamIds) {
+  const ids = availableTeamIds ?? [];
+  if (!ids.length) return null;
+  if (activeTeamId && ids.includes(activeTeamId)) return activeTeamId;
+  return ids[0] ?? null;
+}
+
+/** Narrow scope to a single active team when set. */
+export function narrowTeamIds(effectiveTeamIds, activeTeamId) {
+  const ids = effectiveTeamIds ?? [];
+  if (activeTeamId && ids.includes(activeTeamId)) return [activeTeamId];
+  if (activeTeamId) return [activeTeamId];
+  return ids;
+}
+
+export const ACTIVE_TEAM_STORAGE_KEY = 'ais_active_team_id';
+
+export function readStoredTeamId(orgId) {
+  if (typeof window === 'undefined' || !orgId) return null;
+  try {
+    const map = JSON.parse(window.localStorage.getItem(ACTIVE_TEAM_STORAGE_KEY) ?? '{}');
+    const teamId = map[orgId];
+    return teamId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeStoredTeamId(orgId, teamId) {
+  if (typeof window === 'undefined' || !orgId) return;
+  try {
+    const map = JSON.parse(window.localStorage.getItem(ACTIVE_TEAM_STORAGE_KEY) ?? '{}');
+    if (teamId) map[orgId] = teamId;
+    else delete map[orgId];
+    window.localStorage.setItem(ACTIVE_TEAM_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function clearStoredTeamIds() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(ACTIVE_TEAM_STORAGE_KEY);
+}
