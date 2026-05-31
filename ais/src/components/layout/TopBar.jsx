@@ -5,7 +5,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import OrgSwitcher from './OrgSwitcher';
 import TeamSwitcher from './TeamSwitcher';
 
-export function TopBarUserMenu({ showSearch = true, showProfile }) {
+export function TopBarUserMenu({ showSearch = true, showProfile, compact = false }) {
   const { user } = useUser();
   const isMobile = useIsMobile();
   const showProfileButton = showProfile ?? !isMobile;
@@ -24,9 +24,11 @@ export function TopBarUserMenu({ showSearch = true, showProfile }) {
   const { displayName, roleLabel } = getUserAccountLabels(user);
 
   return (
-    <div className="flex items-center gap-5">
+    <div className={`flex items-center ${compact ? 'w-full gap-2' : 'gap-5'}`}>
       <OrgSwitcher />
-      <TeamSwitcher />
+      <div className={compact ? 'min-w-0 flex-1' : undefined}>
+        <TeamSwitcher compact={compact} />
+      </div>
       {showSearch && (
         <span
           className="material-symbols-outlined cursor-pointer text-[var(--color-outline)] transition-opacity hover:opacity-80"

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useUser } from '../../context/UserContext';
 
-export default function TeamSwitcher() {
+export default function TeamSwitcher({ compact = false }) {
   const { activeTeamId, setActiveTeamId, availableTeams } = useUser();
   const [open, setOpen] = useState(false);
 
@@ -11,20 +11,20 @@ export default function TeamSwitcher() {
 
   if (availableTeams.length <= 1) {
     return (
-      <div className="flex min-h-9 items-center rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 text-xs font-bold text-[var(--color-on-surface)]">
-        <span className="truncate max-w-[180px]">{currentTeam?.name ?? 'Team'}</span>
+      <div className={`flex min-h-9 items-center rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 text-xs font-bold text-[var(--color-on-surface)] ${compact ? 'min-w-0 w-full' : ''}`}>
+        <span className={compact ? 'truncate' : 'truncate max-w-[180px]'}>{currentTeam?.name ?? 'Team'}</span>
       </div>
     );
   }
 
   return (
-    <div className="relative">
+    <div className={`relative ${compact ? 'min-w-0 w-full' : ''}`}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex min-h-9 items-center gap-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 text-xs font-bold text-[var(--color-on-surface)]"
+        className={`flex min-h-9 items-center gap-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 text-xs font-bold text-[var(--color-on-surface)] ${compact ? 'w-full min-w-0' : ''}`}
       >
-        <span className="truncate max-w-[180px]">{currentTeam?.name ?? 'Select team'}</span>
+        <span className={compact ? 'min-w-0 flex-1 truncate text-left' : 'truncate max-w-[180px]'}>{currentTeam?.name ?? 'Select team'}</span>
         <span className="material-symbols-outlined text-sm">expand_more</span>
       </button>
       {open && (
