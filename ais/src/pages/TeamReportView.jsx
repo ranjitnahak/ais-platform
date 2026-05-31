@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { canSync } from '../lib/auth'
 import { useUser } from '../context/UserContext'
+import { buildReportPDF, AIS_LOGO_URL } from '../lib/buildReportPDF'
 
 function Spinner() {
   return (
@@ -148,136 +149,39 @@ export default function TeamReportView() {
   }, [reportId, user])
 
   async function handleExportPDF() {
+    const content = document.getElementById('report-content')
+    if (!content) return
     setExporting(true)
+    setExportError(null)
     try {
-      // Add print styles dynamically
-      const style = document.createElement('style')
-      style.id = 'print-pdf-style'
-      style.textContent = `
-        @media print {
-          /* Hide everything except report */
-          body > * { display: none !important; }
-          #print-wrapper { display: block !important; }
-
-          /* Reset colors for print */
-          #report-content {
-            position: static !important;
-            background: white !important;
-            color: #111111 !important;
-            font-family: Inter, sans-serif !important;
-            padding: 0 !important;
-          }
-          #report-content * {
-            color: #111111 !important;
-            border-color: #dddddd !important;
-            background: white !important;
-          }
-
-          /* Athlete photos keep their appearance */
-          #report-content img {
-            border-radius: 50%;
-          }
-
-          /* Hide buttons */
-          .no-print { display: none !important; }
-
-          #print-footer {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            border-top: 1px solid #ddd;
-            font-size: 10px;
-            color: #666;
-            display: flex;
-            justify-content: space-between;
-            padding-top: 4px;
-          }
-
-          /* Page margins */
-          @page {
-            margin: 15mm 15mm 20mm 15mm;
-          }
-        }
-      `
-      document.head.appendChild(style)
-
       const team = relation(report?.teams)
-      const logoUrl = team?.logo_url ?? org?.logo_url
-      const generatedDate = formatDate(report?.generated_at ?? report?.created_at)
-      const dateRange = `${report?.date_range_start} to ${report?.date_range_end}`
-      const content = document.getElementById('report-content')
-      if (!content) return
+      const rangeSlug = `${report?.date_range_start ?? ''}_${report?.date_range_end ?? ''}`.replace(/[^a-z0-9]+/gi, '-')
+      const sportBadge = team?.sport
+        ? `<span style="display:inline-block;margin-left:8px;padding:2px 10px;border-radius:999px;background:#f97316;color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;">${team.sport}</span>`
+        : ''
 
       const wrapper = document.createElement('div')
-      wrapper.id = 'print-wrapper'
-      wrapper.style.display = 'none'
-      wrapper.style.background = 'white'
-      wrapper.style.color = '#111111'
-      wrapper.style.fontFamily = 'Inter, sans-serif'
+      const meta = document.createElement('header')
+      meta.style.cssText = 'padding:0 0 16px;margin-bottom:16px;border-bottom:1px solid #ddd;font-family:Inter,sans-serif;color:#111;'
+      meta.innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+          <h1 style="margin:0;font-size:28px;font-weight:800;color:#111;">${team?.name ?? 'Team Report'}</h1>
+          ${sportBadge}
+        </div>
+        <p style="margin:8px 0 0;font-size:13px;color:#444;">Report period: ${report.date_range_start} to ${report.date_range_end}</p>
+        <p style="margin:4px 0 0;font-size:11px;color:#444;">Generated on ${formatDate(report.generated_at ?? report.created_at)}</p>
+      `
+      wrapper.appendChild(meta)
+      wrapper.appendChild(content.cloneNode(true))
 
-      const header = document.createElement('div')
-      header.style.display = 'flex'
-      header.style.alignItems = 'center'
-      header.style.justifyContent = 'space-between'
-      header.style.gap = '16px'
-      header.style.marginBottom = '16px'
-      header.style.paddingBottom = '10px'
-      header.style.borderBottom = '1px solid #dddddd'
-      if (logoUrl) {
-        const logo = document.createElement('img')
-        logo.src = logoUrl
-        logo.height = 50
-        logo.style.objectFit = 'contain'
-        header.appendChild(logo)
-      }
-      const title = document.createElement('h1')
-      title.textContent = team?.name ?? 'Team Report'
-      title.style.flex = '1'
-      title.style.margin = '0'
-      title.style.fontSize = '22px'
-      title.style.fontWeight = '800'
-      title.style.color = '#111111'
-      title.style.textAlign = 'center'
-      header.appendChild(title)
-      const meta = document.createElement('div')
-      meta.style.textAlign = 'right'
-      meta.style.fontSize = '11px'
-      meta.style.color = '#111111'
-      meta.innerHTML = `<p style="margin:0;">Report period: ${dateRange}</p><p style="margin:2px 0 0;">Generated: ${generatedDate}</p>`
-      header.appendChild(meta)
-
-      const body = document.createElement('div')
-      body.id = 'print-body'
-      const clone = content.cloneNode(true)
-      const allEls = [clone, ...clone.querySelectorAll('*')]
-      allEls.forEach(el => {
-        el.style.color = '#111111'
-        el.style.backgroundColor = 'white'
-        el.style.borderColor = '#dddddd'
+      await buildReportPDF({
+        contentEl: wrapper,
+        teamLogoUrl: team?.logo_url ?? org?.logo_url ?? null,
+        filename: `${fileName(team?.name)}_team_report_${rangeSlug}.pdf`,
       })
-      body.appendChild(clone)
-
-      const footer = document.createElement('div')
-      footer.id = 'print-footer'
-      footer.innerHTML = `<span>AIS — Athlete Intelligence System</span><span>ais-platform.com</span><span>${team?.name ?? 'Team'} · ${generatedDate}</span>`
-
-      wrapper.appendChild(header)
-      wrapper.appendChild(body)
-      wrapper.appendChild(footer)
-      document.body.appendChild(wrapper)
-
-      // Trigger browser print dialog
-      window.print()
-
-      // Remove style after print
-      setTimeout(() => {
-        const el = document.getElementById('print-pdf-style')
-        if (el) el.remove()
-        const wrapperEl = document.getElementById('print-wrapper')
-        if (wrapperEl) wrapperEl.remove()
-      }, 1000)
     } catch (err) {
       console.error('[PDF export]', err)
+      setExportError(err.message ?? 'PDF download failed.')
     } finally {
       setExporting(false)
     }
@@ -298,12 +202,21 @@ export default function TeamReportView() {
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-on-background)] font-['Inter']">
-      <style>{'@media print { .no-print { display: none !important; } }'}</style>
       <main className="mx-auto max-w-5xl px-5 py-8 md:px-8">
-        <header id="report-header" className="flex flex-col gap-5 border-b border-[var(--color-outline-variant)] pb-6 md:flex-row md:items-center md:justify-between">
+        <header className="flex flex-col gap-5 border-b border-[var(--color-outline-variant)] pb-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-5">
-            {logoUrl && <img src={logoUrl} alt={team?.name ?? org?.name ?? 'Team'} className="h-[60px] max-w-32 object-contain" />}
             <div>
+              <div
+                data-pdf-exclude
+                className="mb-4 flex items-center justify-between gap-4 md:max-w-md"
+              >
+                {logoUrl ? (
+                  <img src={logoUrl} alt={team?.name ?? org?.name ?? 'Team'} className="h-12 max-w-[120px] object-contain" />
+                ) : (
+                  <div className="h-12 w-12 rounded-full bg-[var(--color-surface-variant)]" />
+                )}
+                <img src={AIS_LOGO_URL} alt="AIS" className="h-10 w-10 object-contain" />
+              </div>
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-black tracking-tight text-[var(--color-on-surface)] md:text-4xl">{team?.name ?? 'Team Report'}</h1>
                 {team?.sport && <span className="rounded-full bg-[var(--color-primary-container)] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-primary)]">{team.sport}</span>}
@@ -314,7 +227,7 @@ export default function TeamReportView() {
           </div>
           <div className="no-print flex gap-3">
             <button onClick={handleExportPDF} disabled={exporting} className="rounded-xl bg-[var(--color-primary-container)] px-4 py-3 text-xs font-black uppercase tracking-widest text-[var(--color-on-primary)] disabled:opacity-60">
-              {exporting ? 'Exporting...' : 'Print / Save as PDF'}
+              {exporting ? 'Preparing…' : 'Download PDF'}
             </button>
             <button onClick={() => navigate(-1)} className="rounded-xl border border-[var(--color-outline-variant)] px-4 py-3 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface)]">Back</button>
           </div>

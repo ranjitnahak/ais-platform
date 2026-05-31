@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { printStaffLogsReport } from '../../lib/staffLogsExport';
+import { downloadStaffLogsPdf } from '../../lib/staffLogsExport';
+import { AIS_LOGO_URL } from '../../lib/buildReportPDF';
 import {
   buildStaffLogsSnapshot,
   copyStaffLogsLink,
@@ -48,15 +49,15 @@ export default function StaffLogsReport({
     ? roster.filter((athlete) => athlete.id === athleteFilter)
     : roster;
 
-  async function handlePrint() {
+  async function handleDownloadPdf() {
     if (!reportRef.current) return;
     setExporting(true);
     setExportError(null);
     try {
-      await printStaffLogsReport(reportRef.current);
+      await downloadStaffLogsPdf(reportRef.current, { team, dateFrom, dateTo });
     } catch (err) {
       console.error('[StaffLogsReport]', err);
-      setExportError(err.message ?? 'Print failed.');
+      setExportError(err.message ?? 'PDF download failed.');
     } finally {
       setExporting(false);
     }
@@ -141,10 +142,10 @@ export default function StaffLogsReport({
           <button
             type="button"
             disabled={exporting}
-            onClick={handlePrint}
+            onClick={handleDownloadPdf}
             className="rounded-xl bg-[var(--color-primary-container)] px-4 py-3 text-xs font-black uppercase tracking-widest text-[var(--color-on-primary)] disabled:opacity-60"
           >
-            {exporting ? 'Preparing…' : 'Print / Save as PDF'}
+            {exporting ? 'Preparing…' : 'Download PDF'}
           </button>
           <button
             type="button"
@@ -170,6 +171,25 @@ export default function StaffLogsReport({
         className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]"
       >
         <header className="border-b border-[var(--color-outline-variant)] p-5">
+          <div
+            data-pdf-exclude
+            className="mb-4 flex items-center justify-between gap-4"
+          >
+            {team?.logo_url ? (
+              <img
+                src={team.logo_url}
+                alt={team?.name ?? 'Team'}
+                className="h-12 max-w-[120px] object-contain"
+              />
+            ) : (
+              <div className="h-12 w-12 rounded-full bg-[var(--color-surface-variant)]" />
+            )}
+            <img
+              src={AIS_LOGO_URL}
+              alt="AIS"
+              className="h-10 w-10 object-contain"
+            />
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-black tracking-tight text-[var(--color-on-surface)] md:text-3xl">
               {team?.name ?? 'Team'}
