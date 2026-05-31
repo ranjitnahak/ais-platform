@@ -10,7 +10,8 @@ const ROLE_NAME_TO_ENUM = {
   Physio: 'physio',
   'Head Coach': 'head_coach',
   Analyst: 'analyst',
-  Nutritionist: 'analyst', // closest match
+  Nutritionist: 'nutritionist',
+  Manager: 'manager',
   Athlete: 'athlete',
 };
 
