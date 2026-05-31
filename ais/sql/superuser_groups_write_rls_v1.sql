@@ -19,3 +19,14 @@ DROP POLICY IF EXISTS user_roles_platform_superuser_insert ON public.user_roles;
 CREATE POLICY user_roles_platform_superuser_insert
   ON public.user_roles FOR INSERT TO authenticated
   WITH CHECK (public.is_platform_superuser());
+
+DROP POLICY IF EXISTS user_roles_platform_superuser_update ON public.user_roles;
+CREATE POLICY user_roles_platform_superuser_update
+  ON public.user_roles FOR UPDATE TO authenticated
+  USING (public.is_platform_superuser())
+  WITH CHECK (public.is_platform_superuser());
+
+DROP POLICY IF EXISTS user_roles_platform_superuser_delete ON public.user_roles;
+CREATE POLICY user_roles_platform_superuser_delete
+  ON public.user_roles FOR DELETE TO authenticated
+  USING (public.is_platform_superuser());

@@ -5,6 +5,7 @@ import Log from './pages/Log';
 import Reports from './pages/Reports';
 import AthleteReportView from './pages/AthleteReportView';
 import TeamReportView from './pages/TeamReportView';
+import StaffLogReportView from './pages/StaffLogReportView';
 import Athletes from './pages/Athletes';
 import AthleteProfile from './pages/AthleteProfile';
 import AthleteHome from './pages/AthleteHome';
@@ -156,6 +157,7 @@ export default function App() {
             <Route path="/reports" element={<Reports />} />
             <Route path="/reports/athlete/:reportId" element={<AthleteReportView />} />
             <Route path="/reports/team/:reportId" element={<TeamReportView />} />
+            <Route path="/reports/staff-logs/:reportId" element={<StaffLogReportView />} />
             <Route path="/athletes" element={<Athletes />} />
             <Route path="/athletes/:id" element={<AthleteProfile />} />
             <Route path="/wellness" element={<Navigate to="/dashboard" replace />} />

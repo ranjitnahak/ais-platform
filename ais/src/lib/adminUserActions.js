@@ -47,6 +47,19 @@ export async function setUserActive(orgId, userId, isActive) {
   }
 }
 
+export async function setAthleteActive(orgId, athleteId, isActive) {
+  const { data, error } = await supabase
+    .from('athletes')
+    .update({ is_active: isActive })
+    .eq('id', athleteId)
+    .eq('org_id', orgId)
+    .select('id');
+  if (error) throw error;
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error('Update was blocked by permissions or the athlete no longer exists.');
+  }
+}
+
 /** Remove or detach rows that reference users.id without ON DELETE CASCADE/SET NULL. */
 async function clearUserDeleteBlockers(orgId, userId) {
   // Notes may use a legacy org_id that differs from users.org_id — scope by author only.

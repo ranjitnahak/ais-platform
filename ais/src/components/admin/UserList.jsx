@@ -6,7 +6,7 @@ import AddUserModal from './AddUserModal';
 import DeleteUserModal from './DeleteUserModal';
 import AdminUserRowMenu from './AdminUserRowMenu';
 import UserDetailPanel from './UserDetailPanel';
-import { setUserActive } from '../../lib/adminUserActions';
+import { setAthleteActive, setUserActive } from '../../lib/adminUserActions';
 import { buildGroupToTeamMap } from '../../lib/teamGroups';
 
 async function resolveFunctionErrorMessage(fnError, fnData) {
@@ -68,7 +68,6 @@ export default function UserList({ user }) {
       const pendingQuery = supabase
           .from('athletes')
           .select('id, first_name, last_name, email, is_active, position, jersey_number, photo_url, org_id, auth_id, organisations(name)')
-          .eq('is_active', true)
           .order('first_name');
       const userRolesQuery = supabase.from('user_roles').select('user_id, group_id, org_id');
       const athleteTeamsQuery = supabase.from('athlete_teams').select('athlete_id, team_id');
@@ -166,7 +165,11 @@ export default function UserList({ user }) {
         roleOrPosition: row.position ?? 'Athlete',
         orgId: row.org_id,
         orgName: row.organisations?.name ?? '—',
-        status: row.auth_id ? 'PROFILE_ONLY' : 'INVITE_PENDING',
+        status: !row.is_active
+          ? 'INACTIVE'
+          : row.auth_id
+            ? 'PROFILE_ONLY'
+            : 'INVITE_PENDING',
         lastActiveAt: null,
         isActive: row.is_active,
         teamIds: athleteTeamMap[row.id] ?? [],
@@ -200,8 +203,14 @@ export default function UserList({ user }) {
     'min-h-11 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 text-sm font-bold text-[var(--color-on-surface)] outline-none focus:border-[var(--color-primary-container)]';
   async function handleDeactivate(item) {
     try {
-      if (!item.userId) return;
-      await setUserActive(item.orgId ?? user.orgId, item.userId, false);
+      const orgId = item.orgId ?? user.orgId;
+      if (item.userId) {
+        await setUserActive(orgId, item.userId, false);
+      } else if (item.athleteId && item.kind === 'athlete_pending') {
+        await setAthleteActive(orgId, item.athleteId, false);
+      } else {
+        return;
+      }
       await loadUsers();
     } catch (err) {
       console.error('[UserList] deactivate', err);
@@ -211,8 +220,14 @@ export default function UserList({ user }) {
 
   async function handleReactivate(item) {
     try {
-      if (!item.userId) return;
-      await setUserActive(item.orgId ?? user.orgId, item.userId, true);
+      const orgId = item.orgId ?? user.orgId;
+      if (item.userId) {
+        await setUserActive(orgId, item.userId, true);
+      } else if (item.athleteId && item.kind === 'athlete_pending') {
+        await setAthleteActive(orgId, item.athleteId, true);
+      } else {
+        return;
+      }
       await loadUsers();
     } catch (err) {
       console.error('[UserList] reactivate', err);
@@ -220,7 +235,8 @@ export default function UserList({ user }) {
     }
   }
   function canResendInvite(row) {
-    if (row.kind === 'athlete_pending' || row.kind === 'athlete_auth') return true;
+    if (row.kind === 'athlete_pending') return row.status !== 'INACTIVE';
+    if (row.kind === 'athlete_auth') return true;
     if (row.kind === 'staff' && row.status === 'INACTIVE') return true;
     return false;
   }
@@ -424,9 +440,8 @@ export default function UserList({ user }) {
                           onClick: resendInvite,
                         },
                         {
-                          label: row.status === 'ACTIVE' ? 'Deactivate' : 'Reactivate',
-                          hidden: row.kind === 'athlete_pending',
-                          onClick: (item) => (item.status === 'ACTIVE' ? handleDeactivate(item) : handleReactivate(item)),
+                          label: row.isActive ? 'Deactivate' : 'Reactivate',
+                          onClick: (item) => (item.isActive ? handleDeactivate(item) : handleReactivate(item)),
                         },
                         {
                           label: 'Delete',

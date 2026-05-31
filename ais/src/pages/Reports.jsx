@@ -8,6 +8,7 @@ import VisibilityDenied from '../components/VisibilityDenied';
 import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope';
 import AthleteReport from '../components/reports/AthleteReport';
 import TeamReportConfig from '../components/reports/TeamReportConfig';
+import ObservationsTab from '../components/reports/ObservationsTab';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 import TabShell from '../components/layout/TabShell';
@@ -16,6 +17,7 @@ import { TopBarUserMenu } from '../components/layout/TopBar';
 const REPORT_TABS = [
   { id: 'individual', label: 'Individual Reports' },
   { id: 'team', label: 'Team Reports' },
+  { id: 'observations', label: 'Staff Logs' },
 ];
 
 function AthleteInitials({ athlete }) {
@@ -495,6 +497,9 @@ export default function Reports() {
       ),
       team: () => (
         <TeamReportsPanel user={user} activeOrgId={activeOrgId} effectiveOrgId={effectiveOrgId} />
+      ),
+      observations: () => (
+        <ObservationsTab user={user} activeOrgId={activeOrgId} effectiveOrgId={effectiveOrgId} />
       ),
     }),
     [loading, error, teams, teamFilter, filteredAthletes, user, activeOrgId, effectiveOrgId],
