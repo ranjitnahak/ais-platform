@@ -404,7 +404,10 @@ export default function UserList({ user }) {
               {rows.map((row) => (
                 <tr
                   key={row.key}
-                  onClick={() => setPanelTarget(row)}
+                  onClick={(event) => {
+                    if (event.target.closest('[data-admin-row-menu], [data-admin-row-menu-trigger]')) return;
+                    setPanelTarget(row);
+                  }}
                   className={`cursor-pointer transition-colors hover:bg-[var(--color-surface-container-high)] ${row.status === 'INACTIVE' ? 'opacity-60' : ''}`}
                 >
                   <td className="px-5 py-4 font-bold text-[var(--color-on-surface)]">
