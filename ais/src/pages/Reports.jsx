@@ -9,6 +9,7 @@ import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope';
 import AthleteReport from '../components/reports/AthleteReport';
 import TeamReportConfig from '../components/reports/TeamReportConfig';
 import ObservationsTab from '../components/reports/ObservationsTab';
+import DexaReportsTab from '../components/reports/DexaReportsTab';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 import TabShell from '../components/layout/TabShell';
@@ -18,6 +19,7 @@ const REPORT_TABS = [
   { id: 'individual', label: 'Individual Reports' },
   { id: 'team', label: 'Team Reports' },
   { id: 'observations', label: 'Staff Logs' },
+  { id: 'dexa', label: 'DEXA Reports' },
 ];
 
 function AthleteInitials({ athlete }) {
@@ -445,6 +447,9 @@ export default function Reports() {
       ),
       observations: () => (
         <ObservationsTab user={user} activeOrgId={activeOrgId} effectiveOrgId={effectiveOrgId} />
+      ),
+      dexa: () => (
+        <DexaReportsTab user={user} activeOrgId={activeOrgId} effectiveOrgId={effectiveOrgId} />
       ),
     }),
     [loading, error, teams, teamFilter, filteredAthletes, user, activeOrgId, effectiveOrgId],

@@ -7,6 +7,7 @@ import TabShell from '../components/layout/TabShell';
 import RPEEntryForm from '../components/log/RPEEntryForm';
 import WellnessEntryForm from '../components/log/WellnessEntryForm';
 import StaffNotes from './StaffNotes';
+import DexaUploadTab from '../components/dexa/DexaUploadTab';
 import LogSkeleton from '../components/shared/skeletons/LogSkeleton';
 
 const ALL_TABS = [
@@ -14,6 +15,7 @@ const ALL_TABS = [
   { id: 'wellness-entry', label: 'Wellness Entry', resource: 'wellness' },
   { id: 'assessment', label: 'Assessment', resource: 'assessments' },
   { id: 'staff-notes', label: 'Staff Notes', resource: 'staff_notes' },
+  { id: 'dexa', label: 'DEXA Upload' },
 ];
 
 function AssessmentTab() {
@@ -42,6 +44,7 @@ export default function Log() {
       'wellness-entry': () => <WellnessEntryForm />,
       assessment: () => <AssessmentTab />,
       'staff-notes': () => <StaffNotes embedded />,
+      dexa: () => <DexaUploadTab />,
     }),
     [],
   );

@@ -149,7 +149,10 @@ Create `.env.local` in the project root:
 ```
 VITE_SUPABASE_URL=https://cwyesqbxcczgbkkekhsc.supabase.co
 VITE_SUPABASE_ANON_KEY=your_anon_key_here
+VITE_ANTHROPIC_API_KEY=your_anthropic_key_here
 ```
+
+`VITE_ANTHROPIC_API_KEY` is required for the Log → DEXA Upload tab (client-side PDF extraction). Never commit this key.
 
 > ⚠️ Never commit `.env.local` to version control.
 
