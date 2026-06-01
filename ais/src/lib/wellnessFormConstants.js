@@ -5,6 +5,9 @@ export const WELLNESS_FORM_ITEM_SELECT =
 
 export const INPUT_TYPES = ['slider', 'number', 'radio', 'body_map'];
 
+/** Keys excluded from the 1–5 readiness composite (e.g. sleep duration on a 0–10 scale). */
+export const READINESS_COMPOSITE_EXCLUDED_KEYS = ['sleep_hours'];
+
 export function slugifyWellnessKey(label) {
   return String(label ?? '')
     .toLowerCase()

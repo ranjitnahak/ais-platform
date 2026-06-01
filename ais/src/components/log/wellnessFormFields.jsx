@@ -1,5 +1,5 @@
 import BodyMapSelector from '../shared/BodyMapSelector';
-import { parseLabelTranslations, parseOptions } from '../../lib/wellnessFormConstants';
+import { parseLabelTranslations, parseOptions, READINESS_COMPOSITE_EXCLUDED_KEYS } from '../../lib/wellnessFormConstants';
 
 export function WellnessFieldLabel({ item }) {
   const translations = parseLabelTranslations(item.label_translations);
@@ -28,17 +28,22 @@ export function WellnessField({ item, value, onChange }) {
 
   if (item.input_type === 'slider') {
     const current = value ?? midpoint(item);
+    const span = Number(item.scale_max) - Number(item.scale_min);
+    const step = span > 5 ? 1 : 0.5;
     return (
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
           <WellnessFieldLabel item={item} />
-          <span className="text-3xl font-black text-[var(--color-primary)]">{current}</span>
+          <span className="text-3xl font-black text-[var(--color-primary)]">
+            {current}
+            {item.key === 'sleep_hours' ? 'h' : ''}
+          </span>
         </div>
         <input
           type="range"
           min={item.scale_min}
           max={item.scale_max}
-          step="0.5"
+          step={step}
           value={current}
           onChange={(event) => onChange(item.key, Number(event.target.value))}
           className="h-10 w-full"
@@ -115,9 +120,13 @@ export function formatScore(score) {
   return Number.isNaN(value) ? '—' : value.toFixed(1);
 }
 
+/** Readiness composite: mean of 1–5 wellness sliders (excludes sleep_hours and non-slider fields). */
 export function getCompositeScore(items, responses) {
   const values = items
-    .filter((item) => ['slider', 'number'].includes(item.input_type))
+    .filter(
+      (item) =>
+        item.input_type === 'slider' && !READINESS_COMPOSITE_EXCLUDED_KEYS.includes(item.key),
+    )
     .map((item) => {
       const value = Number(responses[item.key]);
       if (Number.isNaN(value)) return null;

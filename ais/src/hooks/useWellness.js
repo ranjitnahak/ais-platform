@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { getCurrentUser } from '../lib/auth'
 import { resolveAthleteId } from '../lib/resolveAthleteId'
 import { loadWellnessFormItems } from '../lib/loadWellnessFormItems'
+import { READINESS_COMPOSITE_EXCLUDED_KEYS } from '../lib/wellnessFormConstants'
 import { useUser } from '../context/UserContext'
 export function useWellness() {
   const { user, activeOrgId } = useUser()
@@ -70,15 +71,19 @@ export function useWellness() {
       const athleteId = await resolveAthleteId(currentUser, effectiveOrgId)
       if (!athleteId) throw new Error('No athlete profile linked to this account.')
 
-      // Compute composite score
-      // Average of numeric slider responses (exclude radio/body_map)
-      const numericItems = formItems.filter(item => item.input_type === 'slider' || item.input_type === 'number')
-      const numericValues = numericItems
-        .map(item => {
-          const val = responses[item.key]
-          return item.direction === 'lower_better' ? (item.scale_max - val + item.scale_min) : val
+      const readinessItems = formItems.filter(
+        (item) =>
+          item.input_type === 'slider' && !READINESS_COMPOSITE_EXCLUDED_KEYS.includes(item.key),
+      )
+      const numericValues = readinessItems
+        .map((item) => {
+          const val = Number(responses[item.key])
+          if (Number.isNaN(val)) return null
+          return item.direction === 'lower_better'
+            ? Number(item.scale_max) - val + Number(item.scale_min)
+            : val
         })
-        .filter(v => v != null && !isNaN(v))
+        .filter((v) => v != null)
 
       const compositeScore = numericValues.length > 0
         ? numericValues.reduce((a, b) => a + b, 0) / numericValues.length
