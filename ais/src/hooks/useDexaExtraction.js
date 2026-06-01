@@ -217,6 +217,8 @@ export function useDexaExtraction() {
       const row = {
         org_id: effectiveOrgId,
         athlete_id: selectedAthleteId,
+        source: 'ai_extracted',
+        created_by: user?.id ?? null,
         ...pickDexaPayload(extractedFields),
       };
 
