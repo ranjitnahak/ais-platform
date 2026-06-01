@@ -164,6 +164,10 @@ export default function App() {
             <Route path="/staff-notes" element={<Navigate to="/log" replace />} />
             <Route path="/squad" element={<Navigate to="/dashboard" replace />} />
             <Route path="/periodisation" element={<Periodisation />} />
+            <Route
+              path="/plan/calendar"
+              element={<Periodisation defaultView="weekly" defaultWeek="current" />}
+            />
             <Route path="/assess" element={<Navigate to="/log" replace />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<Admin />} />

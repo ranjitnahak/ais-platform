@@ -10,7 +10,7 @@ import { TopBarUserMenu } from '../components/layout/TopBar';
 import { usePeriodisationPlan } from '../hooks/usePeriodisationPlan';
 import PeriodisationCanvas from '../components/periodisation/PeriodisationCanvas';
 import PeriodisationWeekly from '../components/periodisation/PeriodisationWeekly';
-import { addDays } from '../lib/periodisationUtils';
+import { addDays, startOfWeekMonday, toISODate, weekStartsBetween } from '../lib/periodisationUtils';
 import {
   replaceAthleteWithTeamPlan,
   updateAthleteFromTeamPlan,
@@ -48,7 +48,7 @@ const DEFAULT_TEMPLATE_ROWS = [
   { row_group: 'Technical / tactical', label: 'Primary focus', row_type: 'text', sort_order: 30 },
 ];
 
-export default function Periodisation() {
+export default function Periodisation({ defaultView = 'annual', defaultWeek = null }) {
   const navigate = useNavigate();
   const { activeOrgId, activeTeamId, availableTeams, user: contextUser } = useUser();
   const [user, setUser] = useState(null);
@@ -229,6 +229,56 @@ export default function Periodisation() {
     return null;
   }, [plan, viewMode, selectedAthleteId, ghostPlan]);
 
+  useEffect(() => {
+    if (defaultView === 'annual') {
+      setSelectedWeek(null);
+    }
+  }, [defaultView]);
+
+  useEffect(() => {
+    if (defaultView !== 'weekly' || initialLoading || !effectivePlan?.start_date || !effectivePlan?.end_date) {
+      return;
+    }
+    if (selectedWeek) return;
+    if (defaultWeek !== 'current') return;
+
+    const todayMonday = toISODate(startOfWeekMonday(new Date()));
+    const weeks = weekStartsBetween(effectivePlan.start_date, effectivePlan.end_date);
+    if (!weeks.length) return;
+
+    let idx = weeks.findIndex((w) => w.monday === todayMonday);
+    if (idx < 0) {
+      const firstMonday = weeks[0].monday;
+      const lastMonday = weeks[weeks.length - 1].monday;
+      if (todayMonday < firstMonday) {
+        idx = 0;
+      } else if (todayMonday > lastMonday) {
+        idx = weeks.length - 1;
+      } else {
+        idx = weeks.findIndex((w, i) => {
+          const next = weeks[i + 1];
+          return !next || next.monday > todayMonday;
+        });
+        if (idx < 0) idx = weeks.length - 1;
+      }
+    }
+
+    const week = weeks[idx];
+    setSelectedWeek({
+      weekIndex: idx,
+      weekStartIso: week.monday,
+      weekEndIso: addDays(week.monday, 6),
+    });
+  }, [defaultView, defaultWeek, initialLoading, effectivePlan, selectedWeek]);
+
+  const handleWeeklyBack = useCallback(() => {
+    if (defaultView === 'weekly') {
+      navigate('/periodisation');
+      return;
+    }
+    setSelectedWeek(null);
+  }, [defaultView, navigate]);
+
   const canEdit = plan
     ? canSync(user, 'periodisation', 'edit') && (user?.isSuperuser || effectiveTeamIds.includes(plan.team_id))
     : canSync(user, 'periodisation', 'edit');
@@ -255,6 +305,7 @@ export default function Periodisation() {
           start_date: createForm.start_date,
           end_date: createForm.end_date,
           athlete_id: athleteIdForPlan,
+          created_by: authUser?.id ?? null,
         })
         .select()
         .single();
@@ -454,7 +505,8 @@ export default function Periodisation() {
             rows={rows}
             cells={cells}
             teamId={selectedTeamId}
-            onBack={() => setSelectedWeek(null)}
+            defaultWeek={defaultWeek}
+            onBack={handleWeeklyBack}
             onPrev={() =>
               setSelectedWeek((w) => {
                 if (!w) return w;

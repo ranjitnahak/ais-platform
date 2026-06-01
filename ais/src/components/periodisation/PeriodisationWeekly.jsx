@@ -139,6 +139,10 @@ function SessionCalBlock({ session: s, segFrom, onOpen, onPointerDown, onContext
   );
 }
 
+/**
+ * @param {string|null} [defaultWeek] — when `"current"`, parent (`Periodisation.jsx`) resolves
+ *   the plan week containing today before mount; this component receives `weekStartIso` / `weekIndex`.
+ */
 export default function PeriodisationWeekly({
   team,
   plan,
@@ -148,6 +152,7 @@ export default function PeriodisationWeekly({
   rows,
   cells,
   teamId,
+  defaultWeek = null,
   onBack,
   onPrev,
   onNext,

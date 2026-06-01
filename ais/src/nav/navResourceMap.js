@@ -5,6 +5,7 @@ export const NAV_ROUTE_RESOURCE = {
   '/dashboard': null,
   '/athletes': 'athleteRoster',
   '/periodisation': 'periodisation',
+  '/plan/calendar': 'periodisation',
   '/log': null,
   '/reports': 'reports',
   '/admin': 'adminConfig',

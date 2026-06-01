@@ -5,10 +5,11 @@ import { getUserAccountLabels, signOutAndRedirect } from '../../lib/authSession'
 import {
   STAFF_BOTTOM_NAV,
   STAFF_MORE_NAV,
+  STAFF_PLAN_NAV,
   ATHLETE_BOTTOM_NAV,
   ATHLETE_MORE_NAV,
 } from '../../nav/mobileNavItems';
-import { filterStaffNavItems } from '../../nav/navResourceMap';
+import { filterStaffNavItems, isNavRouteVisible } from '../../nav/navResourceMap';
 
 const ADMIN_ROLES = ['admin', 'superuser'];
 
@@ -45,7 +46,7 @@ function NavIcon({ icon, active }) {
   );
 }
 
-function MoreSheet({ open, items, onClose, pathname, user }) {
+function MoreSheet({ open, items, planItems, showPlanSection, onClose, pathname, user }) {
   const navigate = useNavigate();
   const { displayName, roleLabel } = getUserAccountLabels(user);
 
@@ -59,6 +60,32 @@ function MoreSheet({ open, items, onClose, pathname, user }) {
   }, [open, onClose]);
 
   if (!open) return null;
+
+  const renderNavRow = (item, indent = false) => {
+    const active = isRouteActive(pathname, item.to);
+    return (
+      <button
+        type="button"
+        className={`flex w-full items-center gap-4 py-4 text-left transition-colors hover:bg-[var(--color-surface-container)] ${
+          indent ? 'pl-10 pr-6' : 'px-6'
+        }`}
+        onClick={() => {
+          onClose();
+          navigate(item.to);
+        }}
+      >
+        <NavIcon icon={item.icon} active={active} />
+        <span
+          className={`font-bold tracking-tight ${indent ? 'text-xs uppercase' : 'text-sm'}`}
+          style={{
+            color: active ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+          }}
+        >
+          {item.label}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-[60] lg:hidden" role="presentation">
@@ -88,34 +115,29 @@ function MoreSheet({ open, items, onClose, pathname, user }) {
         </div>
         <div className="mx-4 border-t border-[var(--color-outline-variant)]" />
         <ul className="pb-2">
-          {items.map((item, index) => {
-            const active = isRouteActive(pathname, item.to);
-            return (
-              <li key={item.to}>
-                {index > 0 && (
-                  <div className="mx-4 border-t border-[var(--color-outline-variant)]" />
-                )}
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-[var(--color-surface-container)]"
-                  onClick={() => {
-                    onClose();
-                    navigate(item.to);
-                  }}
-                >
-                  <NavIcon icon={item.icon} active={active} />
-                  <span
-                    className="text-sm font-bold tracking-tight"
-                    style={{
-                      color: active ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-                    }}
-                  >
-                    {item.label}
-                  </span>
-                </button>
+          {showPlanSection && planItems.length > 0 && (
+            <>
+              <li>
+                <p className="px-6 pt-4 pb-1 text-[10px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
+                  Plan
+                </p>
               </li>
-            );
-          })}
+              {planItems.map((item) => (
+                <li key={item.to}>
+                  <div className="mx-4 border-t border-[var(--color-outline-variant)]" />
+                  {renderNavRow(item, true)}
+                </li>
+              ))}
+            </>
+          )}
+          {items.map((item, index) => (
+            <li key={item.to}>
+              {(index > 0 || (showPlanSection && planItems.length > 0)) && (
+                <div className="mx-4 border-t border-[var(--color-outline-variant)]" />
+              )}
+              {renderNavRow(item)}
+            </li>
+          ))}
         </ul>
         <div className="mx-4 border-t border-[var(--color-outline-variant)]" />
         <button
@@ -196,9 +218,16 @@ export default function BottomNav({ variant = 'staff' }) {
     () => (isStaff ? filterStaffItems(STAFF_MORE_NAV, user) : ATHLETE_MORE_NAV),
     [isStaff, user],
   );
+  const planItems = useMemo(
+    () => (isStaff ? filterStaffItems(STAFF_PLAN_NAV, user) : []),
+    [isStaff, user],
+  );
+  const showPlanSection = isStaff && isNavRouteVisible(user, '/periodisation');
 
   const moreActive =
-    moreOpen || moreItems.some((item) => isRouteActive(pathname, item.to));
+    moreOpen ||
+    moreItems.some((item) => isRouteActive(pathname, item.to)) ||
+    planItems.some((item) => isRouteActive(pathname, item.to));
 
   const barWithMore = [
     ...barItems,
@@ -214,6 +243,8 @@ export default function BottomNav({ variant = 'staff' }) {
       <MoreSheet
         open={moreOpen}
         items={moreItems}
+        planItems={planItems}
+        showPlanSection={showPlanSection}
         onClose={() => setMoreOpen(false)}
         pathname={pathname}
         user={user}

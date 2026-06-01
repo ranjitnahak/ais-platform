@@ -6,8 +6,12 @@ export const STAFF_BOTTOM_NAV = [
   { icon: 'description', label: 'Reports', to: '/reports' },
 ];
 
+export const STAFF_PLAN_NAV = [
+  { icon: 'view_week', label: 'Periodisation', to: '/periodisation' },
+  { icon: 'calendar_month', label: 'Calendar', to: '/plan/calendar' },
+];
+
 export const STAFF_MORE_NAV = [
-  { icon: 'calendar_month', label: 'Periodisation', to: '/periodisation' },
   { icon: 'admin_panel_settings', label: 'Admin', to: '/admin', adminOnly: true },
   { icon: 'settings', label: 'Settings', to: '/settings' },
   { icon: 'shield', label: 'Superuser', to: '/superuser', superuserOnly: true },
