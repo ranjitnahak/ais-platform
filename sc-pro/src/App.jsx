@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Sidebar from './components/layout/Sidebar.jsx'
+import AppHeader from './components/layout/AppHeader.jsx'
+import { UserProvider } from './context/UserContext.jsx'
 import Programmes from './pages/Programmes.jsx'
 import ProgrammeDetail from './pages/ProgrammeDetail.jsx'
 import SessionBuilder from './pages/SessionBuilder.jsx'
@@ -11,23 +13,26 @@ function Shell({ children }) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar />
-      <main
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          background: 'var(--color-bg)',
-        }}
-      >
-        {children}
-      </main>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <AppHeader />
+        <main
+          style={{
+            flex: 1,
+            overflow: 'auto',
+            background: 'var(--color-bg)',
+          }}
+        >
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <>
+    <UserProvider>
+      <BrowserRouter>
         <Shell>
           <Routes>
             <Route path="/" element={<Navigate to="/programmes" replace />} />
@@ -44,7 +49,7 @@ export default function App() {
           </Routes>
         </Shell>
         <AssistantPanel />
-      </>
-    </BrowserRouter>
+      </BrowserRouter>
+    </UserProvider>
   )
 }

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient.js'
 import { getCurrentUser } from '../lib/auth.js'
+import { useUser } from '../context/UserContext.jsx'
+import { getScopedTeamIds } from '../lib/teamScope.js'
 import { duplicateProgrammeSessionDeep } from '../lib/duplicateProgrammeSession.js'
 
 export const PAGE_SIZE = 5
@@ -17,10 +19,10 @@ function friendlyProgrammeDbError(err) {
   return m || 'Request failed'
 }
 
-function useTeamUsageMap(programmeIds, refreshKey) {
+function useTeamUsageMap(programmeIds, refreshKey, teamIds) {
   const [map, setMap] = useState({})
   useEffect(() => {
-    if (!programmeIds.length) {
+    if (!programmeIds.length || !teamIds.length) {
       setMap({})
       return
     }
@@ -32,7 +34,7 @@ function useTeamUsageMap(programmeIds, refreshKey) {
           .from('programme_weeks')
           .select('id, programme_id')
           .eq('org_id', user.orgId)
-          .in('team_id', user.teamIds)
+          .in('team_id', teamIds)
           .in('programme_id', programmeIds)
         if (wErr) throw wErr
         if (!weeks?.length) {
@@ -52,7 +54,7 @@ function useTeamUsageMap(programmeIds, refreshKey) {
           const pid = weekToProgramme[row.programme_week_id]
           if (!pid || !next[pid]) continue
           const tid = row.sessions?.team_id
-          if (tid && user.teamIds.includes(tid)) next[pid].add(tid)
+          if (tid && teamIds.includes(tid)) next[pid].add(tid)
         }
         if (!cancelled) {
           setMap(
@@ -67,13 +69,17 @@ function useTeamUsageMap(programmeIds, refreshKey) {
     return () => {
       cancelled = true
     }
-  }, [programmeIds.join(','), refreshKey])
+  }, [programmeIds.join(','), refreshKey, teamIds.join(',')])
   return map
 }
 
 export function useProgrammesLibrary() {
+  const { user: contextUser, activeTeamId } = useUser()
   const [user, setUser] = useState(null)
-  const userTeamIds = useMemo(() => user?.teamIds ?? [], [user])
+  const userTeamIds = useMemo(
+    () => getScopedTeamIds(user?.teamIds ?? contextUser?.teamIds, activeTeamId),
+    [user?.teamIds, contextUser?.teamIds, activeTeamId],
+  )
   const navigate = useNavigate()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -98,7 +104,7 @@ export function useProgrammesLibrary() {
   }, [])
 
   const programmeIds = useMemo(() => rows.map((r) => r.id), [rows])
-  const teamUsage = useTeamUsageMap(programmeIds, refreshKey)
+  const teamUsage = useTeamUsageMap(programmeIds, refreshKey, userTeamIds)
 
   const load = useCallback(async () => {
     if (!user?.orgId) return

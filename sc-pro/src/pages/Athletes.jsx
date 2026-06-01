@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAthletes } from '../hooks/useAthletes.js'
+import { useUser } from '../context/UserContext.jsx'
 import { useAssistantAthletes } from '../hooks/useAssistantAthletes.js'
 import { ASSISTANT_ACTION_COMPLETE } from '../lib/assistantContext.js'
 import AthleteTable from '../components/athletes/AthleteTable.jsx'
@@ -11,6 +12,7 @@ function sortByName(list) {
 }
 
 export default function Athletes() {
+  const { activeTeamId, setActiveTeamId } = useUser()
   const { athletes, teams, loading, error, refetch } = useAthletes()
   const [teamFilter, setTeamFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -20,6 +22,15 @@ export default function Athletes() {
   const [addOpen, setAddOpen] = useState(false)
 
   useAssistantAthletes({ athletes, setTeamFilter })
+
+  useEffect(() => {
+    if (activeTeamId) setTeamFilter(activeTeamId)
+  }, [activeTeamId])
+
+  function handleTeamFilterChange(next) {
+    setTeamFilter(next)
+    if (next) setActiveTeamId(next)
+  }
 
   useEffect(() => {
     const h = (e) => {
@@ -60,7 +71,7 @@ export default function Athletes() {
         </h1>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} style={controlStyle}>
+          <select value={teamFilter} onChange={(e) => handleTeamFilterChange(e.target.value)} style={controlStyle}>
             <option value="">All Teams</option>
             {teams.map((t) => (
               <option key={t.id} value={t.id}>

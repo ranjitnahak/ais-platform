@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
-import { getCurrentUser } from '../lib/auth.js'
+import { useUser } from '../context/UserContext.jsx'
+import { getScopedTeamIds } from '../lib/teamScope.js'
 
 const CORE_TEST_HINTS = {
   flexibility: ['flexibility', 'sit & reach', 'sit and reach'],
@@ -95,16 +96,16 @@ function weekHistoryFromSessions(sessionDates, completedSessionIds, now) {
 }
 
 export function useAthletes() {
-  const user = getCurrentUser()
+  const { user, activeTeamId, availableTeams } = useUser()
   const [athletes, setAthletes] = useState([])
-  const [teams, setTeams] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const teams = availableTeams
+  const scopedTeamIds = getScopedTeamIds(user?.teamIds, activeTeamId)
 
   const fetchAthletes = useCallback(async () => {
-    if (!user.orgId || !user.teamIds?.length) {
+    if (!user?.orgId || !scopedTeamIds.length) {
       setAthletes([])
-      setTeams([])
       setLoading(false)
       return
     }
@@ -115,11 +116,10 @@ export function useAthletes() {
         .from('teams')
         .select('id, name')
         .eq('org_id', user.orgId)
-        .in('id', user.teamIds)
+        .in('id', scopedTeamIds)
         .order('name', { ascending: true })
       if (teamsErr) throw teamsErr
       const teamMap = new Map((teamsData ?? []).map((t) => [t.id, t]))
-      setTeams(teamsData ?? [])
 
       const { data: athleteRows, error: athleteErr } = await supabase
         .from('athletes')
@@ -133,7 +133,7 @@ export function useAthletes() {
         `,
         )
         .eq('org_id', user.orgId)
-        .in('athlete_teams.team_id', user.teamIds)
+        .in('athlete_teams.team_id', scopedTeamIds)
       if (athleteErr) throw athleteErr
 
       const baseAthletes = (athleteRows ?? []).map((a) => {
@@ -159,7 +159,7 @@ export function useAthletes() {
       })
       const athleteIds = baseAthletes.map((a) => a.id)
       const allTeamIds = [...new Set(baseAthletes.flatMap((a) => a.teams.map((t) => t.id)))]
-      const teamScope = allTeamIds.length ? allTeamIds : user.teamIds
+      const teamScope = allTeamIds.length ? allTeamIds : scopedTeamIds
 
       /** programme_id -> { id, name } from explicit team / athlete assignment tables */
       const programmesByAthleteId = new Map()
@@ -336,11 +336,10 @@ export function useAthletes() {
       console.error('[useAthletes]', err)
       setError(err?.message ?? 'Failed to load athletes')
       setAthletes([])
-      setTeams([])
     } finally {
       setLoading(false)
     }
-  }, [user.orgId, user.teamIds])
+  }, [user?.orgId, user?.teamIds, activeTeamId, scopedTeamIds.join(',')])
 
   useEffect(() => {
     void fetchAthletes()
