@@ -1,11 +1,37 @@
+import BodyMapSelector from '../shared/BodyMapSelector';
+import { parseLabelTranslations, parseOptions } from '../../lib/wellnessFormConstants';
+
+export function WellnessFieldLabel({ item }) {
+  const translations = parseLabelTranslations(item.label_translations);
+  return (
+    <div className="mb-2">
+      <p className="text-sm font-black text-[var(--color-on-surface)]">{item.label}</p>
+      {translations.hi && (
+        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{translations.hi}</p>
+      )}
+    </div>
+  );
+}
+
 export function WellnessField({ item, value, onChange }) {
-  const label = item.label;
+  if (item.input_type === 'body_map') {
+    const regions = Array.isArray(value) ? value : [];
+    return (
+      <BodyMapSelector
+        label={item.label}
+        labelTranslations={item.label_translations}
+        value={regions}
+        onChange={(next) => onChange(item.key, next)}
+      />
+    );
+  }
+
   if (item.input_type === 'slider') {
     const current = value ?? midpoint(item);
     return (
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
-          <label className="text-sm font-black text-[var(--color-on-surface)]">{label}</label>
+          <WellnessFieldLabel item={item} />
           <span className="text-3xl font-black text-[var(--color-primary)]">{current}</span>
         </div>
         <input
@@ -25,10 +51,11 @@ export function WellnessField({ item, value, onChange }) {
       </div>
     );
   }
+
   if (item.input_type === 'number') {
     return (
-      <label className="block text-sm font-black text-[var(--color-on-surface)]">
-        {label}
+      <label className="block">
+        <WellnessFieldLabel item={item} />
         <input
           type="number"
           value={value ?? ''}
@@ -39,12 +66,14 @@ export function WellnessField({ item, value, onChange }) {
       </label>
     );
   }
+
   if (item.input_type === 'radio') {
+    const options = parseOptions(item.options);
     return (
       <div>
-        <p className="text-sm font-black text-[var(--color-on-surface)]">{label}</p>
+        <WellnessFieldLabel item={item} />
         <div className="mt-2 flex flex-wrap gap-2">
-          {getOptions(item).map((option) => (
+          {options.map((option) => (
             <button
               key={option}
               type="button"
@@ -62,14 +91,14 @@ export function WellnessField({ item, value, onChange }) {
       </div>
     );
   }
+
   return (
-    <label className="block text-sm font-black text-[var(--color-on-surface)]">
-      {label}
+    <label className="block">
+      <WellnessFieldLabel item={item} />
       <input
         type="text"
         value={value ?? ''}
         onChange={(event) => onChange(item.key, event.target.value)}
-        placeholder="Describe any areas of soreness"
         className="mt-2 min-h-12 w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-4 text-base font-normal text-[var(--color-on-surface)] outline-none"
       />
     </label>
@@ -80,16 +109,8 @@ export function midpoint(item) {
   return (Number(item.scale_min ?? 0) + Number(item.scale_max ?? 5)) / 2;
 }
 
-function getOptions(item) {
-  if (Array.isArray(item.options)) return item.options;
-  try {
-    return JSON.parse(item.options ?? '[]');
-  } catch {
-    return [];
-  }
-}
-
 export function formatScore(score) {
+  if (score == null) return '—';
   const value = Number(score);
   return Number.isNaN(value) ? '—' : value.toFixed(1);
 }

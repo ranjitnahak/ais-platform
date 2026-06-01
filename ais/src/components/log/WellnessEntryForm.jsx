@@ -55,6 +55,11 @@ export default function WellnessEntryForm() {
 
         {!wellness.loading && !wellness.submitted && (
           <div className="space-y-5">
+            {wellness.formItems.length === 0 && (
+              <p className="text-sm text-[var(--color-on-surface-variant)]">
+                No wellness questions are configured for your organisation yet.
+              </p>
+            )}
             {wellness.formItems.map((item) => (
               <WellnessField key={item.id} item={item} value={responses[item.key]} onChange={updateResponse} />
             ))}

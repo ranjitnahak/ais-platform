@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentUser } from '../lib/auth'
+import { resolveAthleteId } from '../lib/resolveAthleteId'
 import { useUser } from '../context/UserContext'
 export function useRPELog() {
   const { user, activeOrgId } = useUser()
@@ -68,16 +69,8 @@ export function useRPELog() {
         effectiveTeamIds = orgTeams?.map((team) => team.id) ?? []
       }
       
-      // Get athlete ID linked to this user
-      const { data: athlete, error: athleteError } = await supabase
-        .from('athletes')
-        .select('id')
-        .eq('org_id', effectiveOrgId)
-        .eq('email', currentUser.email)  
-        .maybeSingle()
-      
-      // If no athlete found, use user.id as fallback
-      const athleteId = athlete?.id ?? currentUser.id
+      const athleteId = await resolveAthleteId(currentUser, effectiveOrgId)
+      if (!athleteId) throw new Error('No athlete profile linked to this account.')
       
       const { error: upsertError } = await supabase
         .from('session_athlete_logs')

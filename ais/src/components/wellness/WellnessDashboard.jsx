@@ -138,6 +138,9 @@ function SummaryTile({ label, value }) {
 function AthleteCard({ athlete, log }) {
   const score = log?.composite_score == null ? null : Number(log.composite_score)
   const flagged = Boolean(log?.flagged) || (score != null && score < 2.5)
+  const sorenessAreas = Array.isArray(log?.responses?.soreness_areas)
+    ? log.responses.soreness_areas
+    : []
   return (
     <article className={`min-h-48 rounded-3xl border p-4 ${log ? 'border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]' : 'border-[var(--color-outline-variant)] bg-[var(--color-surface-variant)] opacity-70'}`}>
       <div className="flex items-center gap-3">
@@ -159,6 +162,19 @@ function AthleteCard({ athlete, log }) {
         {score == null ? <span className="rounded-full bg-[var(--color-surface)] px-3 py-2 text-xs font-black text-[var(--color-outline)]">Not submitted</span> : <ScoreBadge score={score} />}
         {log && <WellnessTrend athleteId={athlete.id} />}
       </div>
+
+      {sorenessAreas.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {sorenessAreas.map((area) => (
+            <span
+              key={area}
+              className="rounded-full bg-[var(--color-error-container)] px-2 py-0.5 text-[9px] font-bold text-[var(--color-error)]"
+            >
+              {area}
+            </span>
+          ))}
+        </div>
+      )}
     </article>
   )
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCurrentUser } from '../lib/auth'
+import { resolveAthleteId } from '../lib/resolveAthleteId'
+import { loadWellnessFormItems } from '../lib/loadWellnessFormItems'
 import { useUser } from '../context/UserContext'
 export function useWellness() {
   const { user, activeOrgId } = useUser()
@@ -21,19 +23,16 @@ export function useWellness() {
       if (!currentUser || !effectiveOrgId) return
       const today = new Date().toISOString().split('T')[0]
 
-      // Fetch form definition for this org
-      const { data: items, error: itemsError } = await supabase
-        .from('wellness_form_items')
-        .select('id, key, label, label_translations, input_type, scale_min, scale_max, scale_min_label, scale_max_label, options, direction, sort_order, is_required')
-        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-      if (itemsError) throw itemsError
+      const items = await loadWellnessFormItems(supabase, effectiveOrgId)
 
       // Check if already submitted today
-      // Get athlete linked to this user
-      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', effectiveOrgId).eq('email', currentUser.email).maybeSingle()
-      const athleteId = athlete?.id ?? currentUser.id
+      const athleteId = await resolveAthleteId(currentUser, effectiveOrgId)
+      if (!athleteId) {
+        setFormItems(items ?? [])
+        setTodayLog(null)
+        setError('No athlete profile linked to this account.')
+        return
+      }
 
       const { data: existing } = await supabase
         .from('wellness_logs')
@@ -68,8 +67,8 @@ export function useWellness() {
       }
       const today = new Date().toISOString().split('T')[0]
 
-      const { data: athlete } = await supabase.from('athletes').select('id').eq('org_id', effectiveOrgId).eq('email', currentUser.email).maybeSingle()
-      const athleteId = athlete?.id ?? currentUser.id
+      const athleteId = await resolveAthleteId(currentUser, effectiveOrgId)
+      if (!athleteId) throw new Error('No athlete profile linked to this account.')
 
       // Compute composite score
       // Average of numeric slider responses (exclude radio/body_map)
@@ -90,9 +89,18 @@ export function useWellness() {
         .upsert({
           athlete_id: athleteId, org_id: effectiveOrgId, team_id: effectiveTeamIds[0] ?? null,
           log_date: today, responses,
-          composite_score: compositeScore ? Math.round(compositeScore * 100) / 100 : null,
+          composite_score: compositeScore != null ? Math.round(compositeScore * 100) / 100 : null,
         }, { onConflict: 'athlete_id,log_date' })
       if (upsertError) throw upsertError
+
+      const { data: savedLog } = await supabase
+        .from('wellness_logs')
+        .select('id, responses, composite_score, logged_at')
+        .eq('org_id', effectiveOrgId)
+        .eq('athlete_id', athleteId)
+        .eq('log_date', today)
+        .maybeSingle()
+      setTodayLog(savedLog ?? null)
       setSubmitted(true)
     } catch (err) {
       console.error('[useWellness] submitWellness failed:', err)

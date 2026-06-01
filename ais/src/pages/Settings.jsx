@@ -5,9 +5,11 @@ import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
 import Sidebar from '../components/Sidebar';
 import TabShell from '../components/layout/TabShell';
+import WellnessFormPanel from '../components/settings/WellnessFormPanel';
 
 const SETTINGS_TABS = [
   { id: 'tests', label: 'Test Setup' },
+  { id: 'wellness', label: 'Wellness Form' },
 ];
 
 function NavItem({ label, tabKey, activeTab, onClick, onPrefetch }) {
@@ -144,6 +146,7 @@ export default function Settings() {
   const panels = useMemo(
     () => ({
       tests: () => <TestSetupPanel />,
+      wellness: () => <WellnessFormPanel />,
       preferences: () => <PreferencesPlaceholder />,
     }),
     [],
