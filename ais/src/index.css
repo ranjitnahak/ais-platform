@@ -50,6 +50,14 @@
   --color-surface-container: #1f1f21;
   --color-secondary-container: #3b82f6;
 
+  /* ── Classification / layout aliases (wellness table, reports) ── */
+  --color-below-avg: var(--color-error-container);
+  --color-avg: var(--color-primary-container);
+  --color-excellent: var(--color-tertiary-container);
+  --color-text-muted: var(--color-on-surface-variant);
+  --color-surface-hover: var(--color-surface-container-high);
+  --color-border: var(--color-outline-variant);
+
   /* ── Typography ── */
   --font-headline: "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
