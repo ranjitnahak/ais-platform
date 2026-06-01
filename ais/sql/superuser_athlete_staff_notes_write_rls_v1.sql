@@ -1,6 +1,11 @@
--- AIS — Allow platform superusers to delete/update athlete_staff_notes across orgs (org switcher).
--- Symptom: user delete fails with FK 23503 on athlete_staff_notes_author_id_fkey after cleanup no-ops.
--- Cause: staff_notes_isolation enforces org_id = get_current_org_id(); no superuser bypass.
+-- AIS — Allow platform superusers to read/write athlete_staff_notes across orgs (org switcher).
+-- Symptom: insert/update/delete fails with RLS 42501 or FK cleanup no-ops.
+-- Cause: staff_notes_isolation enforces org_id = get_current_org_id() (home org); no superuser INSERT bypass.
+
+DROP POLICY IF EXISTS athlete_staff_notes_platform_superuser_insert ON public.athlete_staff_notes;
+CREATE POLICY athlete_staff_notes_platform_superuser_insert
+  ON public.athlete_staff_notes FOR INSERT TO authenticated
+  WITH CHECK (public.is_platform_superuser());
 
 DROP POLICY IF EXISTS athlete_staff_notes_platform_superuser_select ON public.athlete_staff_notes;
 CREATE POLICY athlete_staff_notes_platform_superuser_select
