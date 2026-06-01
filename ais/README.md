@@ -152,7 +152,7 @@ VITE_SUPABASE_ANON_KEY=your_anon_key_here
 VITE_ANTHROPIC_API_KEY=your_anthropic_key_here
 ```
 
-`VITE_ANTHROPIC_API_KEY` is required for the Log → DEXA Upload tab (client-side PDF extraction). Never commit this key.
+**DEXA Upload (production):** PDF extraction runs via the Supabase Edge Function `extract-dexa-scan`, which uses the project secret `ANTHROPIC_API_KEY` (same as `generate-report`). Set that in Supabase Dashboard → Project Settings → Edge Functions → Secrets. `VITE_ANTHROPIC_API_KEY` is optional for local dev fallback only. Never commit API keys.
 
 > ⚠️ Never commit `.env.local` to version control.
 

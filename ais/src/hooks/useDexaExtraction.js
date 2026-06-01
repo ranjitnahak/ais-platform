@@ -118,56 +118,77 @@ export function useDexaExtraction() {
   }, [clearTimers]);
 
   const extractFromPdf = useCallback(async (base64) => {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('Anthropic API key is not configured (VITE_ANTHROPIC_API_KEY).');
+    const viteKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+    let payload = null;
+
+    try {
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('extract-dexa-scan', {
+        body: { pdfBase64: base64 },
+      });
+      if (fnError) throw fnError;
+      if (fnData?.error) throw new Error(fnData.error);
+      if (fnData?.fields) {
+        payload = pickDexaPayload(fnData.fields);
+      }
+    } catch (edgeErr) {
+      console.error('[DexaExtraction] edge function failed:', edgeErr);
+      if (!viteKey) {
+        throw new Error(
+          'DEXA extraction is unavailable. Configure ANTHROPIC_API_KEY on Supabase (Edge Function) or VITE_ANTHROPIC_API_KEY for local dev.',
+        );
+      }
     }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: ANTHROPIC_MODEL,
-        max_tokens: 2000,
-        system: buildDexaExtractionSystemPrompt(),
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'document',
-                source: {
-                  type: 'base64',
-                  media_type: 'application/pdf',
-                  data: base64,
+    if (!payload && viteKey) {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': viteKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 2000,
+          system: buildDexaExtractionSystemPrompt(),
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'document',
+                  source: {
+                    type: 'base64',
+                    media_type: 'application/pdf',
+                    data: base64,
+                  },
                 },
-              },
-              {
-                type: 'text',
-                text: 'Extract all DEXA scan fields from this report as JSON.',
-              },
-            ],
-          },
-        ],
-      }),
-    });
+                {
+                  type: 'text',
+                  text: 'Extract all DEXA scan fields from this report as JSON.',
+                },
+              ],
+            },
+          ],
+        }),
+      });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Extraction failed (${response.status}): ${errText}`);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Extraction failed (${response.status}): ${errText}`);
+      }
+
+      const data = await response.json();
+      const text = data?.content?.[0]?.text;
+      if (!text) throw new Error('No extraction response from AI.');
+      payload = pickDexaPayload(parseExtractionJson(text));
     }
 
-    const data = await response.json();
-    const text = data?.content?.[0]?.text;
-    if (!text) throw new Error('No extraction response from AI.');
+    if (!payload) {
+      throw new Error('DEXA extraction failed. Try again or contact support.');
+    }
 
-    const parsed = parseExtractionJson(text);
-    const payload = pickDexaPayload(parsed);
     setExtractedFields(payload);
     animateFieldPopulation(payload);
   }, [animateFieldPopulation]);
