@@ -32,7 +32,7 @@ export default function StaffNotes({ embedded = false }) {
   const isSuperuser = user?.isSuperuser === true
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId)
   const canView = canSync(user, 'staff_notes', 'view')
-  const canCreate = canSync(user, 'reports', 'create')
+  const canCreate = canSync(user, 'staff_notes', 'create')
   const teamNotes = useStaffNotes({ teamId: selectedTeamId, activeOrgId: effectiveOrgId })
   const athleteNotes = useStaffNotes({ teamId: selectedTeamId, athleteId: selectedAthleteId, activeOrgId: effectiveOrgId })
   const userDomain = user ? getStaffDomain(user.role) : null
