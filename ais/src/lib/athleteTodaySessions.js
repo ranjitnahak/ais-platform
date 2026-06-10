@@ -13,6 +13,7 @@ export function mapSessionAthleteLogRows(rows) {
     return {
       sessionId: row.session_id,
       actualRpe: row.actual_rpe,
+      actualDurationMin: row.actual_duration_min,
       ...session,
     };
   });
@@ -24,6 +25,7 @@ export async function fetchAthleteTodaySessions(supabase, { athleteId, orgId, to
     .select(`
       session_id,
       actual_rpe,
+      actual_duration_min,
       sessions!inner(
         id, session_date, start_time, session_type, venue, rpe_planned, duration_planned, team_id
       )

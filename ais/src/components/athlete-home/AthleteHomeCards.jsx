@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { sessionTypeLabel } from '../../lib/sessionTypeStyles';
 import { useAthleteSessionRpe } from '../../hooks/useAthleteSessionRpe';
-import InlineRpeSelector from './InlineRpeSelector';
+import SessionRpeInput from '../sessions/SessionRpeInput';
 
 function formatSessionTime(startTime) {
   if (!startTime) return null;
@@ -52,20 +52,28 @@ function TodaySessionItem({ session, onRpeLogged }) {
   const { logRpe, saving, error, clearError } = useAthleteSessionRpe();
   const [showSelector, setShowSelector] = useState(false);
   const [loggedRpe, setLoggedRpe] = useState(session.actualRpe);
+  const [loggedDuration, setLoggedDuration] = useState(session.actualDurationMin);
 
   const sessionDate = session.session_date;
   const started = isSessionStarted(sessionDate, session.start_time);
   const typeLabel = sessionTypeLabel(session.session_type) || 'Session';
   const timeLabel = formatSessionTime(session.start_time);
   const venueTime = [session.venue, timeLabel].filter(Boolean).join(' · ');
+  const sessionId = session.sessionId ?? session.id;
 
-  async function handleSelectRpe(value) {
+  async function handleSubmit({ rpe, duration, notes }) {
     try {
       clearError();
-      await logRpe(session.sessionId ?? session.id, value);
-      setLoggedRpe(value);
+      await logRpe(sessionId, {
+        actualRpe: rpe,
+        actualDurationMin: duration,
+        notes,
+        teamId: session.team_id ?? null,
+      });
+      setLoggedRpe(rpe);
+      setLoggedDuration(duration);
       setShowSelector(false);
-      onRpeLogged?.(value);
+      onRpeLogged?.();
     } catch {
       // error surfaced via hook
     }
@@ -108,14 +116,17 @@ function TodaySessionItem({ session, onRpeLogged }) {
 
       {started && loggedRpe == null && showSelector && (
         <div className="mt-3">
-          <InlineRpeSelector disabled={saving} onSelect={handleSelectRpe} />
+          <SessionRpeInput
+            key={sessionId}
+            defaultRpe={session.rpe_planned ?? 5}
+            defaultDuration={session.duration_planned ?? ''}
+            submitting={saving}
+            onSubmit={handleSubmit}
+          />
           {error && (
             <button
               type="button"
-              onClick={() => {
-                clearError();
-                setShowSelector(true);
-              }}
+              onClick={() => clearError()}
               className="mt-2 text-xs text-[var(--color-error)]"
             >
               Failed to save — tap to retry
@@ -130,6 +141,7 @@ function TodaySessionItem({ session, onRpeLogged }) {
           style={{ color: 'var(--color-tertiary-container)' }}
         >
           RPE logged: {loggedRpe}
+          {loggedDuration != null ? ` · ${loggedDuration} min` : ''}
         </p>
       )}
     </div>

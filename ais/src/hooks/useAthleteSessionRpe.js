@@ -11,7 +11,7 @@ export function useAthleteSessionRpe() {
   const [error, setError] = useState(null);
 
   const logRpe = useCallback(
-    async (sessionId, selectedRpe) => {
+    async (sessionId, { actualRpe, actualDurationMin, notes = null, teamId = null }) => {
       try {
         setSaving(true);
         setError(null);
@@ -22,18 +22,22 @@ export function useAthleteSessionRpe() {
         const athleteId = await resolveAthleteId(currentUser, effectiveOrgId);
         if (!athleteId) throw new Error('No athlete profile linked to this account.');
 
-        const { error: updateError } = await supabase
-          .from('session_athlete_logs')
-          .update({
-            actual_rpe: selectedRpe,
+        const { error: upsertError } = await supabase.from('session_athlete_logs').upsert(
+          {
+            session_id: sessionId,
+            athlete_id: athleteId,
+            org_id: effectiveOrgId,
+            team_id: teamId,
+            actual_rpe: actualRpe,
+            actual_duration_min: actualDurationMin,
+            notes,
             logged_at: new Date().toISOString(),
-          })
-          .eq('session_id', sessionId)
-          .eq('athlete_id', athleteId)
-          .eq('org_id', effectiveOrgId);
+          },
+          { onConflict: 'session_id,athlete_id' },
+        );
 
-        if (updateError) throw updateError;
-        return selectedRpe;
+        if (upsertError) throw upsertError;
+        return { actualRpe, actualDurationMin };
       } catch (err) {
         console.error('[useAthleteSessionRpe] logRpe failed:', err);
         setError(err.message || 'Failed to save');
