@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getCurrentUser, canSync } from '../../lib/auth'
 import { resolveOrgTeamScope, narrowTeamIds } from '../../lib/orgScope'
+import { dashboardPdfFilename } from '../../lib/buildDashboardPDF'
 import { useUser } from '../../context/UserContext'
 import WellnessTrend from './WellnessTrend'
+import DashboardExportButton from '../shared/DashboardExportButton'
+import DashboardPanelHeader from '../shared/DashboardPanelHeader'
 import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton'
 
 const METRIC_COLUMNS = [
@@ -17,6 +20,7 @@ const METRIC_COLUMNS = [
 
 export default function WellnessDashboard({ embedded = false }) {
   const { user, activeOrgId, activeTeamId } = useUser()
+  const exportRef = useRef(null)
   const [athletes, setAthletes] = useState([])
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -90,14 +94,41 @@ export default function WellnessDashboard({ embedded = false }) {
     );
   }
 
+  const todayLabel = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const viewSnapshot = `${wellnessView === 'grid' ? 'Grid view' : 'Table view'} · ${todayLabel}`
+  const exportFilename = dashboardPdfFilename({
+    orgName: user?.orgName,
+    dashboardSlug: 'wellness',
+  })
+
   const content = (
-      <div className={`mx-auto max-w-6xl space-y-6 ${embedded ? '' : ''}`}>
-        {!embedded && (
+      <div ref={embedded ? exportRef : undefined} className={`mx-auto max-w-6xl space-y-6 ${embedded ? '' : ''}`}>
+        {embedded ? (
+          <DashboardPanelHeader
+            title="Wellness Dashboard"
+            subtitle={user?.orgName || '—'}
+          >
+            <DashboardExportButton
+              exportRef={exportRef}
+              filename={exportFilename}
+              disabled={loading || !!error}
+            />
+          </DashboardPanelHeader>
+        ) : (
         <header>
           <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">Team Readiness</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight">Wellness Dashboard</h1>
           <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Today&apos;s wellness submissions for your assigned teams.</p>
         </header>
+        )}
+
+        {embedded && (
+          <p
+            data-pdf-export-only
+            className="hidden text-xs font-bold text-[var(--color-on-surface-variant)]"
+          >
+            {viewSnapshot}
+          </p>
         )}
 
         {!loading && (
@@ -108,10 +139,10 @@ export default function WellnessDashboard({ embedded = false }) {
           </section>
         )}
 
-        {loading && <DashboardSkeleton contentOnly />}
+        {loading && <div data-pdf-exclude><DashboardSkeleton contentOnly /></div>}
 
         {error && (
-          <div className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">
+          <div data-pdf-exclude className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">
             {error}
           </div>
         )}
@@ -121,7 +152,9 @@ export default function WellnessDashboard({ embedded = false }) {
             <p className="text-sm font-bold text-[var(--color-text-muted)]">
               {summary.submitted} of {summary.total} submitted
             </p>
-            <WellnessViewToggle wellnessView={wellnessView} onChange={setWellnessView} />
+            <div data-pdf-exclude>
+              <WellnessViewToggle wellnessView={wellnessView} onChange={setWellnessView} />
+            </div>
           </div>
         )}
 

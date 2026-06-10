@@ -1,8 +1,11 @@
+import { useMemo, useRef } from 'react';
 import { useUser } from '../../context/UserContext';
 import { useLoadMonitoring } from '../../hooks/useLoadMonitoring';
 import { getAcwrZone } from '../../lib/loadCalculations';
-import { SESSION_TYPE_OPTIONS } from '../../lib/sessionTypeStyles';
-import AISLogo from '../shared/AISLogo';
+import { dashboardPdfFilename } from '../../lib/buildDashboardPDF';
+import { SESSION_TYPE_OPTIONS, sessionTypeLabel } from '../../lib/sessionTypeStyles';
+import DashboardExportButton from '../shared/DashboardExportButton';
+import DashboardPanelHeader from '../shared/DashboardPanelHeader';
 import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton';
 import AcwrChart from './load-monitoring/AcwrChart';
 import LoadBars from './load-monitoring/LoadBars';
@@ -52,6 +55,7 @@ const selectClass = 'min-h-10 rounded-xl border border-[var(--color-outline-vari
 
 export default function LoadMonitoringDashboard() {
   const { user } = useUser();
+  const exportRef = useRef(null);
   const {
     loading,
     error,
@@ -78,63 +82,86 @@ export default function LoadMonitoringDashboard() {
 
   const sessionTypeOptions = SESSION_TYPE_OPTIONS.filter((o) => o.value !== 'other');
 
+  const filterSnapshot = useMemo(() => {
+    const athleteLabel = filters.athleteId
+      ? athletes.find((a) => a.id === filters.athleteId)?.full_name ?? 'Athlete'
+      : 'Squad view';
+    const sessionLabel = filters.sessionType === 'all'
+      ? 'All sessions'
+      : sessionTypeLabel(filters.sessionType);
+    const methodText = filters.method === 'ewma'
+      ? 'EWMA λ = 2/(N+1)'
+      : 'Rolling average 7d ÷ 28d mean';
+    return `${filters.range} · ${athleteLabel} · ${sessionLabel} · ${methodText}`;
+  }, [filters, athletes]);
+
+  const exportFilename = dashboardPdfFilename({
+    orgName: user?.orgName,
+    dashboardSlug: 'load-monitoring-rpe',
+  });
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      {/* Controls row 1 */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <AISLogo size={36} />
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-[var(--color-on-surface)]">
-              Load monitoring · RPE
-            </h1>
-            <p className="text-xs text-[var(--color-on-surface-variant)]">{user?.orgName || '—'}</p>
-          </div>
+    <div ref={exportRef} className="mx-auto max-w-6xl space-y-6">
+      <DashboardPanelHeader
+        title="Load monitoring · RPE"
+        subtitle={user?.orgName || '—'}
+      >
+        <DashboardExportButton
+          exportRef={exportRef}
+          filename={exportFilename}
+          disabled={loading || !!error}
+        />
+      </DashboardPanelHeader>
+
+      <p
+        data-pdf-export-only
+        className="hidden text-xs font-bold text-[var(--color-on-surface-variant)]"
+      >
+        {filterSnapshot}
+      </p>
+
+      <div data-pdf-exclude className="flex flex-wrap items-center gap-3 lg:ml-auto lg:justify-end">
+        <div className="flex rounded-full border border-[var(--color-outline-variant)] p-0.5">
+          {RANGE_OPTIONS.map((range) => (
+            <button
+              key={range}
+              type="button"
+              onClick={() => setFilter('range', range)}
+              className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
+                filters.range === range
+                  ? 'bg-[var(--color-surface-container-high)] text-[var(--color-on-surface)]'
+                  : 'text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]'
+              }`}
+            >
+              {range}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-full border border-[var(--color-outline-variant)] p-0.5">
-            {RANGE_OPTIONS.map((range) => (
-              <button
-                key={range}
-                type="button"
-                onClick={() => setFilter('range', range)}
-                className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
-                  filters.range === range
-                    ? 'bg-[var(--color-surface-container-high)] text-[var(--color-on-surface)]'
-                    : 'text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]'
-                }`}
-              >
-                {range}
-              </button>
-            ))}
-          </div>
-          <select
-            value={filters.athleteId}
-            onChange={(e) => setFilter('athleteId', e.target.value)}
-            className={`${selectClass} min-w-[10rem]`}
-            aria-label="Athlete view"
-          >
-            <option value="">Squad view</option>
-            {athletes.map((a) => (
-              <option key={a.id} value={a.id}>{a.full_name}</option>
-            ))}
-          </select>
-          <select
-            value={filters.sessionType}
-            onChange={(e) => setFilter('sessionType', e.target.value)}
-            className={`${selectClass} min-w-[10rem]`}
-            aria-label="Session type"
-          >
-            <option value="all">All sessions</option>
-            {sessionTypeOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={filters.athleteId}
+          onChange={(e) => setFilter('athleteId', e.target.value)}
+          className={`${selectClass} min-w-[10rem]`}
+          aria-label="Athlete view"
+        >
+          <option value="">Squad view</option>
+          {athletes.map((a) => (
+            <option key={a.id} value={a.id}>{a.full_name}</option>
+          ))}
+        </select>
+        <select
+          value={filters.sessionType}
+          onChange={(e) => setFilter('sessionType', e.target.value)}
+          className={`${selectClass} min-w-[10rem]`}
+          aria-label="Session type"
+        >
+          <option value="all">All sessions</option>
+          {sessionTypeOptions.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
       </div>
 
-      {/* Controls row 2 */}
-      <div className="flex flex-col gap-3 border-t border-[var(--color-outline-variant)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div data-pdf-exclude className="flex flex-col gap-3 border-t border-[var(--color-outline-variant)] pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)]">
             Calculation method
@@ -175,10 +202,10 @@ export default function LoadMonitoringDashboard() {
         </div>
       )}
 
-      {loading && <DashboardSkeleton contentOnly />}
+      {loading && <div data-pdf-exclude><DashboardSkeleton contentOnly /></div>}
 
       {error && (
-        <p className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">
+        <p data-pdf-exclude className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">
           {error}
         </p>
       )}
