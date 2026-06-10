@@ -55,6 +55,8 @@
   --color-avg: var(--color-primary-container);
   --color-excellent: var(--color-tertiary-container);
   --color-text-muted: var(--color-on-surface-variant);
+  --color-text-secondary: var(--color-on-surface-variant);
+  --color-text-tertiary: var(--color-outline);
   --color-surface-hover: var(--color-surface-container-high);
   --color-border: var(--color-outline-variant);
 

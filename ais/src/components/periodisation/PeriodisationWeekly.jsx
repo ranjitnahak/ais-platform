@@ -1,21 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getCurrentUser, canSync } from '../../lib/auth';
 import { useSessions } from '../../hooks/useSessions';
 import { addDays, formatRange, rowMetricKey, weekStartsBetween, computeAcwrSeries, acwrStyle } from '../../lib/periodisationUtils';
-import { sessionTypeLabel, sessionTypeStyles } from '../../lib/sessionTypeStyles';
 import WeekNotesEditor from '../ui/WeekNotesEditor';
 import SessionCreateModal from '../sessions/SessionCreateModal';
-
-const CAT_STYLES = {
-  strength: { bg: '#fef9c3', text: '#713f12', label: 'Strength' },
-  speed: { bg: '#dbeafe', text: '#1e40af', label: 'Speed' },
-  power: { bg: '#e9d5ff', text: '#5b21b6', label: 'Power' },
-  endurance: { bg: '#bbf7d0', text: '#14532d', label: 'Endurance' },
-  technical: { bg: '#fce7f3', text: '#9d174d', label: 'Technical' },
-  recovery: { bg: '#ccfbf1', text: '#115e59', label: 'Recovery' },
-  default: { bg: '#e5e7eb', text: '#374151', label: 'Session' },
-};
+import WeeklyTimeGrid from './WeeklyTimeGrid';
 
 // ── Calendar grid constants & helpers
 const SESSION_TYPES = [
@@ -27,55 +16,7 @@ const SESSION_TYPES = [
   { label: 'Testing', value: 'testing', venue: 'Gym' },
 ];
 
-const VENUES = ['Gym', 'Ground', 'Mat hall', 'Physio room', 'Pool', 'Other'];
-
 const DEFAULT_AM_TIME = '06:30:00';
-const DEFAULT_PM_TIME = '16:00:00';
-
-// Height in px per 30-minute slot
-const SLOT_HEIGHT = 28;
-
-// Given a start_time string like "06:30:00", return offset in px from 05:00
-function timeToOffset(timeStr) {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(':').map(Number);
-  const minutesFrom5 = (h - 5) * 60 + (m || 0);
-  return Math.max(0, (minutesFrom5 / 30) * SLOT_HEIGHT);
-}
-
-// Given duration_planned in minutes, return height in px (min 28px)
-function durationToHeight(mins) {
-  const slots = Math.max(1, (mins || 60) / 30);
-  return slots * SLOT_HEIGHT - 4;
-}
-
-// Given a Y pixel position relative to the top of the time grid
-// element, return the nearest 30-min snapped time string "HH:MM:00"
-// Grid starts at 05:00. Each SLOT_HEIGHT px = 30 minutes.
-function pixelToSnappedTime(offsetPx) {
-  const totalSlots = Math.round(offsetPx / SLOT_HEIGHT);
-  const totalMins = 5 * 60 + totalSlots * 30;
-  const clamped = Math.min(Math.max(totalMins, 5 * 60), 22 * 60);
-  const h = Math.floor(clamped / 60);
-  const m = clamped % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-}
-
-// Get default venue for a session type value
-function defaultVenueFor(typeValue) {
-  return SESSION_TYPES.find((t) => t.value === typeValue)?.venue ?? 'Gym';
-}
-
-function normalizeCategory(raw) {
-  const s = String(raw || '').toLowerCase();
-  if (s.includes('strength')) return 'strength';
-  if (s.includes('speed')) return 'speed';
-  if (s.includes('power')) return 'power';
-  if (s.includes('endurance')) return 'endurance';
-  if (s.includes('technical')) return 'technical';
-  if (s.includes('recover')) return 'recovery';
-  return 'default';
-}
 
 function weekDays(weekStartIso) {
   // Always anchor to the Monday of the week containing weekStartIso
@@ -97,79 +38,6 @@ function weekDays(weekStartIso) {
     });
   }
   return days;
-}
-
-function athleteLogCount(session) {
-  const row = session.session_athlete_logs?.[0];
-  return row?.count ?? 0;
-}
-
-function SessionCalBlock({ session: s, segFrom, onOpen, onPointerDown, onContextMenu, isDragging }) {
-  const segStartTime = `${String(segFrom).padStart(2, '0')}:00:00`;
-  const top = timeToOffset(s.start_time || DEFAULT_AM_TIME) - timeToOffset(segStartTime) + 2;
-  const height = durationToHeight(s.duration_planned);
-  const label = sessionTypeLabel(s.session_type) || SESSION_TYPES.find((t) => t.value === s.session_type)?.label || 'Session';
-  const styles = sessionTypeStyles(s.session_type);
-  const athleteCount = athleteLogCount(s);
-
-  return (
-    <div
-      className={`absolute left-1 right-1 rounded cursor-grab active:cursor-grabbing hover:brightness-110 hover:z-10 transition-all select-none touch-none ${
-        isDragging ? 'opacity-40' : ''
-      }`}
-      style={{
-        top,
-        height,
-        background: styles.bg,
-        color: styles.text,
-        borderLeft: `3px solid ${styles.border}`,
-        zIndex: 2,
-      }}
-      onPointerDown={onPointerDown}
-      onClick={onOpen}
-      onContextMenu={onContextMenu}
-    >
-      <div className="p-1 overflow-hidden h-full flex flex-col">
-        <div className="text-[8px] opacity-70">{(s.start_time || '').slice(0, 5)}</div>
-        <div className="text-[9px] font-bold truncate">{label}</div>
-        {height > 36 && (
-          <div className="text-[8px] opacity-70 truncate">
-            {athleteCount > 0 ? `${athleteCount} athletes` : s.venue || ''}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TimeSlotGhost({ segFrom, slotIdx, dayIso, canEdit, onCreate }) {
-  const totalMins = segFrom * 60 + slotIdx * 30;
-  const h = Math.floor(totalMins / 60);
-  const m = totalMins % 60;
-  const timeLabel = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-
-  if (!canEdit) return null;
-
-  return (
-    <div
-      className="absolute left-0 right-0 z-[1] group"
-      style={{ top: slotIdx * SLOT_HEIGHT, height: SLOT_HEIGHT }}
-      onClick={(e) => {
-        e.stopPropagation();
-        onCreate({ date: dayIso, startTime: timeLabel });
-      }}
-    >
-      <div
-        className="mx-0.5 flex h-full items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
-        style={{
-          border: '1px dashed color-mix(in srgb, var(--color-primary-container) 45%, transparent)',
-          color: 'var(--color-primary-container)',
-        }}
-      >
-        <span className="text-[8px] font-bold">+ add session</span>
-      </div>
-    </div>
-  );
 }
 
 /**
@@ -197,9 +65,7 @@ export default function PeriodisationWeekly({
     weekStartIso,
     weekEndIso,
   );
-  const [drawer, setDrawer] = useState(null);
-  const [createModalSlot, setCreateModalSlot] = useState(null);
-  const [libraryItems, setLibraryItems] = useState([]);
+  const [sessionModal, setSessionModal] = useState(null);
   const [clipboard, setClipboard] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [dragSession, setDragSession] = useState(null);
@@ -211,10 +77,18 @@ export default function PeriodisationWeekly({
   const dragMovedRef = useRef(false);
   const suppressClickRef = useRef(false);
   const timeGridRef = useRef(null);
+  const offsetToTimeRef = useRef(() => '06:30:00');
 
-  const [expandedZones, setExpandedZones] = useState({});
+  const handleOffsetToTime = useCallback((fn) => {
+    offsetToTimeRef.current = fn;
+  }, []);
 
   const days = useMemo(() => weekDays(weekStartIso), [weekStartIso]);
+
+  const editSession = useMemo(() => {
+    if (sessionModal?.mode !== 'edit') return null;
+    return sessions.find((s) => s.id === sessionModal.sessionId) ?? null;
+  }, [sessionModal, sessions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -224,41 +98,6 @@ export default function PeriodisationWeekly({
     })();
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (!user?.orgId) return;
-    (async () => {
-      const { data } = await supabase
-        .from('session_library_items')
-        .select('*')
-        // Approved exception: system default session items have no org.
-        .or(`is_system.eq.true,org_id.eq.${user.orgId}`)
-        .order('name');
-      setLibraryItems(data ?? []);
-    })();
-  }, [user?.orgId]);
-
-  const activeHours = useMemo(() => {
-    const hours = new Set();
-    sessions.forEach((s) => {
-      const h = parseInt((s.start_time || '06:30').split(':')[0], 10);
-      for (let i = Math.max(5, h - 1); i <= Math.min(23, h + 2); i++) {
-        hours.add(i);
-      }
-    });
-    [5, 6, 15, 16, 17].forEach((h) => hours.add(h));
-    return Array.from(hours).sort((a, b) => a - b);
-  }, [sessions]);
-
-  const timeSegments = useMemo(() => {
-    const segments = [];
-    for (let i = 0; i < activeHours.length - 1; i++) {
-      const from = activeHours[i];
-      const to = activeHours[i + 1];
-      segments.push({ from, to, isDead: to - from >= 2 });
-    }
-    return segments;
-  }, [activeHours]);
 
   const phaseRow = rows.find((r) => rowMetricKey(r) === 'phase' || (r.label || '').toLowerCase().includes('phase'));
   const focusRow = rows.find((r) => rowMetricKey(r) === 'week_focus');
@@ -409,8 +248,8 @@ export default function PeriodisationWeekly({
       // Compute snapped time from Y position relative to time grid
       if (timeGridRef.current) {
         const gridRect = timeGridRef.current.getBoundingClientRect();
-        const offsetPx = e.clientY - gridRect.top;
-        setDragOverTime(pixelToSnappedTime(offsetPx));
+        const offsetPx = e.clientY - gridRect.top + (timeGridRef.current.parentElement?.scrollTop ?? 0);
+        setDragOverTime(offsetToTimeRef.current(offsetPx));
       }
     }
     function onPointerUp(e) {
@@ -424,7 +263,8 @@ export default function PeriodisationWeekly({
       let dropTime = dragOverTime;
       if (timeGridRef.current) {
         const gridRect = timeGridRef.current.getBoundingClientRect();
-        dropTime = pixelToSnappedTime(e.clientY - gridRect.top);
+        const offsetPx = e.clientY - gridRect.top + (timeGridRef.current.parentElement?.scrollTop ?? 0);
+        dropTime = offsetToTimeRef.current(offsetPx);
       }
       setDragPos(null);
       setDragOrigin(null);
@@ -525,150 +365,52 @@ export default function PeriodisationWeekly({
             })}
           </div>
 
-          {/* Time grid */}
-          <div className="relative" ref={timeGridRef}>
-            {timeSegments.map((seg, i) => {
-              if (seg.isDead) {
-                const zoneKey = `${seg.from}-${seg.to}`;
-                const isExpanded = expandedZones[zoneKey];
-                return (
-                  <div key={zoneKey}>
-                    <div
-                      className="flex items-center gap-2 border-b border-white/10 bg-[#1a1a1c] cursor-pointer px-3 py-1.5 hover:bg-[#252528] transition-colors"
-                      onClick={() => setExpandedZones((z) => ({ ...z, [zoneKey]: !z[zoneKey] }))}
-                    >
-                      <span className="text-[9px] text-gray-500">{isExpanded ? '▾' : '▸'}</span>
-                      <span className="text-[9px] text-gray-500">
-                        {String(seg.from).padStart(2, '0')}:00 – {String(seg.to).padStart(2, '0')}:00 · no sessions · click to{' '}
-                        {isExpanded ? 'collapse' : 'expand'}
-                      </span>
-                    </div>
-                    {isExpanded &&
-                      Array.from({ length: (seg.to - seg.from) * 2 }, (_, j) => {
-                        const totalMins = seg.from * 60 + j * 30;
-                        const h = Math.floor(totalMins / 60);
-                        const label = j % 2 === 0 ? String(h).padStart(2, '0') + ':00' : '';
-                        return (
-                          <div
-                            key={j}
-                            className="grid border-b border-white/5"
-                            style={{ gridTemplateColumns: '38px repeat(7, minmax(0,1fr))', height: SLOT_HEIGHT + 'px' }}
-                          >
-                            <div className="text-[8px] text-gray-600 text-right pr-1 pt-1 bg-[#1a1a1c] border-r border-white/10">{label}</div>
-                            {days.map((d) => (
-                              <div key={d.iso} className="border-r border-white/5 last:border-r-0" />
-                            ))}
-                          </div>
-                        );
-                      })}
-                  </div>
-                );
+          <WeeklyTimeGrid
+            days={days}
+            sessions={sessions}
+            canEdit={canEdit}
+            dragOverDay={dragOverDay}
+            dragSession={dragSession}
+            suppressClickRef={suppressClickRef}
+            onCreateSlot={(slot) =>
+              setSessionModal({ mode: 'create', date: slot.date, startTime: slot.startTime })
+            }
+            onOpenSession={(_dayIso, sessionId) => setSessionModal({ mode: 'edit', sessionId })}
+            onStartDrag={(e, session) => {
+              e.stopPropagation();
+              e.preventDefault();
+              dragOriginRef.current = { x: e.clientX, y: e.clientY };
+              setDragOrigin({ x: e.clientX, y: e.clientY });
+              setDragPos({ x: e.clientX, y: e.clientY });
+              dragMovedRef.current = false;
+              setDragSession(session);
+            }}
+            onContextMenuDay={(e, dayIso) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!clipboard) return;
+              let slotTime = DEFAULT_AM_TIME;
+              if (timeGridRef.current) {
+                const gridRect = timeGridRef.current.getBoundingClientRect();
+                const scrollTop = timeGridRef.current.parentElement?.scrollTop ?? 0;
+                slotTime = offsetToTimeRef.current(e.clientY - gridRect.top + scrollTop);
               }
-
-              return (
-                <div
-                  key={i}
-                  className="grid border-b border-white/10"
-                  style={{ gridTemplateColumns: '38px repeat(7, minmax(0,1fr))', height: SLOT_HEIGHT * 2 + 'px' }}
-                >
-                  <div className="text-[8px] text-gray-600 text-right pr-1 pt-1 bg-[#1a1a1c] border-r border-white/10">
-                    {String(seg.from).padStart(2, '0')}:00
-                  </div>
-                  {days.map((d) => {
-                    const daySess = sessions.filter((s) => {
-                      const h = parseInt((s.start_time || '06:30').split(':')[0], 10);
-                      return s.session_date === d.iso && h >= seg.from && h < seg.to;
-                    });
-                    return (
-                      <div
-                        key={d.iso}
-                        data-day-iso={d.iso}
-                        className={`relative border-r border-white/10 last:border-r-0 ${dragOverDay === d.iso ? 'bg-[color-mix(in_srgb,var(--color-primary-container)_10%,transparent)]' : ''}`}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (clipboard) {
-                            let slotTime = DEFAULT_AM_TIME;
-                            if (timeGridRef.current) {
-                              const gridRect = timeGridRef.current.getBoundingClientRect();
-                              slotTime = pixelToSnappedTime(e.clientY - gridRect.top);
-                            }
-                            setCtxMenu({
-                              x: e.clientX,
-                              y: e.clientY,
-                              session: null,
-                              pasteTargetDay: d.iso,
-                              pasteTargetTime: slotTime,
-                            });
-                          }
-                        }}
-                      >
-                        {[0, 1].map((slotIdx) => (
-                          <TimeSlotGhost
-                            key={slotIdx}
-                            segFrom={seg.from}
-                            slotIdx={slotIdx}
-                            dayIso={d.iso}
-                            canEdit={canEdit}
-                            onCreate={setCreateModalSlot}
-                          />
-                        ))}
-                        {daySess.map((s) => (
-                          <SessionCalBlock
-                            key={s.id}
-                            session={s}
-                            segFrom={seg.from}
-                            isDragging={dragSession?.id === s.id}
-                            onOpen={() => {
-                              if (suppressClickRef.current) {
-                                suppressClickRef.current = false;
-                                return;
-                              }
-                              setDrawer({ dayIso: d.iso, sessionId: s.id });
-                            }}
-                            onPointerDown={(e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              dragOriginRef.current = { x: e.clientX, y: e.clientY };
-                              setDragOrigin({ x: e.clientX, y: e.clientY });
-                              setDragPos({ x: e.clientX, y: e.clientY });
-                              dragMovedRef.current = false;
-                              setDragSession(s);
-                            }}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setCtxMenu({ x: e.clientX, y: e.clientY, session: s });
-                            }}
-                          />
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Add session row */}
-          <div className="grid border-t border-white/10" style={{ gridTemplateColumns: '38px repeat(7, minmax(0,1fr))' }}>
-            <div className="bg-[#1a1a1c] border-r border-white/10" />
-            {days.map((d) => (
-              <div key={d.iso} className="border-r border-white/10 last:border-r-0 p-1.5">
-                <button
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() =>
-                    canEdit &&
-                    setCreateModalSlot({ date: d.iso, startTime: DEFAULT_AM_TIME.slice(0, 5) })
-                  }
-                  className="w-full text-[9px] text-gray-500 border border-dashed border-white/20 rounded py-1 hover:border-[var(--color-primary-container)] hover:text-[var(--color-primary-container)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  + add
-                </button>
-              </div>
-            ))}
-          </div>
+              setCtxMenu({
+                x: e.clientX,
+                y: e.clientY,
+                session: null,
+                pasteTargetDay: dayIso,
+                pasteTargetTime: slotTime,
+              });
+            }}
+            onContextMenuSession={(e, session) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setCtxMenu({ x: e.clientX, y: e.clientY, session });
+            }}
+            onOffsetToTime={handleOffsetToTime}
+            gridRef={timeGridRef}
+          />
         </div>
       )}
 
@@ -783,326 +525,19 @@ export default function PeriodisationWeekly({
         </div>
       )}
 
-      {drawer && (
-        <SessionDrawer
-          drawer={drawer}
-          sessions={sessions}
-          libraryItems={libraryItems}
-          canLib={canSync(user, 'sessionLibrary', 'admin')}
-          onClose={() => setDrawer(null)}
-          upsertSession={upsertSession}
-        />
-      )}
-
       <SessionCreateModal
-        open={!!createModalSlot}
-        slot={createModalSlot}
+        open={!!sessionModal}
+        slot={
+          sessionModal?.mode === 'create'
+            ? { date: sessionModal.date, startTime: sessionModal.startTime }
+            : null
+        }
+        session={editSession}
         planId={plan.id}
         defaultTeamId={teamId}
-        onClose={() => setCreateModalSlot(null)}
+        onClose={() => setSessionModal(null)}
         onSaved={() => void fetchSessions()}
       />
     </div>
-  );
-}
-
-const TIME_SLOTS = Array.from({ length: 35 }, (_, i) => {
-  const totalMins = 5 * 60 + i * 30;
-  const h = Math.floor(totalMins / 60);
-  const m = totalMins % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-});
-
-function TimePicker({ value, onChange }) {
-  const display = (value || '06:30:00').slice(0, 5);
-  const [custom, setCustom] = useState('');
-  const [showCustom, setShowCustom] = useState(false);
-
-  return (
-    <div className="space-y-1">
-      <select
-        value={TIME_SLOTS.includes(display) ? display : '__custom__'}
-        onChange={(e) => {
-          if (e.target.value === '__custom__') {
-            setShowCustom(true);
-          } else {
-            setShowCustom(false);
-            onChange(e.target.value + ':00');
-          }
-        }}
-        className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2"
-      >
-        {TIME_SLOTS.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-        <option value="__custom__">Custom time…</option>
-      </select>
-      {(showCustom || !TIME_SLOTS.includes(display)) && (
-        <input
-          type="text"
-          placeholder="HH:MM"
-          value={custom || display}
-          onChange={(e) => {
-            setCustom(e.target.value);
-            const match = e.target.value.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
-            if (match) onChange(e.target.value + ':00');
-          }}
-          className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2"
-        />
-      )}
-    </div>
-  );
-}
-
-function SessionDrawer({ drawer, sessions, libraryItems, canLib, onClose, upsertSession }) {
-  const existing = drawer.sessionId ? sessions.find((s) => s.id === drawer.sessionId) : null;
-  const [sessionType, setSessionType] = useState('strength');
-  const [startTime, setStartTime] = useState(DEFAULT_AM_TIME);
-  const [contentItems, setContentItems] = useState([]);
-  const [rpePlanned, setRpePlanned] = useState(6);
-  const [rpeActual, setRpeActual] = useState('');
-  const [durP, setDurP] = useState(90);
-  const [durA, setDurA] = useState('');
-  const [venue, setVenue] = useState('');
-  const [notes, setNotes] = useState('');
-  const [search, setSearch] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    const s = existing;
-    setSessionType(s?.session_type || 'strength');
-    setStartTime(s?.start_time || DEFAULT_AM_TIME);
-    setVenue(s?.venue ?? defaultVenueFor(s?.session_type || 'strength'));
-    setNotes(s?.notes ?? '');
-    setRpePlanned(s?.rpe_planned ?? 6);
-    setRpeActual(s?.rpe_actual != null ? String(s.rpe_actual) : '');
-    setDurP(s?.duration_planned ?? 90);
-    setDurA(s?.duration_actual != null ? String(s.duration_actual) : '');
-    const items = Array.isArray(s?.content_items) ? s.content_items : [];
-    setContentItems(items);
-  }, [existing, drawer.dayIso, drawer.sessionId]);
-
-  const dayLabel = new Date(drawer.dayIso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
-  const startLabel = (startTime || DEFAULT_AM_TIME).slice(0, 5);
-
-  const filteredLib = useMemo(() => {
-    const q = search.toLowerCase();
-    const sys = libraryItems.filter((i) => i.is_system && (!q || (i.name || '').toLowerCase().includes(q)));
-    const org = libraryItems.filter((i) => !i.is_system && (!q || (i.name || '').toLowerCase().includes(q)));
-    return { sys, org };
-  }, [libraryItems, search]);
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await upsertSession({
-        id: existing?.id,
-        session_date: drawer.dayIso,
-        start_time: startTime,
-        session_type: sessionType,
-        venue,
-        content_items: contentItems,
-        rpe_planned: rpePlanned,
-        rpe_actual: rpeActual === '' ? null : Number(rpeActual),
-        duration_planned: durP,
-        duration_actual: durA === '' ? null : Number(durA),
-        notes: notes || null,
-      });
-      onClose();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const typeLabel = SESSION_TYPES.find((t) => t.value === sessionType)?.label ?? 'Session';
-  const venueOptions = venue && !VENUES.includes(venue) ? [...VENUES, venue] : VENUES;
-
-  return (
-    <>
-      <div className="fixed inset-0 z-[90] bg-black/50 md:bg-black/40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 z-[95] w-[280px] bg-[#2a2a2c] border-l border-white/10 shadow-2xl flex flex-col overflow-y-auto">
-        <div className="p-4 border-b border-white/10 flex justify-between items-start gap-2">
-          <div>
-            <h2 className="text-lg font-bold text-white">
-              {dayLabel} · {startLabel}
-            </h2>
-            <p className="text-xs text-gray-500">{typeLabel}</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-white/10 text-gray-400">
-            <span className="material-symbols-outlined text-xl">close</span>
-          </button>
-        </div>
-
-        <div className="p-4 space-y-4 flex-1">
-          <div>
-            <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Time</p>
-            <TimePicker value={startTime} onChange={(val) => setStartTime(val)} />
-          </div>
-
-          <div>
-            <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Session type</p>
-            <select
-              value={sessionType}
-              onChange={(e) => {
-                const v = e.target.value;
-                setSessionType(v);
-                if (!existing) setVenue(defaultVenueFor(v));
-              }}
-              className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2"
-            >
-              {SESSION_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Session content</p>
-            <ul className="space-y-1 mb-2">
-              {contentItems.map((it, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-center gap-2 text-[11px] bg-[#1C1C1E] rounded px-2 py-1.5 border border-white/5"
-                >
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: CAT_STYLES[normalizeCategory(it.category)]?.bg }} />
-                  <span className="flex-1 truncate">{it.name}</span>
-                  <button type="button" className="text-gray-500 text-xs" onClick={() => setContentItems((c) => c.filter((_, i) => i !== idx))}>
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search library…"
-              className="w-full text-xs bg-[#1C1C1E] border border-white/10 rounded px-2 py-2 mb-2"
-            />
-            <div className="max-h-32 overflow-y-auto text-[10px] space-y-1 border border-white/5 rounded p-2 bg-[#1C1C1E]">
-              <p className="text-gray-500 font-bold uppercase text-[9px]">System</p>
-              {filteredLib.sys.map((i) => (
-                <button
-                  key={i.id}
-                  type="button"
-                  className="block w-full text-left text-gray-300 hover:text-white py-0.5"
-                  onClick={() => {
-                    setContentItems((c) => [...c, { name: i.name, category: i.category || 'default', library_item_id: i.id }]);
-                    setSearch('');
-                  }}
-                >
-                  {i.name}
-                </button>
-              ))}
-              <p className="text-gray-500 font-bold uppercase text-[9px] pt-1">Organisation</p>
-              {filteredLib.org.map((i) => (
-                <button
-                  key={i.id}
-                  type="button"
-                  className="block w-full text-left text-gray-300 hover:text-white py-0.5"
-                  onClick={() => {
-                    setContentItems((c) => [...c, { name: i.name, category: i.category || 'default', library_item_id: i.id }]);
-                    setSearch('');
-                  }}
-                >
-                  {i.name}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="block w-full text-left text-amber-400/90 py-1 mt-1 border-t border-white/10"
-                onClick={() => {
-                  const one = window.prompt('One-off item name');
-                  if (one) setContentItems((c) => [...c, { name: one, category: 'default', source: 'once' }]);
-                }}
-              >
-                Use once…
-              </button>
-              {canLib && (
-                <button
-                  type="button"
-                  className="block w-full text-left text-[#F97316] py-1"
-                  onClick={() => console.log('+ Add to org library (admin)')}
-                >
-                  + Add to org library
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Venue</p>
-            <select value={venue} onChange={(e) => setVenue(e.target.value)} className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2">
-              {venueOptions.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">RPE (planned: {rpePlanned})</p>
-            <div className="flex flex-wrap gap-1">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setRpePlanned(n)}
-                  className={`w-7 h-7 rounded text-[10px] font-bold ${
-                    rpePlanned === n ? 'bg-[#F97316] text-black' : 'bg-[#1C1C1E] border border-white/10 text-gray-300'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] font-bold uppercase text-gray-500 mt-2 mb-1">RPE actual</p>
-            <input
-              value={rpeActual}
-              onChange={(e) => setRpeActual(e.target.value)}
-              placeholder="—"
-              className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Planned (min)</p>
-              <input type="number" value={durP} onChange={(e) => setDurP(Number(e.target.value))} className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Actual (min)</p>
-              <input value={durA} onChange={(e) => setDurA(e.target.value)} placeholder="—" className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2" />
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Notes</p>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Add notes…" className="w-full text-sm bg-[#1C1C1E] border border-white/10 rounded px-2 py-2" />
-          </div>
-
-          <button type="button" className="w-full py-2 rounded-lg border border-white/10 text-[10px] font-bold uppercase text-gray-300 hover:bg-white/5">
-            Plan this session →
-          </button>
-        </div>
-
-        <div className="p-4 border-t border-white/10">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={handleSave}
-            className="w-full py-3 rounded-lg bg-[#F97316] text-black text-[10px] font-black uppercase disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </div>
-    </>
   );
 }

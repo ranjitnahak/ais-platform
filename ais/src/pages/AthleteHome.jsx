@@ -15,11 +15,12 @@ export default function AthleteHome() {
     loading,
     error,
     wellnessDoneToday,
-    todaySession,
+    todaySessions,
     streakDays,
     streakCount,
     lastRpe,
     lastRpeDateLabel,
+    refreshTodaySessions,
   } = useAthleteHome();
 
   return (
@@ -37,7 +38,7 @@ export default function AthleteHome() {
       {!loading && (
         <>
           <DailyCheckInCard doneToday={wellnessDoneToday} />
-          <TodaySessionCard session={todaySession} />
+          <TodaySessionCard sessions={todaySessions} onRpeLogged={() => void refreshTodaySessions()} />
           <AthleteStatsRow
             streakDays={streakDays}
             streakCount={streakCount}

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
-import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope';
+import { getEffectiveOrgId } from '../lib/orgScope';
+import { resolveAthleteId } from '../lib/resolveAthleteId';
 
 function formatLastRpeDate(isoDate) {
   if (!isoDate) return null;
@@ -32,7 +33,7 @@ export function useAthleteHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [wellnessDoneToday, setWellnessDoneToday] = useState(false);
-  const [todaySession, setTodaySession] = useState(null);
+  const [todaySessions, setTodaySessions] = useState([]);
   const [streakDays, setStreakDays] = useState([]);
   const [lastRpe, setLastRpe] = useState(null);
   const [lastRpeDateLabel, setLastRpeDateLabel] = useState(null);
@@ -65,30 +66,19 @@ export function useAthleteHome() {
         setLoading(true);
         setError(null);
 
-        const { effectiveTeamIds } = await resolveOrgTeamScope(supabase, user, activeOrgId);
         const today = new Date().toISOString().split('T')[0];
         const lastSeven = buildLastSevenDays();
 
-        let athleteId = user.athleteId;
+        const athleteId = await resolveAthleteId(user, effectiveOrgId);
         if (!athleteId) {
           if (mounted) {
             setWellnessDoneToday(false);
-            setTodaySession(null);
+            setTodaySessions([]);
             setStreakDays(lastSeven.map((date) => ({ date, submitted: false })));
             setLastRpe(null);
             setLastRpeDateLabel(null);
           }
           return;
-        }
-
-        let sessionTeamIds = effectiveTeamIds;
-        if (!sessionTeamIds.length) {
-          const { data: athleteTeams, error: athleteTeamsError } = await supabase
-            .from('athlete_teams')
-            .select('team_id')
-            .eq('athlete_id', athleteId);
-          if (athleteTeamsError) throw athleteTeamsError;
-          sessionTeamIds = (athleteTeams ?? []).map((row) => row.team_id);
         }
 
         const queries = [
@@ -114,34 +104,42 @@ export function useAthleteHome() {
             .order('logged_at', { ascending: false })
             .limit(1)
             .maybeSingle(),
+          supabase
+            .from('session_athlete_logs')
+            .select(`
+              session_id,
+              actual_rpe,
+              sessions!inner(
+                id, session_date, start_time, session_type, venue, rpe_planned
+              )
+            `)
+            .eq('athlete_id', athleteId)
+            .eq('org_id', effectiveOrgId)
+            .eq('sessions.session_date', today)
+            .order('start_time', { foreignTable: 'sessions', ascending: true }),
         ];
-
-        if (sessionTeamIds.length) {
-          queries.push(
-            supabase
-              .from('sessions')
-              .select('id, name, start_time')
-              .eq('org_id', effectiveOrgId)
-              .in('team_id', sessionTeamIds)
-              .eq('session_date', today)
-              .order('start_time', { ascending: true })
-              .limit(1)
-              .maybeSingle(),
-          );
-        }
 
         const results = await Promise.all(queries);
         for (const result of results) {
           if (result.error) throw result.error;
         }
 
-        const [todayWellness, streakRows, lastRpeRow, sessionRow] = results;
+        const [todayWellness, streakRows, lastRpeRow, sessionRows] = results;
         const submittedDates = new Set((streakRows.data ?? []).map((row) => row.log_date));
+
+        const sessions = (sessionRows.data ?? []).map((row) => {
+          const session = Array.isArray(row.sessions) ? row.sessions[0] : row.sessions;
+          return {
+            sessionId: row.session_id,
+            actualRpe: row.actual_rpe,
+            ...session,
+          };
+        });
 
         if (!mounted) return;
 
         setWellnessDoneToday(Boolean(todayWellness.data));
-        setTodaySession(sessionRow?.data ?? null);
+        setTodaySessions(sessions);
         setStreakDays(lastSeven.map((date) => ({
           date,
           submitted: submittedDates.has(date),
@@ -158,16 +156,69 @@ export function useAthleteHome() {
 
     void loadHomeData();
     return () => { mounted = false; };
-  }, [user?.id, user?.athleteId, effectiveOrgId, activeOrgId]);
+  }, [user?.id, effectiveOrgId, activeOrgId]);
+
+  const refreshTodaySessions = async () => {
+    if (!user?.id || !effectiveOrgId) return;
+    try {
+      const athleteId = await resolveAthleteId(user, effectiveOrgId);
+      if (!athleteId) return;
+
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error: sessionError } = await supabase
+        .from('session_athlete_logs')
+        .select(`
+          session_id,
+          actual_rpe,
+          sessions!inner(
+            id, session_date, start_time, session_type, venue, rpe_planned
+          )
+        `)
+        .eq('athlete_id', athleteId)
+        .eq('org_id', effectiveOrgId)
+        .eq('sessions.session_date', today)
+        .order('start_time', { foreignTable: 'sessions', ascending: true });
+
+      if (sessionError) throw sessionError;
+
+      setTodaySessions(
+        (data ?? []).map((row) => {
+          const session = Array.isArray(row.sessions) ? row.sessions[0] : row.sessions;
+          return {
+            sessionId: row.session_id,
+            actualRpe: row.actual_rpe,
+            ...session,
+          };
+        }),
+      );
+
+      const { data: lastRpeRow, error: lastRpeError } = await supabase
+        .from('session_athlete_logs')
+        .select('actual_rpe, logged_at')
+        .eq('org_id', effectiveOrgId)
+        .eq('athlete_id', athleteId)
+        .not('actual_rpe', 'is', null)
+        .order('logged_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastRpeError) throw lastRpeError;
+      setLastRpe(lastRpeRow?.actual_rpe ?? null);
+      setLastRpeDateLabel(formatLastRpeDate(lastRpeRow?.logged_at));
+    } catch (err) {
+      console.error('[useAthleteHome] refreshTodaySessions failed:', err);
+    }
+  };
 
   return {
     loading,
     error,
     wellnessDoneToday,
-    todaySession,
+    todaySessions,
     streakDays,
     streakCount,
     lastRpe,
     lastRpeDateLabel,
+    refreshTodaySessions,
   };
 }

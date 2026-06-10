@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope';
@@ -19,7 +19,7 @@ export function addMinutesToTime(timeStr, minutes) {
   const p = parseTimeHHMM(timeStr);
   if (!p) return '08:00';
   let total = p.h * 60 + p.m + minutes;
-  total = Math.min(Math.max(total, 5 * 60), 22 * 60);
+  total = Math.min(Math.max(total, 0), 23 * 60 + 30);
   return formatTimeHHMM(Math.floor(total / 60), total % 60);
 }
 
@@ -49,8 +49,12 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
   const [durationPlanned, setDurationPlanned] = useState(90);
   const [durationActual, setDurationActual] = useState('');
   const [rpePlanned, setRpePlanned] = useState(null);
+  const [rpeActual, setRpeActual] = useState('');
   const [notes, setNotes] = useState('');
+  const [contentItems, setContentItems] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
   const [selectedTeamId, setSelectedTeamId] = useState(defaultTeamId ?? '');
+  const pendingRosterIncludedRef = useRef(null);
   const [teams, setTeams] = useState([]);
   const [athletes, setAthletes] = useState([]);
   const [includedAthleteIds, setIncludedAthleteIds] = useState(new Set());
@@ -67,8 +71,8 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
   }, [contextUser, activeOrgId]);
 
   useEffect(() => {
-    if (defaultTeamId) setSelectedTeamId(defaultTeamId);
-  }, [defaultTeamId]);
+    if (defaultTeamId && !sessionId) setSelectedTeamId(defaultTeamId);
+  }, [defaultTeamId, sessionId]);
 
   const loadTeams = useCallback(async () => {
     try {
@@ -150,7 +154,13 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
           .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
 
         setAthletes(roster);
-        setIncludedAthleteIds(new Set(roster.map((a) => a.id)));
+        const override = pendingRosterIncludedRef.current;
+        pendingRosterIncludedRef.current = null;
+        if (override !== null) {
+          setIncludedAthleteIds(new Set(override));
+        } else {
+          setIncludedAthleteIds(new Set(roster.map((a) => a.id)));
+        }
       } catch (err) {
         console.error('[useSessionCreate] loadRoster failed:', err);
         setError('Could not load athlete roster.');
@@ -170,6 +180,8 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
   const initFromSlot = useCallback(({ date, startTime: slotStart }) => {
     const start = (slotStart || '06:30').slice(0, 5);
     const end = addMinutesToTime(start, 90);
+    setSessionId(null);
+    pendingRosterIncludedRef.current = null;
     setSessionDate(date);
     setStartTime(start);
     setEndTime(end);
@@ -178,11 +190,52 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     setSessionType('strength');
     setVenue('Gym');
     setRpePlanned(null);
+    setRpeActual('');
     setNotes('');
+    setContentItems([]);
     setError(null);
     setToast(null);
     if (defaultTeamId) setSelectedTeamId(defaultTeamId);
   }, [defaultTeamId]);
+
+  const initFromSession = useCallback(
+    async (session) => {
+      if (!session?.id) return;
+      setSessionId(session.id);
+      setSessionDate(session.session_date);
+      const start = (session.start_time || '06:30:00').slice(0, 5);
+      const end = session.end_time
+        ? session.end_time.slice(0, 5)
+        : addMinutesToTime(start, session.duration_planned ?? 90);
+      setStartTime(start);
+      setEndTime(end);
+      setDurationPlanned(session.duration_planned ?? durationFromTimes(start, end));
+      setDurationActual(session.duration_actual != null ? String(session.duration_actual) : '');
+      setSessionType(session.session_type || 'strength');
+      setVenue(session.venue ?? 'Gym');
+      setRpePlanned(session.rpe_planned ?? null);
+      setRpeActual(session.rpe_actual != null ? String(session.rpe_actual) : '');
+      setNotes(session.notes ?? '');
+      setContentItems(Array.isArray(session.content_items) ? session.content_items : []);
+      setError(null);
+      setToast(null);
+
+      let includedIds = null;
+      if (effectiveOrgId) {
+        const { data: logs, error: logsError } = await supabase
+          .from('session_athlete_logs')
+          .select('athlete_id')
+          .eq('session_id', session.id)
+          .eq('org_id', effectiveOrgId);
+        if (!logsError && logs?.length) {
+          includedIds = logs.map((row) => row.athlete_id);
+        }
+      }
+      pendingRosterIncludedRef.current = includedIds;
+      setSelectedTeamId(session.team_id || defaultTeamId || '');
+    },
+    [defaultTeamId, effectiveOrgId],
+  );
 
   const syncDurationFromTimes = useCallback((start, end) => {
     setDurationPlanned(durationFromTimes(start, end));
@@ -239,52 +292,106 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
       const includedIds = [...includedAthleteIds];
       const durationActualVal =
         durationActual === '' || durationActual == null ? null : Number(durationActual);
+      const rpeActualVal =
+        rpeActual === '' || rpeActual == null ? null : Number(rpeActual);
 
-      const { data: session, error: sessionError } = await supabase
-        .from('sessions')
-        .insert({
-          org_id: effectiveOrgId,
-          team_id: selectedTeamId,
-          session_date: sessionDate,
-          start_time: toDbTime(startTime),
-          end_time: toDbTime(endTime),
-          session_type: sessionType,
-          venue,
-          rpe_planned: rpePlanned,
-          duration_planned: Number(durationPlanned) || durationFromTimes(startTime, endTime),
-          duration_actual: durationActualVal,
-          notes: notes || null,
-          created_by: user.id,
-          is_published: false,
-          plan_id: planId ?? null,
-          content_items: [],
-        })
-        .select()
-        .single();
+      const sessionPayload = {
+        org_id: effectiveOrgId,
+        team_id: selectedTeamId,
+        session_date: sessionDate,
+        start_time: toDbTime(startTime),
+        end_time: toDbTime(endTime),
+        session_type: sessionType,
+        venue,
+        rpe_planned: rpePlanned,
+        rpe_actual: rpeActualVal,
+        duration_planned: Number(durationPlanned) || durationFromTimes(startTime, endTime),
+        duration_actual: durationActualVal,
+        notes: notes || null,
+        plan_id: planId ?? null,
+        content_items: contentItems,
+      };
 
-      if (sessionError) throw sessionError;
+      let session;
+      if (sessionId) {
+        const { data, error: sessionError } = await supabase
+          .from('sessions')
+          .update(sessionPayload)
+          .eq('id', sessionId)
+          .eq('org_id', effectiveOrgId)
+          .select()
+          .single();
+        if (sessionError) throw sessionError;
+        session = data;
 
-      if (includedIds.length) {
-        const rows = includedIds.map((athleteId) => ({
-          session_id: session.id,
-          athlete_id: athleteId,
-          org_id: effectiveOrgId,
-          team_id: selectedTeamId,
-        }));
+        const { data: existingLogs, error: existingLogsError } = await supabase
+          .from('session_athlete_logs')
+          .select('id, athlete_id')
+          .eq('session_id', sessionId)
+          .eq('org_id', effectiveOrgId);
+        if (existingLogsError) throw existingLogsError;
 
-        const { error: logsError } = await supabase.from('session_athlete_logs').insert(rows);
-        if (logsError) {
-          try {
-            const { error: deleteError } = await supabase
-              .from('sessions')
-              .delete()
-              .eq('id', session.id)
-              .eq('org_id', effectiveOrgId);
-            if (deleteError) throw deleteError;
-          } catch (rollbackErr) {
-            console.error('[useSessionCreate] rollback failed:', rollbackErr);
+        const existingIds = new Set((existingLogs ?? []).map((row) => row.athlete_id));
+        const newIds = new Set(includedIds);
+        const toRemove = (existingLogs ?? []).filter((row) => !newIds.has(row.athlete_id));
+        const toAdd = includedIds.filter((athleteId) => !existingIds.has(athleteId));
+
+        if (toRemove.length) {
+          const { error: removeError } = await supabase
+            .from('session_athlete_logs')
+            .delete()
+            .in(
+              'id',
+              toRemove.map((row) => row.id),
+            );
+          if (removeError) throw removeError;
+        }
+
+        if (toAdd.length) {
+          const rows = toAdd.map((athleteId) => ({
+            session_id: sessionId,
+            athlete_id: athleteId,
+            org_id: effectiveOrgId,
+            team_id: selectedTeamId,
+          }));
+          const { error: addError } = await supabase.from('session_athlete_logs').insert(rows);
+          if (addError) throw addError;
+        }
+      } else {
+        const { data, error: sessionError } = await supabase
+          .from('sessions')
+          .insert({
+            ...sessionPayload,
+            created_by: user.id,
+            is_published: false,
+          })
+          .select()
+          .single();
+        if (sessionError) throw sessionError;
+        session = data;
+
+        if (includedIds.length) {
+          const rows = includedIds.map((athleteId) => ({
+            session_id: session.id,
+            athlete_id: athleteId,
+            org_id: effectiveOrgId,
+            team_id: selectedTeamId,
+          }));
+
+          const { error: logsError } = await supabase.from('session_athlete_logs').insert(rows);
+          if (logsError) {
+            try {
+              const { error: deleteError } = await supabase
+                .from('sessions')
+                .delete()
+                .eq('id', session.id)
+                .eq('org_id', effectiveOrgId);
+              if (deleteError) throw deleteError;
+            } catch (rollbackErr) {
+              console.error('[useSessionCreate] rollback failed:', rollbackErr);
+            }
+            throw logsError;
           }
-          throw logsError;
         }
       }
 
@@ -308,10 +415,13 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     sessionType,
     venue,
     rpePlanned,
+    rpeActual,
     durationPlanned,
     durationActual,
     notes,
+    contentItems,
     planId,
+    sessionId,
     includedAthleteIds,
   ]);
 
@@ -328,7 +438,10 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     durationPlanned,
     durationActual,
     rpePlanned,
+    rpeActual,
     notes,
+    isEditMode: Boolean(sessionId),
+    sessionId,
     selectedTeamId,
     teams,
     athletes,
@@ -345,10 +458,12 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     setDurationPlanned,
     setDurationActual,
     setRpePlanned,
+    setRpeActual,
     setNotes,
     setStartTime: setStartTimeAndSync,
     setEndTime: setEndTimeAndSync,
     initFromSlot,
+    initFromSession,
     selectTeam,
     toggleAthlete,
     deselectAllAthletes,

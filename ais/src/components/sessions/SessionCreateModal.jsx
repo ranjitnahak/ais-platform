@@ -7,14 +7,18 @@ const fieldClass =
   'w-full rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-3 py-2 text-sm text-[var(--color-on-surface)] outline-none';
 const labelClass = 'mb-1 block text-[10px] font-black uppercase tracking-widest text-[var(--color-outline)]';
 
-export default function SessionCreateModal({ open, slot, planId, defaultTeamId, onClose, onSaved }) {
+export default function SessionCreateModal({ open, slot, session, planId, defaultTeamId, onClose, onSaved }) {
   const create = useSessionCreate({ planId, defaultTeamId });
+  const isEdit = Boolean(session) || create.isEditMode;
 
   useEffect(() => {
-    if (open && slot) {
+    if (!open) return;
+    if (session) {
+      void create.initFromSession(session);
+    } else if (slot) {
       create.initFromSlot(slot);
     }
-  }, [open, slot?.date, slot?.startTime]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, session?.id, slot?.date, slot?.startTime]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!create.toast) return undefined;
@@ -22,7 +26,7 @@ export default function SessionCreateModal({ open, slot, planId, defaultTeamId, 
     return () => window.clearTimeout(timer);
   }, [create.toast, create.dismissToast]);
 
-  if (!open || !slot) return null;
+  if (!open || (!slot && !session)) return null;
 
   async function handleSave() {
     try {
@@ -34,11 +38,13 @@ export default function SessionCreateModal({ open, slot, planId, defaultTeamId, 
     }
   }
 
-  const dayLabel = new Date(slot.date + 'T12:00:00').toLocaleDateString('en-GB', {
+  const dateIso = session?.session_date ?? slot?.date;
+  const dayLabel = new Date(dateIso + 'T12:00:00').toLocaleDateString('en-GB', {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
   });
+  const timeLabel = isEdit ? create.startTime : null;
 
   return (
     <>
@@ -62,9 +68,12 @@ export default function SessionCreateModal({ open, slot, planId, defaultTeamId, 
           <div className="flex items-start justify-between gap-3 border-b border-[var(--color-outline-variant)] px-5 py-4">
             <div>
               <h2 id="session-create-title" className="text-lg font-black text-[var(--color-on-surface)]">
-                New session
+                {isEdit ? 'Edit session' : 'New session'}
               </h2>
-              <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">{dayLabel}</p>
+              <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
+                {dayLabel}
+                {timeLabel ? ` · ${timeLabel}` : ''}
+              </p>
             </div>
             <button
               type="button"
@@ -175,6 +184,24 @@ export default function SessionCreateModal({ open, slot, planId, defaultTeamId, 
               <p className={labelClass}>RPE planned</p>
               <SessionCreateRpeGrid value={create.rpePlanned} onChange={create.setRpePlanned} />
             </div>
+
+            {isEdit && (
+              <div>
+                <label className={labelClass} htmlFor="rpe-actual">
+                  RPE actual
+                </label>
+                <input
+                  id="rpe-actual"
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={create.rpeActual}
+                  onChange={(e) => create.setRpeActual(e.target.value)}
+                  placeholder="—"
+                  className={fieldClass}
+                />
+              </div>
+            )}
 
             <div>
               <p className={labelClass}>Team</p>
@@ -297,7 +324,7 @@ export default function SessionCreateModal({ open, slot, planId, defaultTeamId, 
                 color: 'var(--color-on-primary-container)',
               }}
             >
-              {create.saving ? 'Saving…' : 'Save session'}
+              {create.saving ? 'Saving…' : isEdit ? 'Save changes' : 'Save session'}
             </button>
           </div>
         </div>
