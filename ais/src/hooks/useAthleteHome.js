@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
 import { resolveAthleteId } from '../lib/resolveAthleteId';
+import { fetchAthleteTodaySessions, localTodayIso } from '../lib/athleteTodaySessions';
 
 function formatLastRpeDate(isoDate) {
   if (!isoDate) return null;
@@ -22,7 +23,10 @@ function buildLastSevenDays() {
   for (let offset = 6; offset >= 0; offset -= 1) {
     const date = new Date();
     date.setDate(date.getDate() - offset);
-    days.push(date.toISOString().split('T')[0]);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    days.push(`${y}-${m}-${day}`);
   }
   return days;
 }
@@ -39,7 +43,7 @@ export function useAthleteHome() {
   const [lastRpeDateLabel, setLastRpeDateLabel] = useState(null);
 
   const streakCount = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localTodayIso();
     let count = 0;
     for (let index = streakDays.length - 1; index >= 0; index -= 1) {
       const day = streakDays[index];
@@ -66,7 +70,7 @@ export function useAthleteHome() {
         setLoading(true);
         setError(null);
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = localTodayIso();
         const lastSeven = buildLastSevenDays();
 
         const athleteId = await resolveAthleteId(user, effectiveOrgId);
@@ -81,7 +85,7 @@ export function useAthleteHome() {
           return;
         }
 
-        const queries = [
+        const [todayWellness, streakRows, lastRpeRow] = await Promise.all([
           supabase
             .from('wellness_logs')
             .select('id')
@@ -104,37 +108,18 @@ export function useAthleteHome() {
             .order('logged_at', { ascending: false })
             .limit(1)
             .maybeSingle(),
-          supabase
-            .from('session_athlete_logs')
-            .select(`
-              session_id,
-              actual_rpe,
-              sessions!inner(
-                id, session_date, start_time, session_type, venue, rpe_planned
-              )
-            `)
-            .eq('athlete_id', athleteId)
-            .eq('org_id', effectiveOrgId)
-            .eq('sessions.session_date', today)
-            .order('start_time', { foreignTable: 'sessions', ascending: true }),
-        ];
+        ]);
 
-        const results = await Promise.all(queries);
-        for (const result of results) {
-          if (result.error) throw result.error;
-        }
+        if (todayWellness.error) throw todayWellness.error;
+        if (streakRows.error) throw streakRows.error;
+        if (lastRpeRow.error) throw lastRpeRow.error;
 
-        const [todayWellness, streakRows, lastRpeRow, sessionRows] = results;
-        const submittedDates = new Set((streakRows.data ?? []).map((row) => row.log_date));
-
-        const sessions = (sessionRows.data ?? []).map((row) => {
-          const session = Array.isArray(row.sessions) ? row.sessions[0] : row.sessions;
-          return {
-            sessionId: row.session_id,
-            actualRpe: row.actual_rpe,
-            ...session,
-          };
+        const sessions = await fetchAthleteTodaySessions(supabase, {
+          athleteId,
+          orgId: effectiveOrgId,
+          today,
         });
+        const submittedDates = new Set((streakRows.data ?? []).map((row) => row.log_date));
 
         if (!mounted) return;
 
@@ -164,33 +149,14 @@ export function useAthleteHome() {
       const athleteId = await resolveAthleteId(user, effectiveOrgId);
       if (!athleteId) return;
 
-      const today = new Date().toISOString().split('T')[0];
-      const { data, error: sessionError } = await supabase
-        .from('session_athlete_logs')
-        .select(`
-          session_id,
-          actual_rpe,
-          sessions!inner(
-            id, session_date, start_time, session_type, venue, rpe_planned
-          )
-        `)
-        .eq('athlete_id', athleteId)
-        .eq('org_id', effectiveOrgId)
-        .eq('sessions.session_date', today)
-        .order('start_time', { foreignTable: 'sessions', ascending: true });
+      const today = localTodayIso();
+      const sessions = await fetchAthleteTodaySessions(supabase, {
+        athleteId,
+        orgId: effectiveOrgId,
+        today,
+      });
 
-      if (sessionError) throw sessionError;
-
-      setTodaySessions(
-        (data ?? []).map((row) => {
-          const session = Array.isArray(row.sessions) ? row.sessions[0] : row.sessions;
-          return {
-            sessionId: row.session_id,
-            actualRpe: row.actual_rpe,
-            ...session,
-          };
-        }),
-      );
+      setTodaySessions(sessions);
 
       const { data: lastRpeRow, error: lastRpeError } = await supabase
         .from('session_athlete_logs')

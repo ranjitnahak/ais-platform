@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRPELog } from '../../hooks/useRPELog';
+import { sessionTypeLabel } from '../../lib/sessionTypeStyles';
 import LogSkeleton from '../shared/skeletons/LogSkeleton';
 
 const RPE_LABELS = [
@@ -9,6 +10,15 @@ const RPE_LABELS = [
   ['10', 'Max'],
 ];
 
+function formatSessionTime(startTime) {
+  if (!startTime) return null;
+  return String(startTime).slice(0, 5);
+}
+
+function sessionKey(session) {
+  return session.id ?? session.sessionId;
+}
+
 export default function RPEEntryForm() {
   const { sessions, loading, submitting, error, submitted, submitRPELog } = useRPELog();
   const [selectedSessionId, setSelectedSessionId] = useState(null);
@@ -17,7 +27,7 @@ export default function RPEEntryForm() {
   const [notes, setNotes] = useState('');
   const [loggedRpe, setLoggedRpe] = useState(null);
 
-  const selectedSession = sessions.find((session) => session.id === selectedSessionId);
+  const selectedSession = sessions.find((session) => sessionKey(session) === selectedSessionId);
 
   async function handleSubmit() {
     if (!selectedSessionId || !duration) return;
@@ -54,22 +64,23 @@ export default function RPEEntryForm() {
       <section className="space-y-3">
         <h2 className="text-xs font-black uppercase tracking-widest text-[var(--color-outline)]">Session RPE</h2>
         {sessions.map((session) => {
-          const isSelected = selectedSessionId === session.id;
+          const id = sessionKey(session);
+          const isSelected = selectedSessionId === id;
+          const title = sessionTypeLabel(session.session_type);
+          const meta = [session.venue, formatSessionTime(session.start_time)].filter(Boolean).join(' · ');
           return (
-            <div key={session.id} className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4">
+            <div key={id} className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4">
               <button
                 type="button"
-                onClick={() => setSelectedSessionId(isSelected ? null : session.id)}
+                onClick={() => setSelectedSessionId(isSelected ? null : id)}
                 className="flex min-h-16 w-full items-center justify-between gap-4 text-left"
               >
                 <div>
-                  <h3 className="text-lg font-black text-[var(--color-on-surface)]">{session.name}</h3>
+                  <h3 className="text-lg font-black text-[var(--color-on-surface)]">{title}</h3>
+                  {meta && (
+                    <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{meta}</p>
+                  )}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {session.category && (
-                      <span className="rounded-full bg-[var(--color-surface-variant)] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">
-                        {session.category}
-                      </span>
-                    )}
                     {session.rpe_planned != null && (
                       <span className="text-xs font-bold text-[var(--color-outline)]">Planned RPE: {session.rpe_planned}</span>
                     )}
@@ -135,7 +146,7 @@ export default function RPEEntryForm() {
         <section className="rounded-2xl bg-[var(--color-tertiary-container)] p-5 text-[var(--color-on-tertiary)]">
           <p className="text-sm font-black uppercase tracking-widest">Session logged ✓</p>
           <p className="mt-2 text-4xl font-black">RPE {loggedRpe}</p>
-          <p className="mt-1 text-sm font-bold">{selectedSession.name}</p>
+          <p className="mt-1 text-sm font-bold">{sessionTypeLabel(selectedSession.session_type)}</p>
         </section>
       )}
     </div>

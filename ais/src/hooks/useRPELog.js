@@ -1,99 +1,90 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import { getCurrentUser } from '../lib/auth'
-import { resolveAthleteId } from '../lib/resolveAthleteId'
-import { useUser } from '../context/UserContext'
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { getCurrentUser } from '../lib/auth';
+import { resolveAthleteId } from '../lib/resolveAthleteId';
+import { useUser } from '../context/UserContext';
+import { getEffectiveOrgId } from '../lib/orgScope';
+import { fetchAthleteTodaySessions, localTodayIso } from '../lib/athleteTodaySessions';
+
 export function useRPELog() {
-  const { user, activeOrgId } = useUser()
-  // State
-  const [sessions, setSessions] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState(null)
-  const [submitted, setSubmitted] = useState(false)
+  const { user, activeOrgId } = useUser();
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
 
-  // Fetch today's sessions on mount
-  const isSuperuser = user?.isSuperuser === true
-  const effectiveOrgId = (isSuperuser && activeOrgId) ? activeOrgId : user?.orgId
+  const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
-  useEffect(() => { loadTodaySessions() }, [effectiveOrgId, user?.id, activeOrgId])
+  useEffect(() => {
+    void loadTodaySessions();
+  }, [effectiveOrgId, user?.id, activeOrgId]);
 
   async function loadTodaySessions() {
     try {
-      const currentUser = user ?? await getCurrentUser()
-      if (!currentUser || !effectiveOrgId) return
-      let effectiveTeamIds = currentUser.teamIds ?? []
-      if (currentUser.isSuperuser && activeOrgId) {
-        const { data: orgTeams, error: teamsError } = await supabase
-          .from('teams')
-          .select('id')
-          .eq('org_id', effectiveOrgId) // SUPERUSER: intentional cross-org query
-        if (teamsError) throw teamsError
-        effectiveTeamIds = orgTeams?.map((team) => team.id) ?? []
+      setLoading(true);
+      const currentUser = user ?? (await getCurrentUser());
+      if (!currentUser || !effectiveOrgId) {
+        setSessions([]);
+        return;
       }
-      if (!effectiveTeamIds.length) {
-        setSessions([])
-        return
+
+      const athleteId = await resolveAthleteId(currentUser, effectiveOrgId);
+      if (!athleteId) {
+        setSessions([]);
+        return;
       }
-      const today = new Date().toISOString().split('T')[0]
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('id, name, session_date, category, rpe_planned')
-        .eq('org_id', effectiveOrgId) // SUPERUSER: uses activeOrgId
-        .in('team_id', effectiveTeamIds)
-        .eq('session_date', today)
-        .order('session_date', { ascending: true })
-      if (error) throw error
-      setSessions(data ?? [])
+
+      const today = localTodayIso();
+      const mapped = await fetchAthleteTodaySessions(supabase, {
+        athleteId,
+        orgId: effectiveOrgId,
+        today,
+      });
+
+      setSessions(mapped);
     } catch (err) {
-      console.error('[useRPELog] loadTodaySessions failed:', err)
-      setError(err.message)
+      console.error('[useRPELog] loadTodaySessions failed:', err);
+      setError(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   async function submitRPELog({ sessionId, actualRpe, actualDurationMin, notes }) {
     try {
-      setSubmitting(true)
-      setError(null)
-      const currentUser = user ?? await getCurrentUser()
-      if (!currentUser || !effectiveOrgId) throw new Error('Not authenticated')
-      let effectiveTeamIds = currentUser.teamIds ?? []
-      if (currentUser.isSuperuser && activeOrgId) {
-        const { data: orgTeams, error: teamsError } = await supabase
-          .from('teams')
-          .select('id')
-          .eq('org_id', effectiveOrgId) // SUPERUSER: intentional cross-org query
-        if (teamsError) throw teamsError
-        effectiveTeamIds = orgTeams?.map((team) => team.id) ?? []
-      }
-      
-      const athleteId = await resolveAthleteId(currentUser, effectiveOrgId)
-      if (!athleteId) throw new Error('No athlete profile linked to this account.')
-      
-      const { error: upsertError } = await supabase
-        .from('session_athlete_logs')
-        .upsert({
+      setSubmitting(true);
+      setError(null);
+      const currentUser = user ?? (await getCurrentUser());
+      if (!currentUser || !effectiveOrgId) throw new Error('Not authenticated');
+
+      const athleteId = await resolveAthleteId(currentUser, effectiveOrgId);
+      if (!athleteId) throw new Error('No athlete profile linked to this account.');
+
+      const session = sessions.find((row) => (row.id ?? row.sessionId) === sessionId);
+
+      const { error: upsertError } = await supabase.from('session_athlete_logs').upsert(
+        {
           session_id: sessionId,
           athlete_id: athleteId,
           org_id: effectiveOrgId,
-          team_id: effectiveTeamIds[0] ?? null,
+          team_id: session?.team_id ?? null,
           actual_rpe: actualRpe,
           actual_duration_min: actualDurationMin,
           notes: notes ?? null,
-        }, {
-          onConflict: 'session_id,athlete_id'
-        })
-      if (upsertError) throw upsertError
-      setSubmitted(true)
+          logged_at: new Date().toISOString(),
+        },
+        { onConflict: 'session_id,athlete_id' },
+      );
+      if (upsertError) throw upsertError;
+      setSubmitted(true);
     } catch (err) {
-      console.error('[useRPELog] submitRPELog failed:', err)
-      setError(err.message)
+      console.error('[useRPELog] submitRPELog failed:', err);
+      setError(err.message);
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
-  return { sessions, loading, submitting, error, submitted, submitRPELog }
+  return { sessions, loading, submitting, error, submitted, submitRPELog };
 }
