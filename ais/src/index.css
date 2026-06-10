@@ -73,9 +73,30 @@
 
   /* ── Border radius ── */
   --radius: 0.125rem;
+  --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-full: 9999px;
+
+  /* ── Session type block colours (calendar) ── */
+  --session-strength-bg: color-mix(in srgb, var(--color-primary-container) 18%, var(--color-surface));
+  --session-strength-border: var(--color-primary-container);
+  --session-strength-text: var(--color-on-surface);
+  --session-recovery-bg: color-mix(in srgb, var(--color-secondary-container) 18%, var(--color-surface));
+  --session-recovery-border: var(--color-secondary-container);
+  --session-recovery-text: var(--color-on-surface);
+  --session-speed-bg: color-mix(in srgb, var(--color-tertiary-container) 18%, var(--color-surface));
+  --session-speed-border: var(--color-tertiary-container);
+  --session-speed-text: var(--color-on-surface);
+  --session-technical-bg: color-mix(in srgb, var(--color-secondary-fixed-dim) 22%, var(--color-surface));
+  --session-technical-border: var(--color-secondary-fixed-dim);
+  --session-technical-text: var(--color-on-surface);
+  --session-match-bg: color-mix(in srgb, var(--color-error-container) 22%, var(--color-surface));
+  --session-match-border: var(--color-error-container);
+  --session-match-text: var(--color-on-surface);
+  --session-other-bg: color-mix(in srgb, var(--color-outline) 18%, var(--color-surface));
+  --session-other-border: var(--color-outline);
+  --session-other-text: var(--color-on-surface);
 }
 
 /* ── Custom utility classes carried over from Stitch ── */

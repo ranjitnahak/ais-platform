@@ -3,7 +3,9 @@ import { supabase } from '../../lib/supabaseClient';
 import { getCurrentUser, canSync } from '../../lib/auth';
 import { useSessions } from '../../hooks/useSessions';
 import { addDays, formatRange, rowMetricKey, weekStartsBetween, computeAcwrSeries, acwrStyle } from '../../lib/periodisationUtils';
+import { sessionTypeLabel, sessionTypeStyles } from '../../lib/sessionTypeStyles';
 import WeekNotesEditor from '../ui/WeekNotesEditor';
+import SessionCreateModal from '../sessions/SessionCreateModal';
 
 const CAT_STYLES = {
   strength: { bg: '#fef9c3', text: '#713f12', label: 'Strength' },
@@ -97,43 +99,74 @@ function weekDays(weekStartIso) {
   return days;
 }
 
+function athleteLogCount(session) {
+  const row = session.session_athlete_logs?.[0];
+  return row?.count ?? 0;
+}
+
 function SessionCalBlock({ session: s, segFrom, onOpen, onPointerDown, onContextMenu, isDragging }) {
   const segStartTime = `${String(segFrom).padStart(2, '0')}:00:00`;
   const top = timeToOffset(s.start_time || DEFAULT_AM_TIME) - timeToOffset(segStartTime) + 2;
   const height = durationToHeight(s.duration_planned);
-  const typeConfig = SESSION_TYPES.find((t) => t.value === s.session_type) || SESSION_TYPES[0];
-  const rpeColor =
-    s.rpe_planned == null ? '#374151' : s.rpe_planned >= 8 ? '#f97316' : s.rpe_planned >= 6 ? '#fbbf24' : '#22c55e';
-
-  const bgMap = {
-    strength: { bg: '#fef9c3', text: '#713f12' },
-    conditioning: { bg: '#dbeafe', text: '#1e40af' },
-    mat: { bg: '#e9d5ff', text: '#5b21b6' },
-    physio: { bg: '#bbf7d0', text: '#14532d' },
-    match: { bg: '#fee2e2', text: '#991b1b' },
-    testing: { bg: '#e0e7ff', text: '#3730a3' },
-  };
-  const colors = bgMap[s.session_type] || { bg: '#374151', text: '#fff' };
+  const label = sessionTypeLabel(s.session_type) || SESSION_TYPES.find((t) => t.value === s.session_type)?.label || 'Session';
+  const styles = sessionTypeStyles(s.session_type);
+  const athleteCount = athleteLogCount(s);
 
   return (
     <div
       className={`absolute left-1 right-1 rounded cursor-grab active:cursor-grabbing hover:brightness-110 hover:z-10 transition-all select-none touch-none ${
         isDragging ? 'opacity-40' : ''
       }`}
-      style={{ top, height, background: colors.bg, color: colors.text, zIndex: 2 }}
+      style={{
+        top,
+        height,
+        background: styles.bg,
+        color: styles.text,
+        borderLeft: `3px solid ${styles.border}`,
+        zIndex: 2,
+      }}
       onPointerDown={onPointerDown}
       onClick={onOpen}
       onContextMenu={onContextMenu}
     >
       <div className="p-1 overflow-hidden h-full flex flex-col">
         <div className="text-[8px] opacity-70">{(s.start_time || '').slice(0, 5)}</div>
-        <div className="text-[9px] font-bold truncate">{typeConfig.label}</div>
-        {height > 36 && <div className="text-[8px] opacity-70 truncate">{s.venue}</div>}
-        {height > 48 && s.rpe_planned != null && (
-          <div className="mt-auto text-[8px] font-bold px-1 rounded self-start" style={{ background: rpeColor, color: '#fff' }}>
-            RPE {s.rpe_planned}
+        <div className="text-[9px] font-bold truncate">{label}</div>
+        {height > 36 && (
+          <div className="text-[8px] opacity-70 truncate">
+            {athleteCount > 0 ? `${athleteCount} athletes` : s.venue || ''}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function TimeSlotGhost({ segFrom, slotIdx, dayIso, canEdit, onCreate }) {
+  const totalMins = segFrom * 60 + slotIdx * 30;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  const timeLabel = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
+  if (!canEdit) return null;
+
+  return (
+    <div
+      className="absolute left-0 right-0 z-[1] group"
+      style={{ top: slotIdx * SLOT_HEIGHT, height: SLOT_HEIGHT }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onCreate({ date: dayIso, startTime: timeLabel });
+      }}
+    >
+      <div
+        className="mx-0.5 flex h-full items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+        style={{
+          border: '1px dashed color-mix(in srgb, var(--color-primary-container) 45%, transparent)',
+          color: 'var(--color-primary-container)',
+        }}
+      >
+        <span className="text-[8px] font-bold">+ add session</span>
       </div>
     </div>
   );
@@ -158,8 +191,14 @@ export default function PeriodisationWeekly({
   onNext,
 }) {
   const [user, setUser] = useState(null);
-  const { sessions, loading: initialLoading, upsertSession, deleteSession } = useSessions(teamId, plan.id, weekStartIso, weekEndIso);
+  const { sessions, loading: initialLoading, fetchSessions, upsertSession, deleteSession } = useSessions(
+    teamId,
+    plan.id,
+    weekStartIso,
+    weekEndIso,
+  );
   const [drawer, setDrawer] = useState(null);
+  const [createModalSlot, setCreateModalSlot] = useState(null);
   const [libraryItems, setLibraryItems] = useState([]);
   const [clipboard, setClipboard] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
@@ -300,6 +339,7 @@ export default function PeriodisationWeekly({
   }, [sessions]);
 
   const todayIso = new Date().toISOString().slice(0, 10);
+  const canEdit = canSync(user, 'periodisation', 'edit');
 
   async function handleDropOnDay(targetDayIso, targetTime = null, sessionToMove = null) {
     const sess = sessionToMove ?? dragSession;
@@ -543,7 +583,7 @@ export default function PeriodisationWeekly({
                       <div
                         key={d.iso}
                         data-day-iso={d.iso}
-                        className={`relative border-r border-white/10 last:border-r-0 ${dragOverDay === d.iso ? 'bg-[#F97316]/10' : ''}`}
+                        className={`relative border-r border-white/10 last:border-r-0 ${dragOverDay === d.iso ? 'bg-[color-mix(in_srgb,var(--color-primary-container)_10%,transparent)]' : ''}`}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -563,6 +603,16 @@ export default function PeriodisationWeekly({
                           }
                         }}
                       >
+                        {[0, 1].map((slotIdx) => (
+                          <TimeSlotGhost
+                            key={slotIdx}
+                            segFrom={seg.from}
+                            slotIdx={slotIdx}
+                            dayIso={d.iso}
+                            canEdit={canEdit}
+                            onCreate={setCreateModalSlot}
+                          />
+                        ))}
                         {daySess.map((s) => (
                           <SessionCalBlock
                             key={s.id}
@@ -607,8 +657,12 @@ export default function PeriodisationWeekly({
               <div key={d.iso} className="border-r border-white/10 last:border-r-0 p-1.5">
                 <button
                   type="button"
-                  onClick={() => setDrawer({ dayIso: d.iso, sessionId: null })}
-                  className="w-full text-[9px] text-gray-500 border border-dashed border-white/20 rounded py-1 hover:border-[#F97316] hover:text-[#F97316] transition-colors"
+                  disabled={!canEdit}
+                  onClick={() =>
+                    canEdit &&
+                    setCreateModalSlot({ date: d.iso, startTime: DEFAULT_AM_TIME.slice(0, 5) })
+                  }
+                  className="w-full text-[9px] text-gray-500 border border-dashed border-white/20 rounded py-1 hover:border-[var(--color-primary-container)] hover:text-[var(--color-primary-container)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   + add
                 </button>
@@ -739,6 +793,15 @@ export default function PeriodisationWeekly({
           upsertSession={upsertSession}
         />
       )}
+
+      <SessionCreateModal
+        open={!!createModalSlot}
+        slot={createModalSlot}
+        planId={plan.id}
+        defaultTeamId={teamId}
+        onClose={() => setCreateModalSlot(null)}
+        onSaved={() => void fetchSessions()}
+      />
     </div>
   );
 }

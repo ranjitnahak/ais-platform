@@ -1,53 +1,64 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentUser } from '../lib/auth';
+import { useUser } from '../context/UserContext';
+import { getEffectiveOrgId } from '../lib/orgScope';
 
 export const useSessions = (teamId, planId, weekStart, weekEnd) => {
   const [sessions, setSessions] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
-  const user = getCurrentUser();
+  const { user: contextUser, activeOrgId } = useUser();
 
   const fetchSessions = useCallback(async () => {
-    if (!teamId || !weekStart || !weekEnd || !user?.teamIds?.includes(teamId)) {
+    try {
+      const user = contextUser ?? (await getCurrentUser());
+      const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
+      if (!teamId || !weekStart || !weekEnd || !user?.teamIds?.includes(teamId) || !effectiveOrgId) {
+        setSessions([]);
+        setInitialLoading(false);
+        return;
+      }
+
+      let q = supabase
+        .from('sessions')
+        .select('*, session_athlete_logs(count)')
+        .eq('org_id', effectiveOrgId)
+        .eq('team_id', teamId)
+        .in('team_id', user.teamIds)
+        .gte('session_date', weekStart)
+        .lte('session_date', weekEnd)
+        .order('session_date')
+        .order('start_time');
+
+      if (planId) q = q.eq('plan_id', planId);
+
+      const { data, error } = await q;
+      if (error) {
+        console.error('[useSessions] fetchSessions failed:', error);
+        setSessions([]);
+      } else {
+        setSessions(data || []);
+      }
+    } catch (err) {
+      console.error('[useSessions] fetchSessions failed:', err);
       setSessions([]);
+    } finally {
       setInitialLoading(false);
-      return;
     }
-
-    let q = supabase
-      .from('sessions')
-      .select('*')
-      .eq('org_id', user.orgId)
-      .eq('team_id', teamId)
-      .in('team_id', user.teamIds)
-      .gte('session_date', weekStart)
-      .lte('session_date', weekEnd)
-      .order('session_date')
-      .order('start_time');
-
-    if (planId) q = q.eq('plan_id', planId);
-
-    const { data, error } = await q;
-    if (error) {
-      console.error(error);
-      setSessions([]);
-    } else {
-      setSessions(data || []);
-    }
-    setInitialLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teamId, planId, weekStart, weekEnd]);
+  }, [teamId, planId, weekStart, weekEnd, contextUser, activeOrgId]);
 
   useEffect(() => {
     void fetchSessions();
   }, [fetchSessions]);
 
   const upsertSession = async (sessionData) => {
+    const user = contextUser ?? (await getCurrentUser());
+    const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
     const { data, error } = await supabase
       .from('sessions')
       .upsert({
         ...sessionData,
-        org_id: user.orgId,
+        org_id: effectiveOrgId,
         team_id: teamId,
         plan_id: planId ?? sessionData.plan_id,
       })
@@ -69,11 +80,13 @@ export const useSessions = (teamId, planId, weekStart, weekEnd) => {
   const deleteSession = async (id) => {
     setSessions((prev) => prev.filter((s) => s.id !== id));
     try {
+      const user = contextUser ?? (await getCurrentUser());
+      const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
       const { error } = await supabase
         .from('sessions')
         .delete()
         .eq('id', id)
-        .eq('org_id', user.orgId);
+        .eq('org_id', effectiveOrgId);
       if (error) throw error;
     } catch (e) {
       await fetchSessions();
