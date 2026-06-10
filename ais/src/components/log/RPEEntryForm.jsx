@@ -20,14 +20,13 @@ export default function RPEEntryForm() {
 
   const selectedSession = sessions.find((session) => sessionKey(session) === selectedSessionId);
 
-  async function handleSubmit(session, { rpe, duration, notes }) {
+  async function handleSubmit(session, { rpe, duration }) {
     const id = sessionKey(session);
     try {
       await submitRPELog({
         sessionId: id,
         actualRpe: rpe,
         actualDurationMin: duration,
-        notes,
       });
       setLoggedSummary({ rpe, duration, sessionType: session.session_type });
     } catch (err) {

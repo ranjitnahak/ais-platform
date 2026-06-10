@@ -51,7 +51,7 @@ export function useRPELog() {
     }
   }
 
-  async function submitRPELog({ sessionId, actualRpe, actualDurationMin, notes }) {
+  async function submitRPELog({ sessionId, actualRpe, actualDurationMin }) {
     try {
       setSubmitting(true);
       setError(null);
@@ -71,7 +71,6 @@ export function useRPELog() {
           team_id: session?.team_id ?? null,
           actual_rpe: actualRpe,
           actual_duration_min: actualDurationMin,
-          notes: notes ?? null,
           logged_at: new Date().toISOString(),
         },
         { onConflict: 'session_id,athlete_id' },

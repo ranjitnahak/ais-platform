@@ -11,7 +11,7 @@ export function useAthleteSessionRpe() {
   const [error, setError] = useState(null);
 
   const logRpe = useCallback(
-    async (sessionId, { actualRpe, actualDurationMin, notes = null, teamId = null }) => {
+    async (sessionId, { actualRpe, actualDurationMin, teamId = null }) => {
       try {
         setSaving(true);
         setError(null);
@@ -30,7 +30,6 @@ export function useAthleteSessionRpe() {
             team_id: teamId,
             actual_rpe: actualRpe,
             actual_duration_min: actualDurationMin,
-            notes,
             logged_at: new Date().toISOString(),
           },
           { onConflict: 'session_id,athlete_id' },

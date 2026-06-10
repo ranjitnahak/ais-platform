@@ -61,13 +61,12 @@ function TodaySessionItem({ session, onRpeLogged }) {
   const venueTime = [session.venue, timeLabel].filter(Boolean).join(' · ');
   const sessionId = session.sessionId ?? session.id;
 
-  async function handleSubmit({ rpe, duration, notes }) {
+  async function handleSubmit({ rpe, duration }) {
     try {
       clearError();
       await logRpe(sessionId, {
         actualRpe: rpe,
         actualDurationMin: duration,
-        notes,
         teamId: session.team_id ?? null,
       });
       setLoggedRpe(rpe);

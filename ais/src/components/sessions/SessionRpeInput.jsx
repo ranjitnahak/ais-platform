@@ -18,14 +18,17 @@ export default function SessionRpeInput({
   const [duration, setDuration] = useState(
     defaultDuration === '' || defaultDuration == null ? '' : String(defaultDuration),
   );
-  const [notes, setNotes] = useState('');
+
+  function handleDurationChange(event) {
+    setDuration(event.target.value.replace(/\D/g, ''));
+  }
 
   async function handleSubmit() {
-    if (!duration) return;
+    const durationMin = Number(duration);
+    if (!durationMin) return;
     await onSubmit({
       rpe: Number(rpe),
-      duration: Number(duration),
-      notes: notes.trim() || null,
+      duration: durationMin,
     });
   }
 
@@ -59,27 +62,19 @@ export default function SessionRpeInput({
       </div>
 
       <input
-        type="number"
-        min="0"
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
         value={duration}
         disabled={disabled || submitting}
-        onChange={(e) => setDuration(e.target.value)}
+        onChange={handleDurationChange}
         placeholder="Duration in minutes"
         className="min-h-12 w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-4 text-base text-[var(--color-on-surface)] outline-none"
       />
 
-      <textarea
-        rows={2}
-        value={notes}
-        disabled={disabled || submitting}
-        onChange={(e) => setNotes(e.target.value)}
-        placeholder="Notes (optional)"
-        className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-4 text-base text-[var(--color-on-surface)] outline-none"
-      />
-
       <button
         type="button"
-        disabled={disabled || submitting || !duration}
+        disabled={disabled || submitting || !Number(duration)}
         onClick={handleSubmit}
         className="min-h-14 w-full rounded-xl bg-[var(--color-primary-container)] text-sm font-black uppercase tracking-widest text-[var(--color-on-primary)] disabled:opacity-50"
       >
