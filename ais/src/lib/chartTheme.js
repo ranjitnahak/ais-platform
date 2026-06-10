@@ -46,3 +46,33 @@ export function baseChartOptions(colors) {
     },
   };
 }
+
+/** Chart.js canvas cannot resolve CSS variables — use established hex constants. */
+export const LOAD_MONITORING_CHART_COLORS = {
+  orange: '#F97316',
+  blue: '#0A84FF',
+  green: '#34C759',
+  red: '#FF453A',
+  purple: '#8B5CF6',
+  grey: '#545458',
+  surface: '#2C2C2E',
+};
+
+export function getLoadMonitoringChartColors() {
+  return {
+    ...LOAD_MONITORING_CHART_COLORS,
+    grid: getChartColor('--color-outline-variant') || LOAD_MONITORING_CHART_COLORS.grey,
+    text: getChartColor('--color-on-surface-variant') || '#8E8E93',
+    surface: getChartColor('--color-surface-container') || LOAD_MONITORING_CHART_COLORS.surface,
+  };
+}
+
+export function getLoadMonitoringChartOptions(colors) {
+  return {
+    ...baseChartOptions(colors),
+    plugins: {
+      ...baseChartOptions(colors).plugins,
+      legend: { display: false },
+    },
+  };
+}
