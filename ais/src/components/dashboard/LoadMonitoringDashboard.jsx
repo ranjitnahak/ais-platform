@@ -3,7 +3,7 @@ import { useUser } from '../../context/UserContext';
 import { useLoadMonitoring } from '../../hooks/useLoadMonitoring';
 import { getAcwrZone } from '../../lib/loadCalculations';
 import { dashboardPdfFilename } from '../../lib/buildDashboardPDF';
-import { SESSION_TYPE_OPTIONS, sessionTypeLabel } from '../../lib/sessionTypeStyles';
+import { useSessionConfig } from '../../context/SessionConfigContext';
 import DashboardExportButton from '../shared/DashboardExportButton';
 import DashboardPanelHeader from '../shared/DashboardPanelHeader';
 import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton';
@@ -55,6 +55,7 @@ const selectClass = 'min-h-10 rounded-xl border border-[var(--color-outline-vari
 
 export default function LoadMonitoringDashboard() {
   const { user } = useUser();
+  const { sessionTypes, sessionTypeLabel } = useSessionConfig();
   const exportRef = useRef(null);
   const {
     loading,
@@ -80,7 +81,7 @@ export default function LoadMonitoringDashboard() {
   const acwrZone = getAcwrZone(statCards?.avgAcwr);
   const methodSubtitle = filters.method === 'ewma' ? 'AU · EWMA' : 'AU · Rolling avg';
 
-  const sessionTypeOptions = SESSION_TYPE_OPTIONS.filter((o) => o.value !== 'other');
+  const sessionTypeOptions = sessionTypes.filter((o) => o.value !== 'other');
 
   const filterSnapshot = useMemo(() => {
     const athleteLabel = filters.athleteId
@@ -93,7 +94,7 @@ export default function LoadMonitoringDashboard() {
       ? 'EWMA λ = 2/(N+1)'
       : 'Rolling average 7d ÷ 28d mean';
     return `${filters.range} · ${athleteLabel} · ${sessionLabel} · ${methodText}`;
-  }, [filters, athletes]);
+  }, [filters, athletes, sessionTypeLabel]);
 
   const exportFilename = dashboardPdfFilename({
     orgName: user?.orgName,

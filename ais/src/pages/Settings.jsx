@@ -6,10 +6,12 @@ import { getEffectiveOrgId } from '../lib/orgScope';
 import Sidebar from '../components/Sidebar';
 import TabShell from '../components/layout/TabShell';
 import WellnessFormPanel from '../components/settings/WellnessFormPanel';
+import SessionSetupPanel from '../components/settings/SessionSetupPanel';
 
 const SETTINGS_TABS = [
   { id: 'tests', label: 'Test Setup' },
   { id: 'wellness', label: 'Wellness Form' },
+  { id: 'sessions', label: 'Session Setup' },
 ];
 
 function NavItem({ label, tabKey, activeTab, onClick, onPrefetch }) {
@@ -147,6 +149,7 @@ export default function Settings() {
     () => ({
       tests: () => <TestSetupPanel />,
       wellness: () => <WellnessFormPanel />,
+      sessions: () => <SessionSetupPanel />,
       preferences: () => <PreferencesPlaceholder />,
     }),
     [],

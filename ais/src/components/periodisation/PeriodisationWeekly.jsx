@@ -5,16 +5,7 @@ import { addDays, formatRange, rowMetricKey, weekStartsBetween, computeAcwrSerie
 import WeekNotesEditor from '../ui/WeekNotesEditor';
 import SessionCreateModal from '../sessions/SessionCreateModal';
 import WeeklyTimeGrid from './WeeklyTimeGrid';
-
-// ── Calendar grid constants & helpers
-const SESSION_TYPES = [
-  { label: 'Strength session', value: 'strength', venue: 'Gym' },
-  { label: 'Conditioning session', value: 'conditioning', venue: 'Ground' },
-  { label: 'Mat session', value: 'mat', venue: 'Mat hall' },
-  { label: 'Physiotherapy session', value: 'physio', venue: 'Physio room' },
-  { label: 'Match', value: 'match', venue: 'Ground' },
-  { label: 'Testing', value: 'testing', venue: 'Gym' },
-];
+import { useSessionConfig } from '../../context/SessionConfigContext';
 
 const DEFAULT_AM_TIME = '06:30:00';
 
@@ -58,6 +49,7 @@ export default function PeriodisationWeekly({
   onPrev,
   onNext,
 }) {
+  const { sessionTypeLabel } = useSessionConfig();
   const [user, setUser] = useState(null);
   const { sessions, loading: initialLoading, fetchSessions, upsertSession, deleteSession } = useSessions(
     teamId,
@@ -517,7 +509,7 @@ export default function PeriodisationWeekly({
           aria-hidden
         >
           <span className="truncate block">
-            {(SESSION_TYPES.find((t) => t.value === dragSession.session_type) || SESSION_TYPES[0]).label}
+            {sessionTypeLabel(dragSession.session_type) || 'Session'}
             {dragOverDay
               ? ` → ${days.find((d) => d.iso === dragOverDay)?.label ?? ''}${dragOverTime ? ` ${dragOverTime.slice(0, 5)}` : ''}`
               : ''}

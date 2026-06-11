@@ -1,4 +1,5 @@
-import { sessionTypeLabel, sessionTypeStyles } from '../../lib/sessionTypeStyles';
+import { sessionTypeStyles } from '../../lib/sessionTypeStyles';
+import { useSessionConfig } from '../../context/SessionConfigContext';
 import { durationToHeight, timeToOffset } from '../../lib/weeklyTimeGrid';
 
 const DEFAULT_AM_TIME = '06:30:00';
@@ -12,6 +13,7 @@ export default function SessionCalBlock({
   onContextMenu,
   isDragging,
 }) {
+  const { sessionTypeLabel } = useSessionConfig();
   const top = timeToOffset(session.start_time || DEFAULT_AM_TIME, gridRows) + 2;
   const height = durationToHeight(session.duration_planned);
   const label = sessionTypeLabel(session.session_type) || 'Session';

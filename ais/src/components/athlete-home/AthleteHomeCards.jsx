@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { sessionTypeLabel } from '../../lib/sessionTypeStyles';
+import { useSessionConfig } from '../../context/SessionConfigContext';
 import { useAthleteSessionRpe } from '../../hooks/useAthleteSessionRpe';
 import SessionRpeInput from '../sessions/SessionRpeInput';
 
@@ -49,6 +49,7 @@ export function DailyCheckInCard({ doneToday }) {
 }
 
 function TodaySessionItem({ session, onRpeLogged }) {
+  const { sessionTypeLabel } = useSessionConfig();
   const { logRpe, saving, error, clearError } = useAthleteSessionRpe();
   const [showSelector, setShowSelector] = useState(false);
   const [loggedRpe, setLoggedRpe] = useState(session.actualRpe);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useRPELog } from '../../hooks/useRPELog';
-import { sessionTypeLabel } from '../../lib/sessionTypeStyles';
+import { useSessionConfig } from '../../context/SessionConfigContext';
 import SessionRpeInput from '../sessions/SessionRpeInput';
 import LogSkeleton from '../shared/skeletons/LogSkeleton';
 
@@ -14,6 +14,7 @@ function sessionKey(session) {
 }
 
 export default function RPEEntryForm() {
+  const { sessionTypeLabel } = useSessionConfig();
   const { sessions, loading, submitting, error, submitted, submitRPELog } = useRPELog();
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [loggedSummary, setLoggedSummary] = useState(null);

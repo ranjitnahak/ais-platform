@@ -1,4 +1,4 @@
-import { sessionTypeLabel } from '../../../lib/sessionTypeStyles';
+import { useSessionConfig } from '../../../context/SessionConfigContext';
 
 function formatSessionDate(iso) {
   if (!iso) return '';
@@ -7,6 +7,7 @@ function formatSessionDate(iso) {
 }
 
 export default function RpeComplianceCard({ compliance }) {
+  const { sessionTypeLabel } = useSessionConfig();
   const { logged, pending, absent, percent, sessionLabel, sessionType, sessionDate } = compliance ?? {};
   const total = (logged ?? 0) + (pending ?? 0) + (absent ?? 0);
   const loggedPct = total ? (logged / total) * 100 : 0;

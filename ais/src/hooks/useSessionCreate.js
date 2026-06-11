@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { getEffectiveOrgId, resolveOrgTeamScope } from '../lib/orgScope';
 import { useUser } from '../context/UserContext';
-import { SESSION_TYPE_OPTIONS, SESSION_VENUES } from '../lib/sessionTypeStyles';
+import { useSessionConfig } from '../context/SessionConfigContext';
+import { FALLBACK_SESSION_TYPE_OPTIONS, FALLBACK_SESSION_VENUES } from '../lib/sessionTypeStyles';
 
 function parseTimeHHMM(str) {
   const match = String(str || '').match(/^(\d{1,2}):(\d{2})/);
@@ -40,6 +41,7 @@ export function toDbTime(timeStr) {
 
 export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
   const { user: contextUser, activeOrgId } = useUser();
+  const { sessionTypes, venues, sessionTypeRows, loading: configLoading } = useSessionConfig();
 
   const [sessionDate, setSessionDate] = useState('');
   const [startTime, setStartTime] = useState('06:30');
@@ -177,6 +179,13 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     if (selectedTeamId) void loadRoster(selectedTeamId);
   }, [selectedTeamId, loadRoster]);
 
+  const defaultSessionType = sessionTypes[0]?.value ?? 'strength';
+  const defaultVenue = useMemo(() => {
+    const typeRow = sessionTypeRows.find((row) => row.key === defaultSessionType);
+    if (typeRow?.default_venue && venues.includes(typeRow.default_venue)) return typeRow.default_venue;
+    return venues[0] ?? 'Gym';
+  }, [sessionTypeRows, sessionTypes, venues, defaultSessionType]);
+
   const initFromSlot = useCallback(({ date, startTime: slotStart }) => {
     const start = (slotStart || '06:30').slice(0, 5);
     const end = addMinutesToTime(start, 90);
@@ -187,8 +196,8 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     setEndTime(end);
     setDurationPlanned(90);
     setDurationActual('');
-    setSessionType('strength');
-    setVenue('Gym');
+    setSessionType(defaultSessionType);
+    setVenue(defaultVenue);
     setRpePlanned(null);
     setRpeActual('');
     setNotes('');
@@ -196,7 +205,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     setError(null);
     setToast(null);
     if (defaultTeamId) setSelectedTeamId(defaultTeamId);
-  }, [defaultTeamId]);
+  }, [defaultTeamId, defaultSessionType, defaultVenue]);
 
   const initFromSession = useCallback(
     async (session) => {
@@ -255,6 +264,15 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
       syncDurationFromTimes(startTime, value);
     },
     [startTime, syncDurationFromTimes],
+  );
+
+  const setSessionTypeAndVenue = useCallback(
+    (value) => {
+      setSessionType(value);
+      const typeRow = sessionTypeRows.find((row) => row.key === value);
+      if (typeRow?.default_venue) setVenue(typeRow.default_venue);
+    },
+    [sessionTypeRows],
   );
 
   const selectTeam = useCallback((teamId) => {
@@ -428,8 +446,9 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
   const dismissToast = useCallback(() => setToast(null), []);
 
   return {
-    sessionTypeOptions: SESSION_TYPE_OPTIONS,
-    venueOptions: SESSION_VENUES,
+    sessionTypeOptions: sessionTypes.length ? sessionTypes : FALLBACK_SESSION_TYPE_OPTIONS,
+    venueOptions: venues.length ? venues : FALLBACK_SESSION_VENUES,
+    configLoading,
     sessionDate,
     startTime,
     endTime,
@@ -453,7 +472,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     saving,
     error,
     toast,
-    setSessionType,
+    setSessionType: setSessionTypeAndVenue,
     setVenue,
     setDurationPlanned,
     setDurationActual,
