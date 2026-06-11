@@ -54,15 +54,20 @@ function computeLoadSeries(dailyLoads, method) {
   };
 }
 
+function resolveLogSessionDate(log, sessionsById) {
+  const session = log.session_id ? sessionsById[log.session_id] : null;
+  return session?.session_date ?? log.session_date ?? null;
+}
+
 function buildDailyLoadsForAthlete(dates, sessionsById, logs, athleteId) {
   const loadsByDate = Object.fromEntries(dates.map((d) => [d, 0]));
   for (const log of logs) {
     if (athleteId && log.athlete_id !== athleteId) continue;
-    const session = sessionsById[log.session_id];
-    if (!session) continue;
+    const sessionDate = resolveLogSessionDate(log, sessionsById);
+    if (!sessionDate) continue;
     const load = resolveSessionLoad(log);
     if (load > 0 || log.actual_rpe != null) {
-      loadsByDate[session.session_date] = (loadsByDate[session.session_date] ?? 0) + load;
+      loadsByDate[sessionDate] = (loadsByDate[sessionDate] ?? 0) + load;
     }
   }
   return dates.map((d) => loadsByDate[d] ?? 0);
@@ -72,9 +77,9 @@ function buildSquadDailyLoads(dates, sessionsById, logs, athleteIds) {
   const loadsByDate = Object.fromEntries(dates.map((d) => [d, 0]));
   for (const log of logs) {
     if (athleteIds?.length && !athleteIds.includes(log.athlete_id)) continue;
-    const session = sessionsById[log.session_id];
-    if (!session) continue;
-    loadsByDate[session.session_date] = (loadsByDate[session.session_date] ?? 0) + resolveSessionLoad(log);
+    const sessionDate = resolveLogSessionDate(log, sessionsById);
+    if (!sessionDate) continue;
+    loadsByDate[sessionDate] = (loadsByDate[sessionDate] ?? 0) + resolveSessionLoad(log);
   }
   return dates.map((d) => loadsByDate[d] ?? 0);
 }
@@ -102,7 +107,8 @@ function countLoggedSessions(logs, sessionsById, athleteId) {
   return logs.filter((log) => {
     if (log.athlete_id !== athleteId) return false;
     if (log.actual_rpe == null) return false;
-    return Boolean(sessionsById[log.session_id]);
+    if (log.session_id) return Boolean(sessionsById[log.session_id]);
+    return Boolean(log.session_date);
   }).length;
 }
 
@@ -191,6 +197,7 @@ export function useLoadMonitoring() {
 
         const sessionIds = sessionRows.map((s) => s.id);
 
+        let linkedLogRows = [];
         try {
           if (sessionIds.length) {
             const { data, error: logsError } = await supabase
@@ -199,12 +206,37 @@ export function useLoadMonitoring() {
               .eq('org_id', orgId)
               .in('session_id', sessionIds);
             if (logsError) throw logsError;
-            logRows = data ?? [];
+            linkedLogRows = data ?? [];
           }
         } catch (err) {
           console.error('[useLoadMonitoring] logs fetch failed:', err);
           throw err;
         }
+
+        let orphanLogRows = [];
+        try {
+          let orphanQuery = supabase
+            .from('session_athlete_logs')
+            .select('session_id, athlete_id, actual_rpe, actual_duration_min, session_load, logged_at, session_date, session_type')
+            .eq('org_id', orgId)
+            .in('team_id', teamIds)
+            .is('session_id', null)
+            .eq('source', 'teamworks_import')
+            .not('session_date', 'is', null)
+            .gte('session_date', dateFrom)
+            .lte('session_date', dateTo);
+          if (filters.sessionType !== 'all') {
+            orphanQuery = orphanQuery.eq('session_type', filters.sessionType);
+          }
+          const { data: orphanData, error: orphanErr } = await orphanQuery;
+          if (orphanErr) throw orphanErr;
+          orphanLogRows = orphanData ?? [];
+        } catch (err) {
+          console.error('[useLoadMonitoring] orphan import logs fetch failed:', err);
+          throw err;
+        }
+
+        logRows = [...linkedLogRows, ...orphanLogRows];
 
         try {
           const { data, error: athletesError } = await athletesQuery;
