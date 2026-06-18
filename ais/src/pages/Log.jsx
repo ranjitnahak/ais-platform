@@ -9,6 +9,7 @@ import WellnessEntryForm from '../components/log/WellnessEntryForm';
 import StaffNotes from './StaffNotes';
 import DexaUploadTab from '../components/dexa/DexaUploadTab';
 import LogSkeleton from '../components/shared/skeletons/LogSkeleton';
+import AssessmentTab from './log/AssessmentTab';
 
 const ALL_TABS = [
   { id: 'rpe-entry', label: 'RPE Entry', resource: 'rpe_logging' },
@@ -18,19 +19,9 @@ const ALL_TABS = [
   { id: 'dexa', label: 'DEXA Upload' },
 ];
 
-function AssessmentTab() {
-  return (
-    <div className="flex min-h-[320px] flex-col items-center justify-center rounded-3xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-8 text-center">
-      <span className="material-symbols-outlined text-5xl text-[var(--color-outline)]">construction</span>
-      <h2 className="mt-4 text-2xl font-black tracking-tight text-[var(--color-on-surface)]">Assessment</h2>
-      <p className="mt-2 text-sm font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">Coming soon</p>
-    </div>
-  );
-}
-
 export default function Log() {
   const [activeTab, setActiveTab] = useState('rpe-entry');
-  const { user, activeOrgId, loading: userLoading } = useUser();
+  const { user, activeOrgId, activeTeamId, loading: userLoading } = useUser();
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
 
   const visibleTabs = useMemo(
@@ -70,7 +61,7 @@ export default function Log() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           panels={panels}
-          scopeKey={effectiveOrgId ?? 'log'}
+          scopeKey={`${effectiveOrgId ?? 'log'}-${activeTeamId ?? 'none'}`}
         />
       )}
     </StaffPageLayout>
