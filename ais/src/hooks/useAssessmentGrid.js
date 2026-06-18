@@ -24,9 +24,27 @@ function todayIso() {
 function emptyCellsForTests(testIds) {
   const cells = {};
   for (const id of testIds) {
-    cells[id] = { value: '', status: 'empty', saveError: null };
+    cells[id] = { value: '', savedValue: '', status: 'empty', saveError: null };
   }
   return cells;
+}
+
+export function isCellDirty(cell) {
+  return String(cell?.value ?? '').trim() !== String(cell?.savedValue ?? '').trim();
+}
+
+function makeSyncedCell(value, test, tiers) {
+  const str = value == null ? '' : String(value);
+  return {
+    value: str,
+    savedValue: str,
+    status: cellStatusForValue(str, test, tiers),
+    saveError: null,
+  };
+}
+
+function defaultCell(cell) {
+  return cell ?? { value: '', savedValue: '', status: 'empty', saveError: null };
 }
 
 function cellStatusForValue(value, test, tiers) {
@@ -64,8 +82,6 @@ export function useAssessmentGrid({ onToast } = {}) {
   const [rosterLoading, setRosterLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [tiers, setTiers] = useState([]);
-  const [saveAllVisible, setSaveAllVisible] = useState(false);
-  const [autosaveFailed, setAutosaveFailed] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
   const [importFileName, setImportFileName] = useState('');
   const [gridLoading, setGridLoading] = useState(false);
@@ -261,11 +277,7 @@ export function useAssessmentGrid({ onToast } = {}) {
             const val = resultMap.get(key);
             if (val != null) {
               const test = testById.get(testId);
-              cells[testId] = {
-                value: String(val),
-                status: cellStatusForValue(val, test, tiers),
-                saveError: null,
-              };
+              cells[testId] = makeSyncedCell(val, test, tiers);
             }
           }
           return { ...row, cells };
@@ -356,11 +368,7 @@ export function useAssessmentGrid({ onToast } = {}) {
         const cells = emptyCellsForTests(selectedTestIds);
         for (const result of data ?? []) {
           const test = testById.get(result.test_id);
-          cells[result.test_id] = {
-            value: String(result.value),
-            status: cellStatusForValue(result.value, test, tiers),
-            saveError: null,
-          };
+          cells[result.test_id] = makeSyncedCell(result.value, test, tiers);
         }
 
         setRows((prev) =>
@@ -376,38 +384,69 @@ export function useAssessmentGrid({ onToast } = {}) {
     [selectedTestIds, loadSessionsForDates, ensureSession, activeTests, tiers, toast],
   );
 
-  const updateCellValue = useCallback((athleteId, testId, value) => {
-    setRows((prev) =>
-      prev.map((row) => {
-        if (row.athleteId !== athleteId) return row;
-        const cells = {
-          ...row.cells,
-          [testId]: {
-            ...(row.cells[testId] ?? { status: 'empty', saveError: null }),
-            value,
-            status: value.trim() === '' ? 'empty' : 'empty',
+  const updateCellValue = useCallback(
+    (athleteId, testId, value) => {
+      setRows((prev) =>
+        prev.map((row) => {
+          if (row.athleteId !== athleteId) return row;
+          const existingCell = row.cells[testId] ?? {
+            value: '',
+            savedValue: '',
+            status: 'empty',
             saveError: null,
-          },
-        };
-        return { ...row, cells };
-      }),
-    );
-  }, []);
+          };
+          const savedValue = existingCell.savedValue ?? '';
+          const dirty = String(value).trim() !== String(savedValue).trim();
+          const test = activeTests.find((t) => t.id === testId);
+          let status = 'empty';
+          if (dirty) {
+            status = 'dirty';
+          } else if (String(savedValue).trim()) {
+            status = cellStatusForValue(savedValue, test, tiers);
+          }
+          return {
+            ...row,
+            cells: {
+              ...row.cells,
+              [testId]: { ...existingCell, value, savedValue, status, saveError: null },
+            },
+          };
+        }),
+      );
+    },
+    [activeTests, tiers],
+  );
 
   const persistCell = useCallback(
     async (athleteId, testId) => {
       const row = rowsRef.current.find((r) => r.athleteId === athleteId);
       if (!row) return;
 
-      const cell = row.cells[testId] ?? { value: '' };
+      const cell = row.cells[testId] ?? { value: '', savedValue: '' };
       const raw = String(cell.value ?? '').trim();
       const test = activeTests.find((t) => t.id === testId);
 
-      setSaving(true);
       try {
         const sessionId = await ensureSession(row.date);
 
         if (!raw) {
+          const hadSaved = String(cell.savedValue ?? '').trim() !== '';
+          if (!hadSaved) {
+            setRows((prev) =>
+              prev.map((r) => {
+                if (r.athleteId !== athleteId) return r;
+                return {
+                  ...r,
+                  cells: {
+                    ...r.cells,
+                    [testId]: { value: '', savedValue: '', status: 'empty', saveError: null },
+                  },
+                };
+              }),
+            );
+            return;
+          }
+
           const { error } = await supabase
             .from('assessment_results')
             .delete()
@@ -423,12 +462,11 @@ export function useAssessmentGrid({ onToast } = {}) {
                 ...r,
                 cells: {
                   ...r.cells,
-                  [testId]: { value: '', status: 'empty', saveError: null },
+                  [testId]: { value: '', savedValue: '', status: 'empty', saveError: null },
                 },
               };
             }),
           );
-          setAutosaveFailed(false);
           return;
         }
 
@@ -441,7 +479,12 @@ export function useAssessmentGrid({ onToast } = {}) {
                 ...r,
                 cells: {
                   ...r.cells,
-                  [testId]: { value: raw, status: 'flagged', saveError: 'Invalid number' },
+                  [testId]: {
+                    ...defaultCell(r.cells[testId]),
+                    value: raw,
+                    status: 'dirty',
+                    saveError: 'Invalid number',
+                  },
                 },
               };
             }),
@@ -472,17 +515,13 @@ export function useAssessmentGrid({ onToast } = {}) {
               ...r,
               cells: {
                 ...r.cells,
-                [testId]: { value: raw, status, saveError: null },
+                [testId]: { value: raw, savedValue: raw, status, saveError: null },
               },
             };
           }),
         );
-        setAutosaveFailed(false);
-        setSaveAllVisible(false);
       } catch (err) {
         console.error('[useAssessmentGrid] persistCell failed:', err);
-        setAutosaveFailed(true);
-        setSaveAllVisible(true);
         setRows((prev) =>
           prev.map((r) => {
             if (r.athleteId !== athleteId) return r;
@@ -491,7 +530,7 @@ export function useAssessmentGrid({ onToast } = {}) {
               cells: {
                 ...r.cells,
                 [testId]: {
-                  ...(r.cells[testId] ?? {}),
+                  ...defaultCell(r.cells[testId]),
                   saveError: err.message ?? 'Save failed',
                 },
               },
@@ -499,8 +538,7 @@ export function useAssessmentGrid({ onToast } = {}) {
           }),
         );
         toast(err.message ?? 'Could not save.', 'error');
-      } finally {
-        setSaving(false);
+        throw err;
       }
     },
     [activeTests, ensureSession, tiers, user?.id, toast],
@@ -511,30 +549,32 @@ export function useAssessmentGrid({ onToast } = {}) {
     for (const row of rowsRef.current) {
       for (const testId of selectedTestIds) {
         const cell = row.cells[testId];
-        if (cell?.saveError) {
+        if (isCellDirty(cell)) {
           pending.push({ athleteId: row.athleteId, testId });
         }
       }
     }
 
-    if (!pending.length) {
-      for (const row of rowsRef.current) {
-        for (const testId of selectedTestIds) {
-          const cell = row.cells[testId];
-          if (cell?.value && String(cell.value).trim()) {
-            pending.push({ athleteId: row.athleteId, testId });
-          }
-        }
-      }
-    }
+    if (!pending.length) return;
 
     setSaving(true);
     try {
       for (const { athleteId, testId } of pending) {
-        await persistCell(athleteId, testId);
+        try {
+          await persistCell(athleteId, testId);
+        } catch {
+          // persistCell logs and marks cell; continue with remaining cells
+        }
       }
-      if (!autosaveFailed) {
-        setSaveAllVisible(false);
+
+      const stillPending = rowsRef.current.some((row) =>
+        selectedTestIds.some((tid) => {
+          const c = row.cells[tid];
+          return isCellDirty(c) || c?.saveError;
+        }),
+      );
+
+      if (!stillPending) {
         toast('All changes saved', 'success');
       }
     } catch (err) {
@@ -542,7 +582,7 @@ export function useAssessmentGrid({ onToast } = {}) {
     } finally {
       setSaving(false);
     }
-  }, [selectedTestIds, persistCell, autosaveFailed, toast]);
+  }, [selectedTestIds, persistCell, toast]);
 
   const toggleTest = useCallback((testId) => {
     setSelectedTestIds((prev) => {
@@ -662,6 +702,14 @@ export function useAssessmentGrid({ onToast } = {}) {
     return { complete, total };
   }, [rows, selectedTestIds]);
 
+  const hasUnsavedChanges = useMemo(
+    () =>
+      rows.some((row) =>
+        selectedTestIds.some((tid) => isCellDirty(row.cells[tid])),
+      ),
+    [rows, selectedTestIds],
+  );
+
   const loading = rosterLoading || testsLoading || gridLoading;
 
   return {
@@ -679,9 +727,8 @@ export function useAssessmentGrid({ onToast } = {}) {
     rows,
     setRowDate,
     updateCellValue,
-    persistCell,
     saveAll,
-    saveAllVisible: saveAllVisible || autosaveFailed,
+    hasUnsavedChanges,
     importPreview,
     importFileName,
     handleImportFile,

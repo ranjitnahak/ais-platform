@@ -47,6 +47,9 @@ function StatusDot({ status }) {
 
 function cellClassName(status) {
   const base = 'w-full min-w-[4.5rem] rounded border px-2 py-1 text-sm text-[var(--color-on-surface)] outline-none';
+  if (status === 'dirty') {
+    return `${base} border-[var(--color-secondary-container)] bg-[var(--color-surface-container-high)]`;
+  }
   if (status === 'saved') {
     return `${base} border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-primary-container)_12%,var(--color-surface-container-high))]`;
   }
@@ -121,6 +124,16 @@ export default function AssessmentTab() {
       ? Math.round((grid.progress.complete / grid.progress.total) * 100)
       : 0;
 
+  function handleGroupDateChange(nextDate) {
+    if (
+      grid.hasUnsavedChanges &&
+      !window.confirm('You have unsaved changes. Change date anyway?')
+    ) {
+      return;
+    }
+    grid.setGroupDate(nextDate);
+  }
+
   return (
     <div className="space-y-4">
       {/* Filter bar */}
@@ -132,7 +145,7 @@ export default function AssessmentTab() {
           <input
             type="date"
             value={grid.groupDate}
-            onChange={(e) => grid.setGroupDate(e.target.value)}
+            onChange={(e) => handleGroupDateChange(e.target.value)}
             className={INPUT_CLASS}
           />
         </div>
@@ -189,7 +202,12 @@ export default function AssessmentTab() {
           ))}
         </FilterDropdown>
 
-        <div className="ml-auto flex flex-wrap gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {grid.hasUnsavedChanges && (
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-secondary-container)]">
+              Unsaved changes
+            </span>
+          )}
           <button
             type="button"
             onClick={() => grid.exportCsv()}
@@ -216,16 +234,14 @@ export default function AssessmentTab() {
               e.target.value = '';
             }}
           />
-          {grid.saveAllVisible && (
-            <button
-              type="button"
-              onClick={() => void grid.saveAll()}
-              disabled={grid.saving}
-              className="rounded-lg bg-[var(--color-primary-container)] px-3 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-primary-container)]"
-            >
-              {grid.saving ? 'Saving…' : 'Save all'}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => void grid.saveAll()}
+            disabled={grid.saving || !grid.hasUnsavedChanges}
+            className="rounded-lg bg-[var(--color-primary-container)] px-3 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-primary-container)] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {grid.saving ? 'Saving…' : 'Save all'}
+          </button>
         </div>
       </div>
 
@@ -336,7 +352,6 @@ export default function AssessmentTab() {
                           step="any"
                           value={cell.value}
                           onChange={(e) => grid.updateCellValue(row.athleteId, test.id, e.target.value)}
-                          onBlur={() => void grid.persistCell(row.athleteId, test.id)}
                           className={cellClassName(cell.status)}
                         />
                       </td>
