@@ -17,3 +17,15 @@ export async function isFeatureEnabled(featureKey) {
     return false
   }
 }
+
+export async function isBundleActive() {
+  try {
+    const [ais, scPro] = await Promise.all([
+      isFeatureEnabled('periodisation'),
+      isFeatureEnabled('sc_pro')
+    ])
+    return ais && scPro
+  } catch {
+    return false
+  }
+}
