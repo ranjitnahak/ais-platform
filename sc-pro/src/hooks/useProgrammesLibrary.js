@@ -34,7 +34,6 @@ function useTeamUsageMap(programmeIds, refreshKey, teamIds) {
           .from('programme_weeks')
           .select('id, programme_id')
           .eq('org_id', user.orgId)
-          .in('team_id', teamIds)
           .in('programme_id', programmeIds)
         if (wErr) throw wErr
         if (!weeks?.length) {
@@ -115,7 +114,6 @@ export function useProgrammesLibrary() {
         .from('programmes')
         .select('*')
         .eq('org_id', user.orgId)
-        .in('team_id', userTeamIds)
         .order('created_at', { ascending: false })
       if (error) throw error
       setRows(data ?? [])
@@ -126,7 +124,7 @@ export function useProgrammesLibrary() {
     } finally {
       setLoading(false)
     }
-  }, [user?.orgId, userTeamIds])
+  }, [user?.orgId])
 
   useEffect(() => {
     void load()
@@ -220,7 +218,6 @@ export function useProgrammesLibrary() {
         .select('*')
         .eq('programme_id', source.id)
         .eq('org_id', user.orgId)
-        .in('team_id', userTeamIds)
         .order('week_number')
       if (w0) throw w0
       if (weeks?.length) {
@@ -239,7 +236,6 @@ export function useProgrammesLibrary() {
           .select('id, week_number')
           .eq('programme_id', copy.id)
           .eq('org_id', user.orgId)
-          .in('team_id', userTeamIds)
           .order('week_number')
         if (w2) throw w2
 
@@ -279,7 +275,7 @@ export function useProgrammesLibrary() {
 
   async function deleteProgramme(id) {
     try {
-      const { error } = await supabase.from('programmes').delete().eq('id', id).eq('org_id', user.orgId).in('team_id', userTeamIds)
+      const { error } = await supabase.from('programmes').delete().eq('id', id).eq('org_id', user.orgId)
       if (error) throw error
       setRefreshKey((k) => k + 1)
     } catch (e) {
@@ -295,7 +291,6 @@ export function useProgrammesLibrary() {
         .update({ is_template: true })
         .eq('id', source.id)
         .eq('org_id', user.orgId)
-        .in('team_id', userTeamIds)
       if (error) throw error
       setRefreshKey((k) => k + 1)
     } catch (e) {
