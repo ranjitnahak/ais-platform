@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useUser } from '../../context/UserContext.jsx'
+import { canSync } from '../../lib/auth.js'
 import {
   DIFF_BADGE,
   PHASE_ACCENT_VAR,
@@ -59,6 +61,7 @@ export default function ProgrammeLibraryTable({
   saveAsTemplate,
   setPage,
 }) {
+  const { user } = useUser()
   const [menu, setMenu] = useState(null)
   const menuPanelRef = useRef(null)
 
@@ -107,15 +110,19 @@ export default function ProgrammeLibraryTable({
         >
           Save as Template
         </MenuItem>
-        <MenuItem onClick={() => setMenu(null)}>Archive</MenuItem>
-        <MenuItem
-          onClick={() => {
-            setMenu(null)
-            deleteProgramme(menu.programme.id)
-          }}
-        >
-          Delete
-        </MenuItem>
+        {canSync(user, 'sc_pro', 'delete') && (
+          <MenuItem onClick={() => setMenu(null)}>Archive</MenuItem>
+        )}
+        {canSync(user, 'sc_pro', 'delete') && (
+          <MenuItem
+            onClick={() => {
+              setMenu(null)
+              deleteProgramme(menu.programme.id)
+            }}
+          >
+            Delete
+          </MenuItem>
+        )}
       </div>,
       document.body,
     )

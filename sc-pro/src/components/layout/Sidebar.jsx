@@ -1,13 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { getCurrentUser } from '../../lib/auth.js'
+import { useUser } from '../../context/UserContext.jsx'
+import { canSync } from '../../lib/auth.js'
 
 const nav = [
-  { to: '/home', label: 'Home', icon: 'home' },
-  { to: '/programmes', label: 'Programmes', icon: 'grid' },
-  { to: '/athletes', label: 'Athletes', icon: 'people' },
-  { to: '/analytics', label: 'Analytics', icon: 'chart' },
-  { to: '/exercise-library', label: 'Exercise Library', icon: 'book' },
-  { to: '/settings', label: 'Settings', icon: 'gear' },
+  { to: '/home', label: 'Home', icon: 'home', resource: 'sc_pro' },
+  { to: '/programmes', label: 'Programmes', icon: 'grid', resource: 'sc_pro' },
+  { to: '/athletes', label: 'Athletes', icon: 'people', resource: 'sc_pro' },
+  { to: '/analytics', label: 'Analytics', icon: 'chart', resource: 'sc_pro' },
+  { to: '/exercise-library', label: 'Exercise Library', icon: 'book', resource: 'sc_pro' },
+  { to: '/settings', label: 'Settings', icon: 'gear', resource: 'adminConfig' },
 ]
 
 function NavIcon({ name }) {
@@ -67,9 +68,9 @@ function NavIcon({ name }) {
 }
 
 export default function Sidebar() {
-  const user = getCurrentUser()
+  const { user } = useUser()
   const displayName = 'Coach'
-  const roleLabel = user.role === 'staff' ? 'Staff' : user.role
+  const roleLabel = user?.role === 'staff' ? 'Staff' : (user?.role ?? '—')
 
   return (
     <aside
@@ -109,7 +110,9 @@ export default function Sidebar() {
       </div>
 
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, padding: '0 12px' }}>
-        {nav.map((item) => (
+        {nav.map((item) => {
+          if (!canSync(user, item.resource, 'view')) return null
+          return (
           <NavLink
             key={item.to}
             to={item.to}
@@ -130,7 +133,8 @@ export default function Sidebar() {
             <NavIcon name={item.icon} />
             {item.label}
           </NavLink>
-        ))}
+          )
+        })}
       </nav>
 
       <div

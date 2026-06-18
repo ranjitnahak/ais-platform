@@ -6,8 +6,9 @@ import CreateProgrammeModal from '../components/programmes/CreateProgrammeModal.
 import { FilterSelect, btnOutline, btnPrimary } from '../components/programmes/programmeLibraryUi.jsx'
 import { registerPageContext, unregisterPageContext } from '../lib/assistantContext.js'
 import { registerAction, unregisterAction } from '../lib/assistantActions.js'
-import { getCurrentUser } from '../lib/auth.js'
+import { canSync, getCurrentUser } from '../lib/auth.js'
 import { supabase } from '../lib/supabaseClient.js'
+import { useUser } from '../context/UserContext.jsx'
 
 const PROGRAMMES_PAGE_ACTIONS = [
   'create_programme',
@@ -18,6 +19,7 @@ const PROGRAMMES_PAGE_ACTIONS = [
 ]
 
 export default function Programmes() {
+  const { user } = useUser()
   const v = useProgrammesLibrary()
 
   useEffect(() => {
@@ -224,9 +226,11 @@ export default function Programmes() {
         >
           Templates ({v.templateCount})
         </button>
-        <button type="button" style={btnPrimary} onClick={() => v.setModal({})}>
-          + Create Programme
-        </button>
+        {canSync(user, 'sc_pro', 'create') && (
+          <button type="button" style={btnPrimary} onClick={() => v.setModal({})}>
+            + Create Programme
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
@@ -247,9 +251,11 @@ export default function Programmes() {
       ) : v.filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 16px' }}>
           <p style={{ color: 'var(--color-text-muted)' }}>No programmes yet. Create your first programme.</p>
-          <button type="button" style={{ ...btnPrimary, marginTop: 16 }} onClick={() => v.setModal({})}>
-            + Create Programme
-          </button>
+          {canSync(user, 'sc_pro', 'create') && (
+            <button type="button" style={{ ...btnPrimary, marginTop: 16 }} onClick={() => v.setModal({})}>
+              + Create Programme
+            </button>
+          )}
         </div>
       ) : (
         <ProgrammeLibraryTable

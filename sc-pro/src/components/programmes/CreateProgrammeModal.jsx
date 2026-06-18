@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { DIFFICULTIES, PHASE_TYPES, TRAINING_AGES } from '../../lib/programmeUi.js'
 import { isoLocal, startOfWeekMonday } from '../../lib/weekDates.js'
+import { useUser } from '../../context/UserContext.jsx'
+import { canSync } from '../../lib/auth.js'
 import { btnOutline, btnPrimary } from './programmeLibraryUi.jsx'
 
 const inputStyle = {
@@ -61,6 +63,7 @@ function Field({ label, children }) {
 }
 
 export default function CreateProgrammeModal({ onClose, onSave }) {
+  const { user } = useUser()
   const [name, setName] = useState('')
   const [sport, setSport] = useState('')
   const [phase_type, setPhase] = useState('general')
@@ -69,6 +72,8 @@ export default function CreateProgrammeModal({ onClose, onSave }) {
   const [description, setDesc] = useState('')
   const [weeks, setWeeks] = useState(4)
   const [startDate, setStartDate] = useState(() => isoLocal(startOfWeekMonday(new Date())))
+
+  if (!canSync(user, 'sc_pro', 'create')) return null
 
   return (
     <div

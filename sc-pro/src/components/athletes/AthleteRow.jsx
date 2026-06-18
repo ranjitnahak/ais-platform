@@ -1,4 +1,6 @@
 import { useContext, useMemo, useState } from 'react'
+import { useUser } from '../../context/UserContext.jsx'
+import { canSync } from '../../lib/auth.js'
 import { AthletePdfExportContext } from './ProgrammeExportModal.jsx'
 
 function initials(name) {
@@ -58,6 +60,7 @@ function IconPrinter() {
 }
 
 export default function AthleteRow({ athlete, isSelected, onSelect, onViewProfile }) {
+  const { user } = useUser()
   const setExportAthlete = useContext(AthletePdfExportContext)
   const [hovered, setHovered] = useState(false)
   const profileName = athlete.display_name || athlete.name
@@ -200,9 +203,11 @@ export default function AthleteRow({ athlete, isSelected, onSelect, onViewProfil
           >
             <ActionIcon>👤</ActionIcon>
           </button>
-          <button type="button" title="Assign Programme" onClick={() => window.alert('Coming soon')} style={iconBtn}>
-            <ActionIcon>📅</ActionIcon>
-          </button>
+          {canSync(user, 'sc_pro', 'edit') && (
+            <button type="button" title="Assign Programme" onClick={() => window.alert('Coming soon')} style={iconBtn}>
+              <ActionIcon>📅</ActionIcon>
+            </button>
+          )}
           <button type="button" title="View Analytics" onClick={() => window.alert('Coming soon')} style={iconBtn}>
             <ActionIcon>📊</ActionIcon>
           </button>

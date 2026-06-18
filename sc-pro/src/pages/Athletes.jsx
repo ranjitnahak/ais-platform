@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAthletes } from '../hooks/useAthletes.js'
 import { useUser } from '../context/UserContext.jsx'
+import { canSync } from '../lib/auth.js'
 import { useAssistantAthletes } from '../hooks/useAssistantAthletes.js'
 import { ASSISTANT_ACTION_COMPLETE } from '../lib/assistantContext.js'
 import AthleteTable from '../components/athletes/AthleteTable.jsx'
@@ -12,7 +13,7 @@ function sortByName(list) {
 }
 
 export default function Athletes() {
-  const { activeTeamId, setActiveTeamId } = useUser()
+  const { user, activeTeamId, setActiveTeamId } = useUser()
   const { athletes, teams, loading, error, refetch } = useAthletes()
   const [teamFilter, setTeamFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -86,9 +87,11 @@ export default function Athletes() {
             placeholder="Search athletes..."
             style={{ ...controlStyle, width: 260 }}
           />
-          <button type="button" onClick={() => setAddOpen(true)} style={addBtn}>
-            + Add Athlete
-          </button>
+          {canSync(user, 'sc_pro', 'edit') && (
+            <button type="button" onClick={() => setAddOpen(true)} style={addBtn}>
+              + Add Athlete
+            </button>
+          )}
         </div>
       </div>
 
@@ -110,15 +113,21 @@ export default function Athletes() {
             </span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" style={bulkPrimaryBtn} onClick={() => window.alert('Coming soon')}>
-              Assign Programme
-            </button>
-            <button type="button" style={bulkGhostBtn} onClick={() => window.alert('Coming soon')}>
-              Remove from Team
-            </button>
-            <button type="button" style={{ ...bulkGhostBtn, color: 'var(--color-below-avg)' }} onClick={() => window.alert('Coming soon')}>
-              Archive
-            </button>
+            {canSync(user, 'sc_pro', 'edit') && (
+              <button type="button" style={bulkPrimaryBtn} onClick={() => window.alert('Coming soon')}>
+                Assign Programme
+              </button>
+            )}
+            {canSync(user, 'sc_pro', 'edit') && (
+              <button type="button" style={bulkGhostBtn} onClick={() => window.alert('Coming soon')}>
+                Remove from Team
+              </button>
+            )}
+            {canSync(user, 'sc_pro', 'delete') && (
+              <button type="button" style={{ ...bulkGhostBtn, color: 'var(--color-below-avg)' }} onClick={() => window.alert('Coming soon')}>
+                Archive
+              </button>
+            )}
           </div>
         </div>
       )}
