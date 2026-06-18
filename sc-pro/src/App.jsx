@@ -8,6 +8,7 @@ import SessionBuilder from './pages/SessionBuilder.jsx'
 import PlaceholderPage from './pages/PlaceholderPage.jsx'
 import Athletes from './pages/Athletes.jsx'
 import Login from './pages/Login.jsx'
+import ProtectedRoute from './components/auth/ProtectedRoute.jsx'
 import AssistantPanel from './components/assistant/AssistantPanel.jsx'
 
 function Shell({ children }) {
@@ -44,15 +45,15 @@ export default function App() {
             }
           >
             <Route path="/" element={<Navigate to="/programmes" replace />} />
-            <Route path="/programmes" element={<Programmes />} />
-            <Route path="/programmes/:id" element={<ProgrammeDetail />} />
-            <Route path="/programmes/:id/edit" element={<ProgrammeDetail />} />
-            <Route path="/programmes/:programmeId/sessions/:sessionId" element={<SessionBuilder />} />
-            <Route path="/home" element={<PlaceholderPage title="Home" />} />
-            <Route path="/athletes" element={<Athletes />} />
-            <Route path="/analytics" element={<PlaceholderPage title="Analytics" />} />
-            <Route path="/exercise-library" element={<PlaceholderPage title="Exercise Library" />} />
-            <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+            <Route path="/programmes" element={<ProtectedRoute><Programmes /></ProtectedRoute>} />
+            <Route path="/programmes/:id" element={<ProtectedRoute><ProgrammeDetail /></ProtectedRoute>} />
+            <Route path="/programmes/:id/edit" element={<ProtectedRoute><ProgrammeDetail /></ProtectedRoute>} />
+            <Route path="/programmes/:programmeId/sessions/:sessionId" element={<ProtectedRoute><SessionBuilder /></ProtectedRoute>} />
+            <Route path="/home" element={<ProtectedRoute><PlaceholderPage title="Home" /></ProtectedRoute>} />
+            <Route path="/athletes" element={<ProtectedRoute><Athletes /></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute><PlaceholderPage title="Analytics" /></ProtectedRoute>} />
+            <Route path="/exercise-library" element={<ProtectedRoute><PlaceholderPage title="Exercise Library" /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><PlaceholderPage title="Settings" /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/programmes" replace />} />
           </Route>
         </Routes>

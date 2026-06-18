@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useUser } from '../context/UserContext';
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, loading: userLoading } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (userLoading || !user) return;
+    navigate('/', { replace: true });
+  }, [navigate, user, userLoading]);
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -36,7 +43,7 @@ export default function Login() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      navigate('/athletes');
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err.message || 'Unable to sign in.');
     } finally {
