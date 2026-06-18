@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import Sidebar from './components/layout/Sidebar.jsx'
 import AppHeader from './components/layout/AppHeader.jsx'
 import { UserProvider } from './context/UserContext.jsx'
@@ -7,6 +7,7 @@ import ProgrammeDetail from './pages/ProgrammeDetail.jsx'
 import SessionBuilder from './pages/SessionBuilder.jsx'
 import PlaceholderPage from './pages/PlaceholderPage.jsx'
 import Athletes from './pages/Athletes.jsx'
+import Login from './pages/Login.jsx'
 import AssistantPanel from './components/assistant/AssistantPanel.jsx'
 
 function Shell({ children }) {
@@ -33,8 +34,15 @@ export default function App() {
   return (
     <UserProvider>
       <BrowserRouter>
-        <Shell>
-          <Routes>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route
+            element={
+              <Shell>
+                <Outlet />
+              </Shell>
+            }
+          >
             <Route path="/" element={<Navigate to="/programmes" replace />} />
             <Route path="/programmes" element={<Programmes />} />
             <Route path="/programmes/:id" element={<ProgrammeDetail />} />
@@ -46,8 +54,8 @@ export default function App() {
             <Route path="/exercise-library" element={<PlaceholderPage title="Exercise Library" />} />
             <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
             <Route path="*" element={<Navigate to="/programmes" replace />} />
-          </Routes>
-        </Shell>
+          </Route>
+        </Routes>
         <AssistantPanel />
       </BrowserRouter>
     </UserProvider>
