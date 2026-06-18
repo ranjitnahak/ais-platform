@@ -53,6 +53,7 @@
   /* ── Classification / layout aliases (wellness table, reports) ── */
   --color-below-avg: var(--color-error-container);
   --color-avg: var(--color-primary-container);
+  --color-above-avg: var(--color-secondary-container);
   --color-excellent: var(--color-tertiary-container);
   --color-text-muted: var(--color-on-surface-variant);
   --color-text-secondary: var(--color-on-surface-variant);
