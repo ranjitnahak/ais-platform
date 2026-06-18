@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
@@ -49,16 +49,21 @@ export function useBenchmarkTiers(selectedTeamId, activeTests, { onError } = {})
     [activeTests],
   );
 
-  const notifyError = useCallback(
-    (err, label) => {
-      console.error(`[useBenchmarkTiers] ${label}:`, err);
-      onError?.(err.message ?? label);
-    },
-    [onError],
+  const activeTestIdsKey = useMemo(
+    () => activeTestIds.join(','),
+    [activeTestIds],
   );
 
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  const notifyError = useCallback((err, label) => {
+    console.error(`[useBenchmarkTiers] ${label}:`, err);
+    onErrorRef.current?.(err.message ?? label);
+  }, []);
+
   const reload = useCallback(async () => {
-    if (!effectiveOrgId || !selectedTeamId || !activeTestIds.length) {
+    if (!effectiveOrgId || !selectedTeamId || !activeTestIdsKey) {
       setTiersByTest(new Map());
       setLoading(false);
       return;
@@ -79,7 +84,7 @@ export function useBenchmarkTiers(selectedTeamId, activeTests, { onError } = {})
     } finally {
       setLoading(false);
     }
-  }, [effectiveOrgId, selectedTeamId, activeTestIds, notifyError]);
+  }, [effectiveOrgId, selectedTeamId, activeTestIdsKey]);
 
   useEffect(() => {
     void reload();

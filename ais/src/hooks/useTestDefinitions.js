@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { canSync } from '../lib/auth';
 import { useUser } from '../context/UserContext';
@@ -17,13 +17,13 @@ export function useTestDefinitions(selectedTeamId, { onError } = {}) {
     [user],
   );
 
-  const notifyError = useCallback(
-    (err, label) => {
-      console.error(`[useTestDefinitions] ${label}:`, err);
-      onError?.(err.message ?? label);
-    },
-    [onError],
-  );
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  const notifyError = useCallback((err, label) => {
+    console.error(`[useTestDefinitions] ${label}:`, err);
+    onErrorRef.current?.(err.message ?? label);
+  }, []);
 
   const reload = useCallback(async () => {
     if (!effectiveOrgId || !selectedTeamId) {
@@ -46,7 +46,7 @@ export function useTestDefinitions(selectedTeamId, { onError } = {}) {
     } finally {
       setLoading(false);
     }
-  }, [effectiveOrgId, selectedTeamId, notifyError]);
+  }, [effectiveOrgId, selectedTeamId]);
 
   useEffect(() => {
     void reload();

@@ -8,7 +8,7 @@ import PercentileBandsTab from './PercentileBandsTab';
 
 const ASSESSMENT_TABS = [
   { id: 'battery', label: 'Test Battery' },
-  { id: 'benchmarks', label: 'Benchmarks' },
+  { id: 'benchmarks', label: 'Benchmarks', prefetch: false },
   { id: 'bands', label: 'Percentile Bands', prefetch: false },
 ];
 
