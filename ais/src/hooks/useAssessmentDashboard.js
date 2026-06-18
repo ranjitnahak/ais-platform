@@ -167,7 +167,6 @@ export function useAssessmentDashboard() {
           const { data, error: resultsErr } = await supabase
             .from('assessment_results')
             .select('id, session_id, athlete_id, test_id, value')
-            .eq('org_id', orgId)
             .in('session_id', sessionIdsToFetch);
           if (resultsErr) throw resultsErr;
           resultRows = data ?? [];
@@ -175,13 +174,28 @@ export function useAssessmentDashboard() {
 
         let orgResultRows = [];
         if (filters.scoringMethod === 'org_percentile' && sessionIdsToFetch.length) {
-          const { data, error: orgResultsErr } = await supabase
-            .from('assessment_results')
-            .select('id, session_id, athlete_id, test_id, value')
+          const selectedDates = [
+            ...new Set(
+              sessionRows
+                .filter((s) => sessionIdsToFetch.includes(s.id))
+                .map((s) => s.assessed_on),
+            ),
+          ];
+          const { data: orgSessions, error: orgSessionsErr } = await supabase
+            .from('assessment_sessions')
+            .select('id')
             .eq('org_id', orgId)
-            .in('session_id', sessionIdsToFetch);
-          if (orgResultsErr) throw orgResultsErr;
-          orgResultRows = data ?? [];
+            .in('assessed_on', selectedDates);
+          if (orgSessionsErr) throw orgSessionsErr;
+          const orgSessionIds = (orgSessions ?? []).map((s) => s.id);
+          if (orgSessionIds.length) {
+            const { data, error: orgResultsErr } = await supabase
+              .from('assessment_results')
+              .select('id, session_id, athlete_id, test_id, value')
+              .in('session_id', orgSessionIds);
+            if (orgResultsErr) throw orgResultsErr;
+            orgResultRows = data ?? [];
+          }
         }
 
         if (!cancelled) {
