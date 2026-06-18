@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { MAIN_NAV_ITEMS, SUPERUSER_NAV_ITEM } from '../nav/mainNavItems';
+import { DASHBOARD_SUB_ITEMS } from '../nav/dashboardNavItems';
 import { useUser } from '../context/UserContext';
-import { filterStaffNavItems, isNavRouteVisible } from '../nav/navResourceMap';
+import { filterStaffNavItems, isDashboardSubRouteVisible, isNavRouteVisible } from '../nav/navResourceMap';
 import AISLogo from './shared/AISLogo';
 
 const ADMIN_ROLES = ['admin', 'superuser'];
@@ -31,6 +32,14 @@ function isPlanSubActive(pathname, to) {
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
+function isDashboardSubActive(pathname, to) {
+  return pathname === to;
+}
+
+function isDashboardGroupActive(pathname) {
+  return pathname === '/dashboard' || pathname.startsWith('/dashboard/');
+}
+
 /**
  * Desktop primary navigation — matches AIS shell used across pages.
  */
@@ -38,6 +47,7 @@ export default function Sidebar() {
   const { user } = useUser();
   const { pathname } = useLocation();
   const [planOpen, setPlanOpen] = useState(true);
+  const [dashboardOpen, setDashboardOpen] = useState(true);
 
   const items = filterStaffNavItems(
     MAIN_NAV_ITEMS.filter((item) => !item.adminOnly || ADMIN_ROLES.includes(user?.role)),
@@ -45,10 +55,20 @@ export default function Sidebar() {
   );
   const visibleItems = user?.role === 'superuser' ? [...items, SUPERUSER_NAV_ITEM] : items;
   const showPlanGroup = isNavRouteVisible(user, '/periodisation');
+  const showDashboardGroup = isNavRouteVisible(user, '/dashboard');
+  const visibleDashboardItems = DASHBOARD_SUB_ITEMS.filter((sub) =>
+    isDashboardSubRouteVisible(user, sub.to),
+  );
 
   useEffect(() => {
     if (pathname === '/periodisation' || pathname.startsWith('/plan/')) {
       setPlanOpen(true);
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (isDashboardGroupActive(pathname)) {
+      setDashboardOpen(true);
     }
   }, [pathname]);
 
@@ -59,6 +79,45 @@ export default function Sidebar() {
       </div>
       <nav className="flex-1 space-y-1">
         {visibleItems.map(({ icon, label, to }) => {
+          if (to === '/dashboard') {
+            if (!showDashboardGroup || visibleDashboardItems.length === 0) return null;
+            return (
+              <div key="dashboard-group">
+                <button
+                  type="button"
+                  onClick={() => setDashboardOpen((v) => !v)}
+                  className="w-full mx-2 my-1 px-4 py-3 flex items-center gap-3 rounded-lg text-left text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container)]"
+                >
+                  <span className="material-symbols-outlined text-[20px] leading-none shrink-0">dashboard</span>
+                  <span className="font-['Inter'] tracking-tight font-bold uppercase text-[10px] flex-1">
+                    DASHBOARD
+                  </span>
+                  <i
+                    className={`ti ${dashboardOpen ? 'ti-chevron-down' : 'ti-chevron-right'} text-[16px] leading-none shrink-0`}
+                    aria-hidden
+                  />
+                </button>
+                {dashboardOpen &&
+                  visibleDashboardItems.map((sub) => {
+                    const active = isDashboardSubActive(pathname, sub.to);
+                    return (
+                      <NavLink
+                        key={sub.to}
+                        to={sub.to}
+                        className={subNavLinkClass(active)}
+                        style={{ paddingLeft: 'calc(1rem + 20px + 1rem)' }}
+                      >
+                        <i className={`ti ${sub.icon} text-[16px] leading-none shrink-0`} aria-hidden />
+                        <span className="font-['Inter'] tracking-tight font-bold uppercase text-[12px]">
+                          {sub.label}
+                        </span>
+                      </NavLink>
+                    );
+                  })}
+              </div>
+            );
+          }
+
           if (to === '/periodisation') {
             if (!showPlanGroup) return null;
             return (

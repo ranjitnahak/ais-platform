@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
+import DashboardWellness from './pages/dashboard/DashboardWellness';
+import DashboardRPE from './pages/dashboard/DashboardRPE';
+import AssessmentDashboard from './pages/dashboard/AssessmentDashboard';
 import Log from './pages/Log';
 import Reports from './pages/Reports';
 import AthleteReportView from './pages/AthleteReportView';
@@ -152,7 +155,12 @@ export default function App() {
           </Route>
 
           <Route element={<StaffRouteGuard user={checkingUser ? null : resolvedUser} />}>
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />}>
+              <Route index element={<Navigate to="wellness" replace />} />
+              <Route path="wellness" element={<DashboardWellness />} />
+              <Route path="rpe" element={<DashboardRPE />} />
+              <Route path="assessment" element={<AssessmentDashboard />} />
+            </Route>
             <Route path="/log" element={<Log />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/reports/athlete/:reportId" element={<AthleteReportView />} />
@@ -160,9 +168,9 @@ export default function App() {
             <Route path="/reports/staff-logs/:reportId" element={<StaffLogReportView />} />
             <Route path="/athletes" element={<Athletes />} />
             <Route path="/athletes/:id" element={<AthleteProfile />} />
-            <Route path="/wellness" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/wellness" element={<Navigate to="/dashboard/wellness" replace />} />
             <Route path="/staff-notes" element={<Navigate to="/log" replace />} />
-            <Route path="/squad" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/squad" element={<Navigate to="/dashboard/wellness" replace />} />
             <Route path="/periodisation" element={<Periodisation />} />
             <Route
               path="/plan/calendar"

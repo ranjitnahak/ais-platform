@@ -76,3 +76,78 @@ export function getLoadMonitoringChartOptions(colors) {
     },
   };
 }
+
+/** Chart.js canvas cannot resolve CSS variables — assessment tier band fallbacks. */
+export const ASSESSMENT_TIER_CHART_COLORS = {
+  belowAvg: '#93000a',
+  avg: '#F97316',
+  aboveAvg: '#0A84FF',
+  excellent: '#34C759',
+  line: '#F97316',
+  grid: '#545458',
+  text: '#8E8E93',
+  surface: '#2C2C2E',
+};
+
+export function getAssessmentChartColors() {
+  return {
+    belowAvg: getChartColor('--color-below-avg') || ASSESSMENT_TIER_CHART_COLORS.belowAvg,
+    avg: getChartColor('--color-avg') || ASSESSMENT_TIER_CHART_COLORS.avg,
+    aboveAvg: getChartColor('--color-above-avg') || ASSESSMENT_TIER_CHART_COLORS.aboveAvg,
+    excellent: getChartColor('--color-excellent') || ASSESSMENT_TIER_CHART_COLORS.excellent,
+    line: getChartColor('--color-primary-container') || ASSESSMENT_TIER_CHART_COLORS.line,
+    grid: getChartColor('--color-outline-variant') || ASSESSMENT_TIER_CHART_COLORS.grid,
+    text: getChartColor('--color-on-surface-variant') || ASSESSMENT_TIER_CHART_COLORS.text,
+    surface: getChartColor('--color-surface-container') || ASSESSMENT_TIER_CHART_COLORS.surface,
+  };
+}
+
+export function tierColorVarToHex(tierColorVar, colors) {
+  if (!tierColorVar) return colors.avg;
+  const key = tierColorVar.replace('--color-', '').replace(/-/g, '');
+  const map = {
+    belowavg: colors.belowAvg,
+    avg: colors.avg,
+    aboveavg: colors.aboveAvg,
+    excellent: colors.excellent,
+    errorcontainer: colors.belowAvg,
+    primarycontainer: colors.avg,
+    secondarycontainer: colors.aboveAvg,
+    tertiarycontainer: colors.excellent,
+  };
+  const resolved = getChartColor(tierColorVar);
+  return resolved || map[key] || colors.avg;
+}
+
+export function getAssessmentChartOptions(colors) {
+  return {
+    ...baseChartOptions(colors),
+    plugins: {
+      ...baseChartOptions(colors).plugins,
+      legend: { display: true },
+    },
+  };
+}
+
+/** Chart.js plugin — draw horizontal tier band zones on a line chart. */
+export function createTierBandPlugin({ bands, yScaleId = 'y' }) {
+  return {
+    id: 'tierBands',
+    beforeDatasetsDraw(chart) {
+      if (!bands?.length) return;
+      const { ctx, chartArea, scales } = chart;
+      const yScale = scales[yScaleId];
+      if (!yScale || !chartArea) return;
+
+      ctx.save();
+      for (const band of bands) {
+        const yTop = yScale.getPixelForValue(band.max);
+        const yBottom = yScale.getPixelForValue(band.min);
+        ctx.fillStyle = band.color;
+        ctx.globalAlpha = 0.12;
+        ctx.fillRect(chartArea.left, yTop, chartArea.right - chartArea.left, yBottom - yTop);
+      }
+      ctx.restore();
+    },
+  };
+}

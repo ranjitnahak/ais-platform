@@ -1,9 +1,15 @@
 /** Mobile bottom bar + More sheet items (staff). */
 export const STAFF_BOTTOM_NAV = [
-  { icon: 'space_dashboard', label: 'Dashboard', to: '/dashboard' },
+  { icon: 'space_dashboard', label: 'Dashboard', to: '/dashboard/wellness' },
   { icon: 'edit_note', label: 'Log', to: '/log' },
   { icon: 'group', label: 'Athletes', to: '/athletes' },
   { icon: 'description', label: 'Reports', to: '/reports' },
+];
+
+export const STAFF_DASHBOARD_NAV = [
+  { icon: 'monitor_heart', label: 'Wellness', to: '/dashboard/wellness', resource: 'wellness' },
+  { icon: 'fitness_center', label: 'RPE', to: '/dashboard/rpe', resource: 'rpe_logging' },
+  { icon: 'trending_up', label: 'Assessment', to: '/dashboard/assessment', resource: 'assessments' },
 ];
 
 export const STAFF_PLAN_NAV = [

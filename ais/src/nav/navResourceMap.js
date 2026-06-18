@@ -1,8 +1,12 @@
 import { isVisibleSync } from '../lib/auth';
+import { DASHBOARD_SUB_ITEMS } from './dashboardNavItems';
 
 /** Maps staff nav routes to permission resources (visibility + CRUD). */
 export const NAV_ROUTE_RESOURCE = {
   '/dashboard': null,
+  '/dashboard/wellness': 'wellness',
+  '/dashboard/rpe': 'rpe_logging',
+  '/dashboard/assessment': 'assessments',
   '/athletes': 'athleteRoster',
   '/periodisation': 'periodisation',
   '/plan/calendar': 'periodisation',
@@ -13,7 +17,7 @@ export const NAV_ROUTE_RESOURCE = {
   '/superuser': null,
 };
 
-const DASHBOARD_NAV_RESOURCES = ['wellness', 'rpe_logging', 'injury_surveillance'];
+const DASHBOARD_NAV_RESOURCES = ['wellness', 'rpe_logging', 'injury_surveillance', 'assessments'];
 const LOG_NAV_RESOURCES = ['wellness', 'rpe_logging', 'assessments', 'staff_notes'];
 
 const STAFF_HOME_ROUTE_ORDER = [
@@ -30,6 +34,25 @@ const STAFF_HOME_ROUTE_ORDER = [
 export function isDashboardNavVisible(user) {
   if (!user || user.isSuperuser) return true;
   return DASHBOARD_NAV_RESOURCES.some((resource) => isVisibleSync(user, resource));
+}
+
+/** Whether a dashboard sub-route should appear in sidebar / mobile nav. */
+export function isDashboardSubRouteVisible(user, to) {
+  if (!user) return false;
+  if (user.isSuperuser) return true;
+  const item = DASHBOARD_SUB_ITEMS.find((sub) => sub.to === to);
+  if (!item?.resource) return true;
+  return isVisibleSync(user, item.resource);
+}
+
+export function filterDashboardSubItems(user) {
+  return DASHBOARD_SUB_ITEMS.filter((item) => isDashboardSubRouteVisible(user, item.to));
+}
+
+/** First dashboard sub-route the user can access. */
+export function getDefaultDashboardRoute(user) {
+  const visible = filterDashboardSubItems(user);
+  return visible[0]?.to ?? '/dashboard/wellness';
 }
 
 /** Log nav when any log tab resource is visible. */
