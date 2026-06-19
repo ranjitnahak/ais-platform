@@ -4,6 +4,7 @@ import { canSync } from '../../lib/auth';
 import { exportAssessmentDashboardPDF } from '../../lib/exportAssessmentPDF';
 import { useAssessmentDashboard } from '../../hooks/useAssessmentDashboard';
 import { formatTestingDate } from '../../lib/trendEngine';
+import { formatDeltaNumber, formatDeltaSuffix } from '../../lib/yoyoShuttleTable';
 import { SHOW_COMPOSITE_PERCENTILE } from '../../lib/assessmentSettingsConstants';
 import AthleteProfileCard from '../../components/assessment/AthleteProfileCard';
 import AssessmentFilterBar from '../../components/assessment/AssessmentFilterBar';
@@ -23,7 +24,7 @@ const MODE_BY_VIEW = {
   coverage: 'coverage',
 };
 
-function DeltaRow({ delta, unit }) {
+function DeltaRow({ delta, unit, testName }) {
   if (delta == null) return null;
   const deltaClass =
     delta > 0
@@ -32,12 +33,12 @@ function DeltaRow({ delta, unit }) {
         ? 'text-[var(--color-error)]'
         : 'text-[var(--color-on-surface-variant)]';
   const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-  const suffix = unit === 'seconds' || unit === 's' ? 's' : unit ? ` ${unit}` : '';
+  const suffix = formatDeltaSuffix(testName, unit, delta);
 
   return (
     <div className="mt-2 flex items-center gap-1">
       <span className={`text-sm font-black ${deltaClass}`}>
-        {arrow} {delta > 0 ? '+' : ''}{delta.toFixed(2)}{suffix}
+        {arrow} {formatDeltaNumber(testName, delta)}{suffix}
       </span>
     </div>
   );
@@ -185,7 +186,7 @@ export default function AssessmentDashboard() {
                       />
                     </div>
                     {latestDelta?.hasPrevious && (
-                      <DeltaRow delta={latestDelta.delta} unit={test.unit} />
+                      <DeltaRow delta={latestDelta.delta} unit={test.unit} testName={test.name} />
                     )}
                   </div>
                 );

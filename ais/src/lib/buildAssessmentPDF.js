@@ -7,6 +7,7 @@ import { formatShortTestingDate } from './trendEngine';
 import { SHOW_COMPOSITE_PERCENTILE } from './assessmentSettingsConstants';
 import { IMPROVEMENT_COLORS, resolveTierHex, TIER_COLORS } from './chartColors';
 import { athleteDisplayName } from './athleteName';
+import { formatDeltaNumber, formatDeltaSuffix, isYoYoIr1Test } from './yoyoShuttleTable';
 import {
   drawCircularPhoto,
   pdfFillRect,
@@ -301,7 +302,9 @@ function drawSummaryCards(pag, { selectedTests, individualProgressions, summaryC
       : '';
     pdfText(pag.pdf, `${valueStr}${pctStr}`, x + 3, y + 11, 8, C.onSurface, 'bold', { maxWidth: cardW - 6 });
 
-    const deltaStr = delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(2)}` : '—';
+    const deltaStr = delta != null
+      ? `${formatDeltaNumber(test.name, delta)}${formatDeltaSuffix(test.name, test.unit, delta)}`
+      : '—';
     pdfText(pag.pdf, deltaStr, x + 3, y + 17, 10, deltaColor(delta), 'bold');
 
     col += 1;
@@ -492,7 +495,7 @@ function drawProgressionTable(pag, {
     pdfFillRect(pag.pdf, x, rowY, deltaColW, rowH, C.surfaceContainer);
     const delta = progression?.overallDelta;
     const deltaStr = delta != null
-      ? `${delta > 0 ? '+' : ''}${delta.toFixed(2)}${unit === 'seconds' ? 's' : unit ? ` ${unit}` : ''}`
+      ? `${formatDeltaNumber(test.name, delta)}${formatDeltaSuffix(test.name, unit, delta)}`
       : '—';
     pdfText(
       pag.pdf,
@@ -510,7 +513,7 @@ function drawProgressionTable(pag, {
   pag.advance(4);
 }
 
-function drawSignedDeltaBarChart(pag, { title, progression, chartH: fixedChartH }) {
+function drawSignedDeltaBarChart(pag, { title, progression, chartH: fixedChartH, testName = '' }) {
   if (!progression?.length) return;
 
   const rowH = 7;
@@ -521,7 +524,9 @@ function drawSignedDeltaBarChart(pag, { title, progression, chartH: fixedChartH 
   pag.advance(5);
   pdfText(
     pag.pdf,
-    "Change between each athlete's two most recent available test dates",
+    isYoYoIr1Test(testName)
+      ? "Change between each athlete's two most recent available test dates (shuttles)"
+      : "Change between each athlete's two most recent available test dates",
     MARGIN,
     pag.y,
     6,
@@ -828,10 +833,9 @@ function splitMatrixTestColumns(selectedTests, contentW) {
   return rebalanceMatrixTestChunks(chunks, availableW);
 }
 
-function formatMatrixDelta(delta, unit) {
+function formatMatrixDelta(delta, unit, testName) {
   if (delta == null || delta === 0) return null;
-  const suffix = unit === 'seconds' || unit === 's' ? 's' : unit ? ` ${unit}` : '';
-  return `${delta > 0 ? '+' : ''}${delta.toFixed(2)}${suffix}`;
+  return `${formatDeltaNumber(testName, delta)}${formatDeltaSuffix(testName, unit, delta)}`;
 }
 
 function drawMatrixTableChunk(pag, sortedRows, chunk) {
@@ -904,7 +908,7 @@ function drawMatrixTableChunk(pag, sortedRows, chunk) {
       const cellCenterX = x + testColW / 2;
       if (cell?.latestValue != null) {
         const valueHex = cell.tierColor ? tierColorToHex(cell.tierColor) : C.onSurface;
-        const deltaStr = formatMatrixDelta(cell.delta, unit);
+        const deltaStr = formatMatrixDelta(cell.delta, unit, test.name);
         const valueY = deltaStr ? rowY + 4.5 : rowY + rowH / 2;
         pdfText(pag.pdf, formatValue(cell.latestValue, unit), cellCenterX, valueY, 6, valueHex, 'bold', {
           align: 'center',
@@ -1018,6 +1022,7 @@ function drawTeamBody(pag, payload) {
     drawSignedDeltaBarChart(pag, {
       title: test.name,
       progression: squadTestMultiples[test.id],
+      testName: test.name,
     });
     pag.advance(6);
   }

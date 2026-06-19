@@ -411,6 +411,7 @@ export function useAssessmentDashboard() {
         orgValuesBySession,
         scoringMethod: filters.scoringMethod,
         gender,
+        testName: test.name,
       });
     }
     return map;
@@ -438,6 +439,7 @@ export function useAssessmentDashboard() {
         allResults: results,
         allSessions,
         direction: test.direction ?? 'higher_is_better',
+        testName: test.name,
       });
     }
     return map;
@@ -501,6 +503,7 @@ export function useAssessmentDashboard() {
         allResults: filteredResults,
         athletes,
         direction: test.direction ?? 'higher_is_better',
+        testName: test.name,
       });
     }
     return map;
@@ -528,6 +531,7 @@ export function useAssessmentDashboard() {
           allResults: filteredResults,
           allSessions: selectedTestingDates,
           direction: test.direction ?? 'higher_is_better',
+          testName: test.name,
         });
 
         let tierName = null;

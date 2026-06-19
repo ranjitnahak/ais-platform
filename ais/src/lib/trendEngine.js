@@ -1,4 +1,5 @@
 import { DEFAULT_PERCENTILE_BANDS } from './assessmentSettingsConstants';
+import { yoyoLevelToShuttleCount } from './yoyoShuttleTable.js';
 
 function computePercentileRank(value, squadValues, direction) {
   if (value == null || Number.isNaN(value)) return null;
@@ -187,6 +188,22 @@ function findResultValue(results, athleteId, testId, sessionId) {
   return row?.value != null ? Number(row.value) : null;
 }
 
+/**
+ * Wraps findResultValue() to apply Yo-Yo IR1's non-linear level.shuttle ->
+ * shuttle-count conversion before any delta math happens. For every other
+ * test this returns the exact same value findResultValue() would have
+ * returned — behaviour for all non-Yo-Yo tests must be byte-for-byte
+ * unchanged after this fix.
+ */
+function findResultValueForDelta(results, athleteId, testId, sessionId, testName) {
+  const rawValue = findResultValue(results, athleteId, testId, sessionId);
+  if (rawValue == null) return null;
+  const isYoYo = (testName ?? '').toLowerCase().includes('yo-yo');
+  if (!isYoYo) return rawValue;
+  const shuttleCount = yoyoLevelToShuttleCount(rawValue);
+  return shuttleCount;
+}
+
 function teamStatsForTest(testId, testingDateId, allAthleteResults) {
   const values = (allAthleteResults ?? [])
     .filter(
@@ -337,6 +354,7 @@ export function computeLatestDelta({
   allResults,
   allSessions,
   direction = 'higher_is_better',
+  testName = '',
 }) {
   const sessions = getAthleteSessionsForTest(athleteId, testId, allResults, allSessions);
 
@@ -361,9 +379,20 @@ export function computeLatestDelta({
     ? findResultValue(allResults, athleteId, testId, previousSession.id)
     : null;
 
+  const latestDeltaBasis = findResultValueForDelta(
+    allResults,
+    athleteId,
+    testId,
+    latestSession.id,
+    testName,
+  );
+  const previousDeltaBasis = previousSession
+    ? findResultValueForDelta(allResults, athleteId, testId, previousSession.id, testName)
+    : null;
+
   const delta =
-    latestValue != null && previousValue != null
-      ? improvementDelta(previousValue, latestValue, direction)
+    latestDeltaBasis != null && previousDeltaBasis != null
+      ? improvementDelta(previousDeltaBasis, latestDeltaBasis, direction)
       : null;
 
   return {
@@ -434,13 +463,14 @@ export function computeAthleteProgression({
   orgValuesBySession,
   scoringMethod,
   gender,
+  testName = '',
 }) {
   const sortedDates = [...(testingDates ?? [])].sort(
     (a, b) => new Date(a.assessed_on) - new Date(b.assessed_on),
   );
 
   const dataPoints = [];
-  let previousValue = null;
+  let previousDeltaBasis = null;
   let previousTier = null;
   const tierCrossings = [];
 
@@ -460,9 +490,10 @@ export function computeAthleteProgression({
       gender,
     });
 
+    const deltaBasis = findResultValueForDelta(results, athleteId, testId, session.id, testName);
     const delta =
-      value != null && previousValue != null
-        ? improvementDelta(previousValue, value, direction)
+      deltaBasis != null && previousDeltaBasis != null
+        ? improvementDelta(previousDeltaBasis, deltaBasis, direction)
         : null;
 
     if (value != null) {
@@ -490,15 +521,21 @@ export function computeAthleteProgression({
       }
 
       previousTier = score.tier;
-      previousValue = value;
+      previousDeltaBasis = deltaBasis;
     }
   }
 
   const firstPoint = dataPoints[0];
   const lastPoint = dataPoints[dataPoints.length - 1];
+  const firstDeltaBasis = firstPoint
+    ? findResultValueForDelta(results, athleteId, testId, firstPoint.sessionId, testName)
+    : null;
+  const lastDeltaBasis = lastPoint
+    ? findResultValueForDelta(results, athleteId, testId, lastPoint.sessionId, testName)
+    : null;
   const overallDelta =
-    firstPoint && lastPoint
-      ? improvementDelta(firstPoint.value, lastPoint.value, direction)
+    firstDeltaBasis != null && lastDeltaBasis != null
+      ? improvementDelta(firstDeltaBasis, lastDeltaBasis, direction)
       : null;
 
   return {
@@ -521,6 +558,7 @@ export function computeSquadProgression({
   squadValuesBySession,
   orgValuesBySession,
   scoringMethod,
+  testName = '',
 }) {
   const sortedDates = [...(testingDates ?? [])].sort(
     (a, b) => new Date(a.assessed_on) - new Date(b.assessed_on),
@@ -550,7 +588,21 @@ export function computeSquadProgression({
 
       const firstScore = classifyAt(firstSession.id, firstValue);
       const lastScore = classifyAt(lastSession.id, lastValue);
-      const delta = improvementDelta(firstValue, lastValue, direction);
+      const firstDeltaBasis = findResultValueForDelta(
+        results,
+        athlete.id,
+        testId,
+        firstSession.id,
+        testName,
+      );
+      const lastDeltaBasis = findResultValueForDelta(
+        results,
+        athlete.id,
+        testId,
+        lastSession.id,
+        testName,
+      );
+      const delta = improvementDelta(firstDeltaBasis, lastDeltaBasis, direction);
       const improvementMagnitude = delta != null ? Math.abs(delta) : 0;
 
       return {
@@ -580,6 +632,7 @@ export function computeSquadMultiplesProgression({
   allResults,
   athletes,
   direction = 'higher_is_better',
+  testName = '',
 }) {
   return (athletes ?? [])
     .map((athlete) => {
@@ -589,6 +642,7 @@ export function computeSquadMultiplesProgression({
         allResults,
         allSessions,
         direction,
+        testName,
       });
       if (!latest.hasPrevious || latest.delta == null) return null;
 
@@ -628,6 +682,7 @@ export function computeSquadTableRows({
   squadValuesBySession,
   orgValuesBySession,
   scoringMethod,
+  testName = '',
 }) {
   const sortedFilterDates = [...(filterTestingDates ?? [])].sort(
     (a, b) => new Date(a.assessed_on) - new Date(b.assessed_on),
@@ -659,9 +714,16 @@ export function computeSquadTableRows({
       ? findResultValue(allResults, athlete.id, testId, lastAvailable.id)
       : null;
 
+    const firstAvailableDeltaBasis = firstAvailable
+      ? findResultValueForDelta(allResults, athlete.id, testId, firstAvailable.id, testName)
+      : null;
+    const lastAvailableDeltaBasis = lastAvailable
+      ? findResultValueForDelta(allResults, athlete.id, testId, lastAvailable.id, testName)
+      : null;
+
     const improvementDeltaValue =
-      hasTwoDates && firstAvailableValue != null && lastAvailableValue != null
-        ? improvementDelta(firstAvailableValue, lastAvailableValue, direction)
+      hasTwoDates && firstAvailableDeltaBasis != null && lastAvailableDeltaBasis != null
+        ? improvementDelta(firstAvailableDeltaBasis, lastAvailableDeltaBasis, direction)
         : null;
 
     let percentileDelta = null;
@@ -740,10 +802,24 @@ export function computeSquadTableRows({
       athlete,
       firstValue: filterFirstValue ?? null,
       lastValue: filterLastValue ?? null,
-      delta:
-        filterFirstValue != null && filterLastValue != null
-          ? improvementDelta(filterFirstValue, filterLastValue, direction)
-          : null,
+      delta: (() => {
+        if (!filterFirst || !filterLast) return null;
+        const firstDeltaBasis = findResultValueForDelta(
+          allResults,
+          athlete.id,
+          testId,
+          filterFirst.id,
+          testName,
+        );
+        const lastDeltaBasis = findResultValueForDelta(
+          allResults,
+          athlete.id,
+          testId,
+          filterLast.id,
+          testName,
+        );
+        return improvementDelta(firstDeltaBasis, lastDeltaBasis, direction);
+      })(),
       improvementDelta: improvementDeltaValue,
       percentileDelta,
       compositePercentile,

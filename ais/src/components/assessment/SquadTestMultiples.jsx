@@ -10,6 +10,7 @@ import { Bar } from 'react-chartjs-2';
 import { IMPROVEMENT_COLORS } from '../../lib/chartColors';
 import { getAssessmentChartColors, getAssessmentChartOptions } from '../../lib/chartTheme';
 import { athleteDisplayName } from '../../lib/athleteName';
+import { isYoYoIr1Test } from '../../lib/yoyoShuttleTable';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
@@ -51,13 +52,14 @@ function DeltaChart({ test, progression, dateScopeMode }) {
       athleteDisplayName(row.athlete ?? { full_name: row.athleteName }),
     );
     const base = getAssessmentChartOptions(colors);
+    const yoYo = isYoYoIr1Test(test?.name);
 
     return {
       data: {
         labels,
         datasets: [
           {
-            label: 'Change',
+            label: yoYo ? 'Change (shuttles)' : 'Change',
             data: progression.map((r) => r.delta),
             backgroundColor: progression.map((r) =>
               r.delta > 0 ? IMPROVEMENT_COLORS.improved : IMPROVEMENT_COLORS.declined,
@@ -74,7 +76,12 @@ function DeltaChart({ test, progression, dateScopeMode }) {
           legend: { display: false },
         },
         scales: {
-          x: base.scales.x,
+          x: {
+            ...base.scales.x,
+            title: yoYo
+              ? { display: true, text: 'shuttles', font: { size: 9 } }
+              : undefined,
+          },
           y: {
             ...base.scales.y,
             ticks: { ...base.scales.y.ticks, autoSkip: false, font: { size: 9 } },
@@ -82,7 +89,7 @@ function DeltaChart({ test, progression, dateScopeMode }) {
         },
       },
     };
-  }, [progression, colors]);
+  }, [progression, colors, test?.name]);
 
   const chartHeight = Math.max(200, progression.length * 28);
 

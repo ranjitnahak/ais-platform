@@ -1,4 +1,5 @@
 import { formatShortTestingDate } from '../../lib/trendEngine';
+import { formatDeltaNumber, formatDeltaSuffix } from '../../lib/yoyoShuttleTable';
 import TierValue from './TierValue';
 
 function deltaClass(delta) {
@@ -84,7 +85,7 @@ export default function ProgressionTable({
                 })}
                 <td className={`px-4 py-3 font-black ${deltaClass(progression?.overallDelta)}`}>
                   {progression?.overallDelta != null
-                    ? `${progression.overallDelta > 0 ? '+' : ''}${progression.overallDelta.toFixed(2)}${unit === 's' ? 's' : unit ? ` ${unit}` : ''}`
+                    ? `${formatDeltaNumber(test.name, progression.overallDelta)}${formatDeltaSuffix(test.name, unit, progression.overallDelta)}`
                     : '—'}
                 </td>
               </tr>

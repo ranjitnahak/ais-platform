@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { athleteDisplayName } from '../../lib/athleteName';
 import { SHOW_COMPOSITE_PERCENTILE } from '../../lib/assessmentSettingsConstants';
+import { formatDeltaNumber, formatDeltaSuffix } from '../../lib/yoyoShuttleTable';
 import TierValue from './TierValue';
 
-function DeltaIndicator({ delta, unit }) {
+function DeltaIndicator({ delta, unit, testName }) {
   if (delta == null) return null;
   const deltaClass =
     delta > 0
@@ -12,10 +13,10 @@ function DeltaIndicator({ delta, unit }) {
         ? 'text-[var(--color-error)]'
         : 'text-[var(--color-on-surface-variant)]';
   const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-  const suffix = unit === 'seconds' || unit === 's' ? 's' : unit ? ` ${unit}` : '';
+  const suffix = formatDeltaSuffix(testName, unit, delta);
   return (
     <span className={`text-[10px] font-bold ${deltaClass}`}>
-      {arrow} {delta > 0 ? '+' : ''}{delta.toFixed(2)}{suffix}
+      {arrow} {formatDeltaNumber(testName, delta)}{suffix}
     </span>
   );
 }
@@ -117,7 +118,7 @@ export default function MatrixView({ matrixRows, selectedTests, onCellClick }) {
                           tierColor={cell.tierColor}
                           unit={unit}
                         />
-                        <DeltaIndicator delta={cell.delta} unit={unit} />
+                        <DeltaIndicator delta={cell.delta} unit={unit} testName={test.name} />
                       </button>
                     ) : (
                       <span className="text-[var(--color-on-surface-variant)]">—</span>
