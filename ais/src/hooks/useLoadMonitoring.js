@@ -177,9 +177,10 @@ export function useLoadMonitoring() {
 
         const athletesQuery = supabase
           .from('athlete_teams')
-          .select('athlete_id, team_id, athletes!inner(id, full_name, position, org_id)')
+          .select('athlete_id, team_id, athletes!inner(id, full_name, position, photo_url, org_id, is_active)')
           .in('team_id', teamIds)
           .eq('athletes.org_id', orgId)
+          .eq('athletes.is_active', true)
           .is('left_at', null);
 
         let sessionRows = [];

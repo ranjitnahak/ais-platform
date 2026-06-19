@@ -94,11 +94,12 @@ export async function getCurrentUser() {
     if (!session) return null;
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, org_id, role, athlete_id, full_name')
+      .select('id, org_id, role, athlete_id, full_name, is_active')
       .eq('auth_id', session.user.id)
       .maybeSingle();
     if (userError) throw userError;
     if (!user) return null;
+    if (user.is_active === false) return null;
 
     const { data: roleRows, error: rolesError } = await supabase
       .from('user_roles')
@@ -182,8 +183,11 @@ export async function getCurrentUser() {
     const athleteTeamsPromise = normalizedRole === 'athlete' && user.athlete_id
       ? supabase.from('athlete_teams').select('team_id').eq('athlete_id', user.athlete_id)
       : Promise.resolve({ data: [], error: null });
+    const athleteActivePromise = normalizedRole === 'athlete' && user.athlete_id
+      ? supabase.from('athletes').select('is_active').eq('id', user.athlete_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null });
 
-    const [teamsResult, permissionsResult, overridesResult, athleteTeamsResult] = await Promise.all([
+    const [teamsResult, permissionsResult, overridesResult, athleteTeamsResult, athleteActiveResult] = await Promise.all([
       supabase.from('teams').select('id').eq('org_id', user.org_id),
       supabase
         .from('role_permissions')
@@ -196,11 +200,14 @@ export async function getCurrentUser() {
         .eq('user_id', user.id)
         .eq('org_id', user.org_id),
       athleteTeamsPromise,
+      athleteActivePromise,
     ]);
     if (teamsResult.error) throw teamsResult.error;
     if (permissionsResult.error) throw permissionsResult.error;
     if (overridesResult.error) throw overridesResult.error;
     if (athleteTeamsResult.error) throw athleteTeamsResult.error;
+    if (athleteActiveResult.error) throw athleteActiveResult.error;
+    if (athleteActiveResult.data?.is_active === false) return null;
 
     const teamRows = teamsResult.data;
     const permissionRows = permissionsResult.data;

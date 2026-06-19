@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { canonicalFullName } from '../lib/athleteName';
 import { normalizeGenderForDb, normalizePositionForDb } from '../lib/athleteProfileFields';
-import { setUserActive } from '../lib/adminUserActions';
+import { offboardAthlete, reactivateAthlete, setUserActive } from '../lib/adminUserActions';
 import { STAFF_ROLE_DB_NAME, STAFF_ROLE_ENUM, USER_ROLE_DISPLAY } from '../lib/adminUserConstants';
 import { resolveGroupIdsForTeams, resolveTeamIdsForGroups } from '../lib/teamGroups';
 
@@ -458,20 +458,36 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
   async function deactivateUser() {
     if (!orgId) return;
     try {
-      if (userId) {
+      if (isStaff && userId) {
         await setUserActive(orgId, userId, false);
       } else if (athleteId) {
-        const { error } = await supabase
-          .from('athletes')
-          .update({ is_active: false })
-          .eq('id', athleteId)
-          .eq('org_id', orgId);
-        if (error) throw error;
+        await offboardAthlete(orgId, { userId: userId ?? null, athleteId });
+      } else if (userId) {
+        await setUserActive(orgId, userId, false);
       }
       setIsActive(false);
+      setSelectedTeamIds([]);
       await onUpdated?.();
     } catch (err) {
       console.error('[useUserProfilePanel] deactivateUser', err);
+      throw err;
+    }
+  }
+
+  async function reactivateUser() {
+    if (!orgId) return;
+    try {
+      if (isStaff && userId) {
+        await setUserActive(orgId, userId, true);
+      } else if (athleteId) {
+        await reactivateAthlete(orgId, { userId: userId ?? null, athleteId });
+      } else if (userId) {
+        await setUserActive(orgId, userId, true);
+      }
+      setIsActive(true);
+      await onUpdated?.();
+    } catch (err) {
+      console.error('[useUserProfilePanel] reactivateUser', err);
       throw err;
     }
   }
@@ -554,6 +570,7 @@ export function useUserProfilePanel({ target, activeOrgId, onUpdated }) {
     handleCropDone,
     saveProfile,
     deactivateUser,
+    reactivateUser,
     changeRole,
     reload: load,
   };

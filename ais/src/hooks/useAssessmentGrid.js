@@ -142,9 +142,10 @@ export function useAssessmentGrid({ onToast } = {}) {
     try {
       const { data, error } = await supabase
         .from('athlete_teams')
-        .select('athlete_id, athletes!inner(id, full_name, org_id)')
+        .select('athlete_id, athletes!inner(id, full_name, org_id, is_active)')
         .eq('team_id', activeTeamId)
         .eq('athletes.org_id', effectiveOrgId)
+        .eq('athletes.is_active', true)
         .is('left_at', null);
       if (error) throw error;
 

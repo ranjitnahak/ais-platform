@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { STAFF_ROLES } from './UserProfileTab';
 
 export default function UserDangerZone({ profile, onRoleChanged }) {
-  const { isStaff, isActive, deactivateUser, changeRole, staffForm } = profile;
+  const { isStaff, isAthlete, isActive, deactivateUser, reactivateUser, changeRole, staffForm } = profile;
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [confirmReactivate, setConfirmReactivate] = useState(false);
   const [confirmRole, setConfirmRole] = useState(false);
   const [nextRole, setNextRole] = useState(staffForm.roleLabel || '');
   const [working, setWorking] = useState(false);
@@ -40,6 +41,23 @@ export default function UserDangerZone({ profile, onRoleChanged }) {
     }
   }
 
+  async function handleReactivate() {
+    setWorking(true);
+    setActionError(null);
+    try {
+      await reactivateUser();
+      setConfirmReactivate(false);
+    } catch (err) {
+      setActionError(err.message || 'Could not reactivate user.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  const offboardCopy = isAthlete
+    ? 'They will be removed from all teams, lose app access, and disappear from operational dashboards. Historical data is preserved. Re-assign them to a team after reactivating.'
+    : 'They will lose access immediately. You can reactivate them from the users list.';
+
   return (
     <div className="mt-6 border-t border-[var(--color-outline-variant)] pt-6">
       <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-error)]">Danger Zone</p>
@@ -54,8 +72,18 @@ export default function UserDangerZone({ profile, onRoleChanged }) {
           onClick={() => setConfirmDeactivate(true)}
           className="rounded-lg border border-[var(--color-error)] px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-error)] disabled:opacity-40"
         >
-          Deactivate User
+          {isAthlete ? 'Offboard Athlete' : 'Deactivate User'}
         </button>
+        {!isActive && (
+          <button
+            type="button"
+            disabled={working}
+            onClick={() => setConfirmReactivate(true)}
+            className="rounded-lg border border-[var(--color-tertiary-fixed-dim)] px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-tertiary-fixed-dim)] disabled:opacity-40"
+          >
+            Reactivate
+          </button>
+        )}
         {isStaff && (
           <button
             type="button"
@@ -76,9 +104,11 @@ export default function UserDangerZone({ profile, onRoleChanged }) {
       {confirmDeactivate && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[var(--color-surface-container-lowest)]/90 p-4">
           <div className="w-full max-w-md rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-6">
-            <h3 className="text-lg font-black text-[var(--color-on-surface)]">Deactivate this user?</h3>
+            <h3 className="text-lg font-black text-[var(--color-on-surface)]">
+              {isAthlete ? 'Offboard this athlete?' : 'Deactivate this user?'}
+            </h3>
             <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
-              They will lose access immediately. You can reactivate them from the users list.
+              {offboardCopy}
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setConfirmDeactivate(false)} className="px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">Cancel</button>
@@ -88,7 +118,31 @@ export default function UserDangerZone({ profile, onRoleChanged }) {
                 onClick={() => void handleDeactivate()}
                 className="rounded-lg bg-[var(--color-error)] px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-error)] disabled:opacity-50"
               >
-                {working ? 'Working…' : 'Deactivate'}
+                {working ? 'Working…' : (isAthlete ? 'Offboard' : 'Deactivate')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmReactivate && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[var(--color-surface-container-lowest)]/90 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-6">
+            <h3 className="text-lg font-black text-[var(--color-on-surface)]">Reactivate this user?</h3>
+            <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
+              {isAthlete
+                ? 'Account access will be restored. Re-assign them to a team to show them in Wellness, RPE, and Assessment views again.'
+                : 'They will regain access immediately.'}
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setConfirmReactivate(false)} className="px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">Cancel</button>
+              <button
+                type="button"
+                disabled={working}
+                onClick={() => void handleReactivate()}
+                className="rounded-lg bg-[var(--color-primary-container)] px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-primary)] disabled:opacity-50"
+              >
+                {working ? 'Working…' : 'Reactivate'}
               </button>
             </div>
           </div>

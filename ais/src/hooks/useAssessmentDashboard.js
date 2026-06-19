@@ -180,14 +180,16 @@ export function useAssessmentDashboard() {
 
         const { data: membershipRows, error: membershipErr } = await supabase
           .from('athlete_teams')
-          .select('athlete_id, athletes(id, first_name, last_name, full_name, photo_url, position, date_of_birth, gender, org_id)')
-          .in('team_id', teamIds);
+          .select('athlete_id, athletes!inner(id, first_name, last_name, full_name, photo_url, position, date_of_birth, gender, org_id, is_active)')
+          .in('team_id', teamIds)
+          .eq('athletes.is_active', true);
         if (membershipErr) throw membershipErr;
 
         const athleteMap = new Map();
         for (const row of membershipRows ?? []) {
           const athlete = row.athletes;
-          if (athlete?.org_id === orgId) athleteMap.set(athlete.id, athlete);
+          const athleteRow = Array.isArray(athlete) ? athlete[0] : athlete;
+          if (athleteRow?.org_id === orgId) athleteMap.set(athleteRow.id, athleteRow);
         }
         const athleteRows = [...athleteMap.values()].sort((a, b) =>
           athleteDisplayName(a).localeCompare(athleteDisplayName(b)),

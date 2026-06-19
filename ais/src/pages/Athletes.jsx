@@ -12,6 +12,7 @@ import {
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 import { TopBarUserMenu } from '../components/layout/TopBar';
+import { offboardAthlete } from '../lib/adminUserActions';
 import AthletesSkeleton from '../components/shared/skeletons/AthletesSkeleton';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -200,12 +201,16 @@ export default function Athletes() {
   async function handleArchive(athlete) {
     try {
       if (!effectiveOrgId) throw new Error('No authenticated user found.');
-      const { error } = await supabase
-        .from('athletes')
-        .update({ is_archived: true, is_active: false })
-        .eq('id', athlete.id)
-        .eq('org_id', effectiveOrgId); // SUPERUSER: uses activeOrgId
-      if (error) throw error;
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('id')
+        .eq('athlete_id', athlete.id)
+        .eq('org_id', effectiveOrgId)
+        .maybeSingle();
+      await offboardAthlete(effectiveOrgId, {
+        userId: userRow?.id ?? null,
+        athleteId: athlete.id,
+      });
       setConfirmDialog(null);
       load();
     } catch (err) {

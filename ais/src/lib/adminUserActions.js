@@ -48,9 +48,12 @@ export async function setUserActive(orgId, userId, isActive) {
 }
 
 export async function setAthleteActive(orgId, athleteId, isActive) {
+  const patch = isActive
+    ? { is_active: true, is_archived: false }
+    : { is_active: false, is_archived: true };
   const { data, error } = await supabase
     .from('athletes')
-    .update({ is_active: isActive })
+    .update(patch)
     .eq('id', athleteId)
     .eq('org_id', orgId)
     .select('id');
@@ -58,6 +61,35 @@ export async function setAthleteActive(orgId, athleteId, isActive) {
   if (!Array.isArray(data) || data.length === 0) {
     throw new Error('Update was blocked by permissions or the athlete no longer exists.');
   }
+}
+
+async function removeAthleteFromAllTeams(athleteId) {
+  const { error } = await supabase
+    .from('athlete_teams')
+    .delete()
+    .eq('athlete_id', athleteId);
+  if (error) throw error;
+}
+
+/** Deactivate user + athlete, remove all team memberships. Historical data preserved. */
+export async function offboardAthlete(orgId, { userId, athleteId }) {
+  if (!athleteId && !userId) {
+    throw new Error('No athlete or user id provided.');
+  }
+  if (userId) await setUserActive(orgId, userId, false);
+  if (athleteId) {
+    await setAthleteActive(orgId, athleteId, false);
+    await removeAthleteFromAllTeams(athleteId);
+  }
+}
+
+/** Reactivate user + athlete flags. Team assignments must be re-added manually. */
+export async function reactivateAthlete(orgId, { userId, athleteId }) {
+  if (!athleteId && !userId) {
+    throw new Error('No athlete or user id provided.');
+  }
+  if (userId) await setUserActive(orgId, userId, true);
+  if (athleteId) await setAthleteActive(orgId, athleteId, true);
 }
 
 /** Remove or detach rows that reference users.id without ON DELETE CASCADE/SET NULL. */

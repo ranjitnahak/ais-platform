@@ -99,9 +99,10 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
 
       const { data: links, error: linksError } = await supabase
         .from('athlete_teams')
-        .select('team_id, athletes!inner(id)')
+        .select('team_id, athletes!inner(id, is_active)')
         .in('team_id', effectiveTeamIds)
         .eq('athletes.org_id', effectiveOrgId)
+        .eq('athletes.is_active', true)
         .is('left_at', null);
       if (linksError) throw linksError;
 
@@ -139,9 +140,10 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
         setRosterLoading(true);
         const { data, error: rosterError } = await supabase
           .from('athlete_teams')
-          .select('athlete_id, athletes!inner(id, full_name, position, org_id)')
+          .select('athlete_id, athletes!inner(id, full_name, position, org_id, is_active)')
           .eq('team_id', teamId)
           .eq('athletes.org_id', effectiveOrgId)
+          .eq('athletes.is_active', true)
           .is('left_at', null);
         if (rosterError) throw rosterError;
 

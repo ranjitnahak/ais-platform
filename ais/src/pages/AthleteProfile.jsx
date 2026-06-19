@@ -9,6 +9,7 @@ import { BLOOD_GROUP_OPTIONS, normalizeGenderForDb, normalizePositionForDb } fro
 import ImageCropModal from '../components/athletes/ImageCropModal';
 import Sidebar from '../components/Sidebar';
 import { TopBarUserMenu } from '../components/layout/TopBar';
+import { offboardAthlete } from '../lib/adminUserActions';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -253,12 +254,17 @@ export default function AthleteProfile() {
     try {
       const user = await getCurrentUser();
       if (!user) throw new Error('No authenticated user found.');
-      const { error } = await supabase
-        .from('athletes')
-        .update({ is_archived: true, is_active: false })
-        .eq('id', id)
-        .eq('org_id', user.orgId);
-      if (error) throw error;
+      const orgId = user.orgId;
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('id')
+        .eq('athlete_id', id)
+        .eq('org_id', orgId)
+        .maybeSingle();
+      await offboardAthlete(orgId, {
+        userId: userRow?.id ?? null,
+        athleteId: id,
+      });
       navigate('/athletes');
     } catch (err) {
       console.error('[AthleteProfile:handleArchive] failed:', err);

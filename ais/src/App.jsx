@@ -51,6 +51,9 @@ function RoleLoading() {
 const ACCOUNT_SETUP_MESSAGE =
   'Account setup incomplete. Please contact your administrator.';
 
+const ACCOUNT_DEACTIVATED_MESSAGE =
+  'Your account has been deactivated. Please contact your administrator.';
+
 function AuthGate({ children }) {
   const [session, setSession] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -86,11 +89,20 @@ function AuthGate({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!profileFailed) return;
-    void supabase.auth.signOut().then(() => {
-      navigate('/login', { replace: true, state: { message: ACCOUNT_SETUP_MESSAGE } });
-    });
-  }, [profileFailed, navigate]);
+    if (!profileFailed || !session?.user?.id) return;
+    void (async () => {
+      const { data: profileRow } = await supabase
+        .from('users')
+        .select('is_active')
+        .eq('auth_id', session.user.id)
+        .maybeSingle();
+      const message = profileRow?.is_active === false
+        ? ACCOUNT_DEACTIVATED_MESSAGE
+        : ACCOUNT_SETUP_MESSAGE;
+      await supabase.auth.signOut();
+      navigate('/login', { replace: true, state: { message } });
+    })();
+  }, [profileFailed, navigate, session?.user?.id]);
 
   useEffect(() => {
     if (!checkingSession && !session && !isPublicPath) {

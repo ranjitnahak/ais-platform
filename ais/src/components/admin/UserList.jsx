@@ -6,7 +6,7 @@ import AddUserModal from './AddUserModal';
 import DeleteUserModal from './DeleteUserModal';
 import AdminUserRowMenu from './AdminUserRowMenu';
 import UserDetailPanel from './UserDetailPanel';
-import { setAthleteActive, setUserActive } from '../../lib/adminUserActions';
+import { offboardAthlete, reactivateAthlete, setUserActive } from '../../lib/adminUserActions';
 import { buildGroupToTeamMap } from '../../lib/teamGroups';
 
 async function resolveFunctionErrorMessage(fnError, fnData) {
@@ -37,6 +37,8 @@ export default function UserList({ user }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [orgFilter, setOrgFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');
+  const [offboardTarget, setOffboardTarget] = useState(null);
+  const [offboardWorking, setOffboardWorking] = useState(false);
   async function loadUsers() {
     if (!user?.orgId && !user?.isSuperuser) return;
     setLoading(true);
@@ -62,7 +64,7 @@ export default function UserList({ user }) {
           .order('full_name');
       const athleteAuthQuery = supabase
           .from('users')
-          .select('id, full_name, email, role, is_active, last_login_at, deactivated_at, athlete_id, org_id, organisations(name), athletes!athlete_id(id, position, jersey_number, photo_url)')
+          .select('id, full_name, email, role, is_active, last_login_at, deactivated_at, athlete_id, org_id, organisations(name), athletes!athlete_id(id, position, jersey_number, photo_url, is_active)')
           .eq('role', 'athlete')
           .order('full_name');
       const pendingQuery = supabase
@@ -129,6 +131,9 @@ export default function UserList({ user }) {
 
       const athleteAuthItems = (athleteAuthRes.data ?? []).map((row) => {
         const joinedAthlete = Array.isArray(row.athletes) ? row.athletes[0] : row.athletes;
+        const athleteActive = joinedAthlete?.is_active !== false;
+        const userActive = row.is_active !== false;
+        const isActive = userActive && athleteActive;
         return {
           key: `athlete-auth:${row.id}`,
           kind: 'athlete_auth',
@@ -140,9 +145,9 @@ export default function UserList({ user }) {
           roleOrPosition: joinedAthlete?.position ?? 'Athlete',
           orgId: row.org_id,
           orgName: row.organisations?.name ?? '—',
-          status: row.is_active ? 'ACTIVE' : 'INACTIVE',
+          status: isActive ? 'ACTIVE' : 'INACTIVE',
           lastActiveAt: row.last_login_at,
-          isActive: row.is_active,
+          isActive,
           teamIds: athleteTeamMap[row.athlete_id ?? joinedAthlete?.id] ?? [],
         };
       });
@@ -202,12 +207,14 @@ export default function UserList({ user }) {
   const selectClassName =
     'min-h-11 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 text-sm font-bold text-[var(--color-on-surface)] outline-none focus:border-[var(--color-primary-container)]';
   async function handleDeactivate(item) {
+    if (item.kind === 'athlete_auth' || item.kind === 'athlete_pending') {
+      setOffboardTarget(item);
+      return;
+    }
     try {
       const orgId = item.orgId ?? user.orgId;
       if (item.userId) {
         await setUserActive(orgId, item.userId, false);
-      } else if (item.athleteId && item.kind === 'athlete_pending') {
-        await setAthleteActive(orgId, item.athleteId, false);
       } else {
         return;
       }
@@ -218,16 +225,41 @@ export default function UserList({ user }) {
     }
   }
 
+  async function confirmOffboard() {
+    if (!offboardTarget) return;
+    setOffboardWorking(true);
+    setError(null);
+    try {
+      const orgId = offboardTarget.orgId ?? user.orgId;
+      await offboardAthlete(orgId, {
+        userId: offboardTarget.userId ?? null,
+        athleteId: offboardTarget.athleteId ?? null,
+      });
+      setOffboardTarget(null);
+      setSuccessMessage(`${offboardTarget.fullName || 'Athlete'} has been offboarded.`);
+      await loadUsers();
+    } catch (err) {
+      console.error('[UserList] offboard', err);
+      setError(err.message || 'Could not offboard athlete.');
+    } finally {
+      setOffboardWorking(false);
+    }
+  }
+
   async function handleReactivate(item) {
     try {
       const orgId = item.orgId ?? user.orgId;
-      if (item.userId) {
+      if (item.kind === 'athlete_auth' || item.kind === 'athlete_pending') {
+        await reactivateAthlete(orgId, {
+          userId: item.userId ?? null,
+          athleteId: item.athleteId ?? null,
+        });
+      } else if (item.userId) {
         await setUserActive(orgId, item.userId, true);
-      } else if (item.athleteId && item.kind === 'athlete_pending') {
-        await setAthleteActive(orgId, item.athleteId, true);
       } else {
         return;
       }
+      setSuccessMessage(`${item.fullName || 'User'} has been reactivated. Re-assign them to a team to restore dashboard visibility.`);
       await loadUsers();
     } catch (err) {
       console.error('[UserList] reactivate', err);
@@ -501,6 +533,35 @@ export default function UserList({ user }) {
           onClose={() => setPanelTarget(null)}
           onUpdated={loadUsers}
         />
+      )}
+
+      {offboardTarget && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[var(--color-surface-container-lowest)]/90 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-6">
+            <h3 className="text-lg font-black text-[var(--color-on-surface)]">Offboard this athlete?</h3>
+            <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
+              {offboardTarget.fullName || 'This athlete'} will be removed from all teams, lose app access, and disappear from Wellness, RPE, and Assessment views. Historical data is preserved. Re-assign them to a team after reactivating.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={offboardWorking}
+                onClick={() => setOffboardTarget(null)}
+                className="px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={offboardWorking}
+                onClick={() => void confirmOffboard()}
+                className="rounded-lg bg-[var(--color-error)] px-4 py-2 text-xs font-black uppercase tracking-widest text-[var(--color-on-error)] disabled:opacity-50"
+              >
+                {offboardWorking ? 'Working…' : 'Offboard'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
