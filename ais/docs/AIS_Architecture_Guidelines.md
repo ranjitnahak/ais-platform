@@ -393,6 +393,7 @@ MULTI-TENANCY
 REPORTS & PDF
 □ Does this change break any existing PDF report output?
 □ Does this change affect assessment data display — if so, has the median percentile logic been preserved?
+□ Does this dashboard expose Export PDF using the standard pattern (DashboardPanelHeader exportSlot or ExportPdfButton)?
 ```
 
 ---

@@ -15,6 +15,13 @@ import CoverageView from '../../components/assessment/CoverageView';
 import TierLegend from '../../components/assessment/TierLegend';
 import TierValue from '../../components/assessment/TierValue';
 
+const MODE_BY_VIEW = {
+  individual: 'athlete',
+  squad: 'team',
+  matrix: 'matrix',
+  coverage: 'coverage',
+};
+
 function DeltaRow({ delta, unit }) {
   if (delta == null) return null;
   const deltaClass =
@@ -77,7 +84,7 @@ export default function AssessmentDashboard() {
     setExporting(true);
     setExportError(null);
     try {
-      const mode = filters.viewMode === 'individual' ? 'athlete' : 'team';
+      const mode = MODE_BY_VIEW[filters.viewMode] ?? 'team';
       await exportAssessmentDashboardPDF({
         mode,
         user,
@@ -120,6 +127,7 @@ export default function AssessmentDashboard() {
         onExportPDF={handleExportPDF}
         exporting={exporting}
         exportError={exportError}
+        exportDisabled={loading}
       />
 
       {!loading && filters.viewMode !== 'coverage' && <TierLegend />}

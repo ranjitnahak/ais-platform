@@ -5,6 +5,7 @@
  */
 import { formatShortTestingDate } from './trendEngine';
 import { IMPROVEMENT_COLORS, resolveTierHex, TIER_COLORS } from './chartColors';
+import { athleteDisplayName } from './athleteName';
 import {
   drawCircularPhoto,
   pdfFillRect,
@@ -508,6 +509,320 @@ function drawEmptyState(pag, message) {
   pag.advance(12);
 }
 
+function drawProgressMetric(pag, { label, count, total, x, y, w }) {
+  const pct = total ? (count / total) * 100 : 0;
+  pdfText(pag.pdf, label, x, y, 6, C.onSurfaceVariant, 'bold');
+  pdfText(pag.pdf, `${count}/${total}`, x + w, y, 7, C.onSurface, 'bold', { align: 'right' });
+  const barY = y + 4;
+  pdfFillRect(pag.pdf, x, barY, w, 2, C.surfaceHigh);
+  pdfFillRect(pag.pdf, x, barY, Math.max(0.5, (pct / 100) * w), 2, C.primary);
+  return barY + 4;
+}
+
+function drawCoverageBody(pag, { coverageData, selectedTests, selectedTestingDates }) {
+  const { dateSummaries, testDateMatrix, athleteRows } = coverageData ?? {};
+  const testCount = selectedTests?.length ?? 0;
+
+  if (!dateSummaries?.length && !testDateMatrix?.length) {
+    drawEmptyState(pag, 'No coverage data for current filters.');
+    return;
+  }
+
+  drawSectionTitle(pag, 'Per-date summary');
+  for (const summary of dateSummaries ?? []) {
+    pag.ensureSpace(28);
+    const dateLabel = formatShortTestingDate(summary.session?.assessed_on);
+    pdfText(pag.pdf, dateLabel.toUpperCase(), MARGIN, pag.y, 9, C.onSurface, 'bold');
+    pag.advance(6);
+    const cardY = pag.y;
+    pdfFillRect(pag.pdf, MARGIN, cardY, CONTENT_W, 22, C.surfaceContainer);
+    let metricY = cardY + 5;
+    metricY = drawProgressMetric(pag, {
+      label: 'TESTED (ANY DATA)',
+      count: summary.testedCount,
+      total: summary.squadSize,
+      x: MARGIN + 3,
+      y: metricY,
+      w: CONTENT_W - 6,
+    });
+    drawProgressMetric(pag, {
+      label: `FULLY TESTED (ALL ${testCount})`,
+      count: summary.fullyTestedCount,
+      total: summary.squadSize,
+      x: MARGIN + 3,
+      y: metricY,
+      w: CONTENT_W - 6,
+    });
+    pag.y = cardY + 26;
+  }
+  pag.advance(4);
+
+  const missingSections = (dateSummaries ?? []).filter((s) => s.missingAthletes?.length > 0);
+  if (missingSections.length) {
+    drawSectionTitle(pag, 'Missing athletes');
+    for (const summary of missingSections) {
+      pag.ensureSpace(14);
+      const dateLabel = formatShortTestingDate(summary.session?.assessed_on);
+      const missingCount = summary.missingAthletes.length;
+      pdfText(
+        pag.pdf,
+        `${missingCount} athlete${missingCount === 1 ? '' : 's'} missing from ${dateLabel} entirely`,
+        MARGIN,
+        pag.y,
+        8,
+        C.onSurface,
+        'bold',
+      );
+      pag.advance(5);
+      const names = summary.missingAthletes.map((a) => athleteDisplayName(a)).join(', ');
+      pag.pdf.setFont('helvetica', 'normal');
+      pag.pdf.setFontSize(7);
+      pag.pdf.setTextColor(C.onSurfaceVariant);
+      const lines = pag.pdf.splitTextToSize(names, CONTENT_W);
+      pag.ensureSpace(lines.length * 3.5 + 2);
+      lines.forEach((line, i) => {
+        pag.pdf.text(line, MARGIN, pag.y + i * 3.5);
+      });
+      pag.advance(lines.length * 3.5 + 4);
+    }
+  }
+
+  const sortedDates = [...(selectedTestingDates ?? [])].sort(
+    (a, b) => new Date(a.assessed_on) - new Date(b.assessed_on),
+  );
+
+  if (testDateMatrix?.length && sortedDates.length) {
+    drawSectionTitle(pag, 'Coverage by test × testing date');
+    const testColW = 44;
+    const dateColW = Math.min(24, (CONTENT_W - testColW) / Math.max(sortedDates.length, 1));
+    const headerH = 8;
+    const rowH = 9;
+    pag.ensureSpace(headerH);
+
+    let x = MARGIN;
+    pdfFillRect(pag.pdf, x, pag.y, testColW, headerH, C.surfaceHigh);
+    pdfText(pag.pdf, 'Test', x + 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold');
+    x += testColW;
+    for (const session of sortedDates) {
+      pdfFillRect(pag.pdf, x, pag.y, dateColW, headerH, C.surfaceHigh);
+      pdfText(
+        pag.pdf,
+        formatShortTestingDate(session.assessed_on),
+        x + dateColW / 2,
+        pag.y + headerH / 2,
+        5,
+        C.onSurfaceVariant,
+        'bold',
+        { align: 'center' },
+      );
+      x += dateColW;
+    }
+    pag.advance(headerH);
+
+    for (const { test, cells } of testDateMatrix) {
+      pag.ensureSpace(rowH);
+      const rowY = pag.y;
+      x = MARGIN;
+      const cellBySession = Object.fromEntries(cells.map((c) => [c.sessionId, c]));
+      pdfFillRect(pag.pdf, x, rowY, testColW, rowH, C.surfaceContainer);
+      pdfText(pag.pdf, test.name, x + 2, rowY + rowH / 2, 6, C.onSurface, 'bold', { maxWidth: testColW - 4 });
+      x += testColW;
+      for (const session of sortedDates) {
+        pdfFillRect(pag.pdf, x, rowY, dateColW, rowH, C.surfaceContainer);
+        const cell = cellBySession[session.id];
+        pdfText(
+          pag.pdf,
+          cell != null ? `${cell.pct}%` : '—',
+          x + dateColW / 2,
+          rowY + rowH / 2,
+          7,
+          C.onSurface,
+          'normal',
+          { align: 'center' },
+        );
+        x += dateColW;
+      }
+      pag.advance(rowH);
+    }
+    pag.advance(4);
+  }
+
+  const sortedAthleteRows = [...(athleteRows ?? [])].sort((a, b) => {
+    if (a.overallRatio === b.overallRatio) return a.athleteName.localeCompare(b.athleteName);
+    return b.overallRatio - a.overallRatio;
+  });
+
+  if (sortedAthleteRows.length && sortedDates.length) {
+    drawSectionTitle(pag, 'Athlete-wise coverage');
+    const nameColW = 38;
+    const dateColW = Math.min(22, (CONTENT_W - nameColW - 28) / Math.max(sortedDates.length, 1));
+    const overallColW = 28;
+    const headerH = 8;
+    const rowH = 9;
+    pag.ensureSpace(headerH);
+
+    let x = MARGIN;
+    pdfFillRect(pag.pdf, x, pag.y, nameColW, headerH, C.surfaceHigh);
+    pdfText(pag.pdf, 'Athlete', x + 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold');
+    x += nameColW;
+    for (const session of sortedDates) {
+      pdfFillRect(pag.pdf, x, pag.y, dateColW, headerH, C.surfaceHigh);
+      pdfText(
+        pag.pdf,
+        formatShortTestingDate(session.assessed_on),
+        x + dateColW / 2,
+        pag.y + headerH / 2,
+        5,
+        C.onSurfaceVariant,
+        'bold',
+        { align: 'center' },
+      );
+      x += dateColW;
+    }
+    pdfFillRect(pag.pdf, x, pag.y, overallColW, headerH, C.surfaceHigh);
+    pdfText(pag.pdf, 'Overall', x + overallColW / 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold', { align: 'center' });
+    pag.advance(headerH);
+
+    for (const row of sortedAthleteRows) {
+      pag.ensureSpace(rowH);
+      const rowY = pag.y;
+      x = MARGIN;
+      pdfFillRect(pag.pdf, x, rowY, nameColW, rowH, C.surfaceContainer);
+      pdfText(pag.pdf, row.athleteName, x + 2, rowY + rowH / 2, 6, C.onSurface, 'bold', { maxWidth: nameColW - 4 });
+      x += nameColW;
+      for (const session of sortedDates) {
+        pdfFillRect(pag.pdf, x, rowY, dateColW, rowH, C.surfaceContainer);
+        const completed = row.bySession[session.id] ?? 0;
+        pdfText(
+          pag.pdf,
+          `${completed}/${testCount}`,
+          x + dateColW / 2,
+          rowY + rowH / 2,
+          6,
+          C.onSurface,
+          'normal',
+          { align: 'center' },
+        );
+        x += dateColW;
+      }
+      pdfFillRect(pag.pdf, x, rowY, overallColW, rowH, C.surfaceContainer);
+      pdfText(
+        pag.pdf,
+        `${row.overallRaw}/${row.overallPossible} · ${row.overallPct}%`,
+        x + 2,
+        rowY + rowH / 2,
+        5.5,
+        C.onSurface,
+        'normal',
+        { maxWidth: overallColW - 4 },
+      );
+      pag.advance(rowH);
+    }
+    pag.advance(4);
+  }
+}
+
+function drawMatrixBody(pag, { matrixRows, selectedTests }) {
+  if (!selectedTests?.length) {
+    drawEmptyState(pag, 'Select tests to export the matrix.');
+    return;
+  }
+
+  const sortedRows = [...(matrixRows ?? [])].sort((a, b) => {
+    const aVal = a.compositePercentile;
+    const bVal = b.compositePercentile;
+    if (aVal == null && bVal == null) return 0;
+    if (aVal == null) return 1;
+    if (bVal == null) return -1;
+    return bVal - aVal;
+  });
+
+  if (!sortedRows.length) {
+    drawEmptyState(pag, 'No matrix data for current filters.');
+    return;
+  }
+
+  drawSectionTitle(pag, 'Squad matrix');
+
+  const nameColW = 32;
+  const compositeColW = 28;
+  const remainingW = CONTENT_W - nameColW - compositeColW;
+  const testColW = Math.min(24, remainingW / Math.max(selectedTests.length, 1));
+  const headerH = 8;
+  const rowH = 12;
+
+  pag.ensureSpace(headerH);
+  let x = MARGIN;
+  pdfFillRect(pag.pdf, x, pag.y, nameColW, headerH, C.surfaceHigh);
+  pdfText(pag.pdf, 'Athlete', x + 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold');
+  x += nameColW;
+  pdfFillRect(pag.pdf, x, pag.y, compositeColW, headerH, C.surfaceHigh);
+  pdfText(pag.pdf, 'Composite', x + compositeColW / 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold', { align: 'center' });
+  x += compositeColW;
+  for (const test of selectedTests) {
+    pdfFillRect(pag.pdf, x, pag.y, testColW, headerH, C.surfaceHigh);
+    pdfText(pag.pdf, test.name, x + testColW / 2, pag.y + headerH / 2, 4.5, C.onSurfaceVariant, 'bold', { align: 'center', maxWidth: testColW - 2 });
+    x += testColW;
+  }
+  pag.advance(headerH);
+
+  for (const row of sortedRows) {
+    pag.ensureSpace(rowH);
+    const rowY = pag.y;
+    x = MARGIN;
+    pdfFillRect(pag.pdf, x, rowY, nameColW, rowH, C.surfaceContainer);
+    pdfText(
+      pag.pdf,
+      athleteDisplayName(row.athlete),
+      x + 2,
+      rowY + rowH / 2,
+      6,
+      C.onSurface,
+      'bold',
+      { maxWidth: nameColW - 4 },
+    );
+    x += nameColW;
+
+    pdfFillRect(pag.pdf, x, rowY, compositeColW, rowH, C.surfaceContainer);
+    if (row.compositePercentile != null) {
+      pdfText(
+        pag.pdf,
+        formatOrdinal(row.compositePercentile),
+        x + 2,
+        rowY + 4,
+        7,
+        C.onSurface,
+        'bold',
+      );
+      drawTierPill(pag.pdf, x + 2, rowY + 9, row.compositeTier, row.compositeTierColor, compositeColW - 4);
+    } else {
+      pdfText(pag.pdf, '—', x + compositeColW / 2, rowY + rowH / 2, 7, C.onSurfaceVariant, 'normal', { align: 'center' });
+    }
+    x += compositeColW;
+
+    for (const test of selectedTests) {
+      pdfFillRect(pag.pdf, x, rowY, testColW, rowH, C.surfaceContainer);
+      const cell = row.tests?.[test.id];
+      const unit = test.unit === 'seconds' ? 's' : test.unit;
+      if (cell?.latestValue != null) {
+        pdfText(pag.pdf, formatValue(cell.latestValue, unit), x + 2, rowY + 4, 6, C.onSurface, 'bold');
+        if (cell.delta != null) {
+          const deltaStr = `${cell.delta > 0 ? '+' : ''}${cell.delta.toFixed(2)}`;
+          pdfText(pag.pdf, deltaStr, x + 2, rowY + 8, 5, deltaColor(cell.delta), 'bold');
+        }
+        if (cell.tierName) {
+          drawTierPill(pag.pdf, x + 2, rowY + 11, cell.tierName, cell.tierColor, testColW - 4);
+        }
+      } else {
+        pdfText(pag.pdf, '—', x + testColW / 2, rowY + rowH / 2, 7, C.onSurfaceVariant, 'normal', { align: 'center' });
+      }
+      x += testColW;
+    }
+    pag.advance(rowH);
+  }
+  pag.advance(4);
+}
+
 function drawAthleteBody(pag, payload) {
   const {
     selectedTests,
@@ -570,7 +885,7 @@ function drawTeamBody(pag, payload) {
 /**
  * @param {object} p
  * @param {import('jspdf').jsPDF} p.pdf
- * @param {'athlete'|'team'} p.mode
+ * @param {'athlete'|'team'|'matrix'|'coverage'} p.mode
  * @returns {Promise<import('jspdf').jsPDF>}
  */
 export async function buildAssessmentPDF({
@@ -594,6 +909,8 @@ export async function buildAssessmentPDF({
   benchmarkTiersByTest,
   selectedTestingDates,
   squadTestMultiples,
+  coverageData,
+  matrixRows,
 }) {
   const chrome = { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDims };
 
@@ -616,6 +933,12 @@ export async function buildAssessmentPDF({
       benchmarkTiersByTest,
       selectedTestingDates,
     });
+  } else if (mode === 'coverage') {
+    drawTeamHeaderBlock(pag, teamName);
+    drawCoverageBody(pag, { coverageData, selectedTests, selectedTestingDates });
+  } else if (mode === 'matrix') {
+    drawTeamHeaderBlock(pag, teamName);
+    drawMatrixBody(pag, { matrixRows, selectedTests });
   } else {
     drawTeamHeaderBlock(pag, teamName);
     drawTeamBody(pag, {

@@ -106,13 +106,14 @@ export default function LoadMonitoringDashboard() {
       <DashboardPanelHeader
         title="Load monitoring · RPE"
         subtitle={user?.orgName || '—'}
-      >
-        <DashboardExportButton
-          exportRef={exportRef}
-          filename={exportFilename}
-          disabled={loading || !!error}
-        />
-      </DashboardPanelHeader>
+        exportSlot={(
+          <DashboardExportButton
+            exportRef={exportRef}
+            filename={exportFilename}
+            disabled={loading || !!error}
+          />
+        )}
+      />
 
       <p
         data-pdf-export-only

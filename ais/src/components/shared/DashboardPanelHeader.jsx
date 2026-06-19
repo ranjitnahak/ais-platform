@@ -1,6 +1,6 @@
 import AISLogo from './AISLogo';
 
-export default function DashboardPanelHeader({ title, subtitle, children }) {
+export default function DashboardPanelHeader({ title, subtitle, children, exportSlot }) {
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-center gap-3">
@@ -12,8 +12,11 @@ export default function DashboardPanelHeader({ title, subtitle, children }) {
           )}
         </div>
       </div>
-      {children ? (
-        <div className="flex flex-wrap items-center gap-3">{children}</div>
+      {(exportSlot || children) ? (
+        <div className="flex flex-wrap items-center gap-3">
+          {exportSlot}
+          {children}
+        </div>
       ) : null}
     </div>
   );

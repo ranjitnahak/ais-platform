@@ -107,13 +107,14 @@ export default function WellnessDashboard({ embedded = false }) {
           <DashboardPanelHeader
             title="Wellness Dashboard"
             subtitle={user?.orgName || '—'}
-          >
-            <DashboardExportButton
-              exportRef={exportRef}
-              filename={exportFilename}
-              disabled={loading || !!error}
-            />
-          </DashboardPanelHeader>
+            exportSlot={(
+              <DashboardExportButton
+                exportRef={exportRef}
+                filename={exportFilename}
+                disabled={loading || !!error}
+              />
+            )}
+          />
         ) : (
         <header>
           <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">Team Readiness</p>

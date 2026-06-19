@@ -24,10 +24,17 @@ function computeAge(dob) {
 
 export function assessmentPdfFilename({ mode, athleteName, teamName }) {
   const date = new Date().toISOString().slice(0, 10);
-  const slug = mode === 'athlete'
-    ? slugifyFilename(athleteName ?? 'athlete')
-    : slugifyFilename(teamName ?? 'team');
-  return `assessment_${slug}_${date}.pdf`;
+  const teamSlug = slugifyFilename(teamName ?? 'team');
+  if (mode === 'athlete') {
+    return `assessment_${slugifyFilename(athleteName ?? 'athlete')}_${date}.pdf`;
+  }
+  if (mode === 'coverage') {
+    return `assessment_${teamSlug}_coverage_${date}.pdf`;
+  }
+  if (mode === 'matrix') {
+    return `assessment_${teamSlug}_matrix_${date}.pdf`;
+  }
+  return `assessment_${teamSlug}_${date}.pdf`;
 }
 
 async function loadSignatory(orgId, user) {
@@ -54,7 +61,7 @@ async function loadSignatory(orgId, user) {
 
 /**
  * @param {object} opts
- * @param {'athlete'|'team'} opts.mode
+ * @param {'athlete'|'team'|'matrix'|'coverage'} opts.mode
  * @param {object} opts.user — from useUser()
  * @param {string|null} opts.teamLogoUrl
  * @param {object} opts.dashboard — hook outputs (filters, data)
@@ -76,6 +83,8 @@ export async function exportAssessmentDashboardPDF({
     compositeClassification,
     benchmarkTiersByTest,
     squadTestMultiples,
+    coverageData,
+    matrixRows,
   } = dashboard;
 
   if (mode === 'athlete' && !filters.athleteId) {
@@ -84,6 +93,14 @@ export async function exportAssessmentDashboardPDF({
 
   if (mode === 'team' && !filters.testIds?.length) {
     throw new Error('Select at least one test to export.');
+  }
+
+  if ((mode === 'coverage' || mode === 'matrix') && !filters.testIds?.length) {
+    throw new Error('Select at least one test to export.');
+  }
+
+  if ((mode === 'coverage' || mode === 'matrix') && !filters.sessionIds?.length) {
+    throw new Error('Select at least one testing date to export.');
   }
 
   const [teamLogo, aisLogo, signatory, athletePhotoRaw] = await Promise.all([
@@ -131,6 +148,8 @@ export async function exportAssessmentDashboardPDF({
     benchmarkTiersByTest,
     selectedTestingDates,
     squadTestMultiples,
+    coverageData,
+    matrixRows,
   });
 
   pdf.save(filename);
