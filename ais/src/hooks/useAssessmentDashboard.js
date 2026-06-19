@@ -17,8 +17,10 @@ import {
   computeLatestDelta,
   computeSquadMultiplesProgression,
   computeTestPercentile,
+  formatShortTestingDate,
 } from '../lib/trendEngine';
 import { athleteDisplayName } from '../lib/athleteName';
+import { useCoverageData } from './useCoverageData';
 
 const DEFAULT_FILTERS = {
   athleteId: null,
@@ -51,13 +53,28 @@ function countAthleteTestsWithData(athleteId, allResults) {
   return testIds.size;
 }
 
-function athleteMostRecentSessionId(athleteId, allResults, allSessions) {
+function countAthleteTestsAtSession(athleteId, sessionId, scopedResults) {
+  const testIds = new Set();
+  for (const row of scopedResults ?? []) {
+    if (
+      row.athlete_id === athleteId &&
+      row.session_id === sessionId &&
+      row.value != null &&
+      !Number.isNaN(Number(row.value))
+    ) {
+      testIds.add(row.test_id);
+    }
+  }
+  return testIds.size;
+}
+
+function athleteMostRecentSessionInScope(athleteId, scopedResults, scopedSessions) {
   const sessionIdsWithData = new Set(
-    (allResults ?? [])
+    (scopedResults ?? [])
       .filter((r) => r.athlete_id === athleteId && r.value != null)
       .map((r) => r.session_id),
   );
-  const sessions = [...(allSessions ?? [])].reverse().filter((s) => sessionIdsWithData.has(s.id));
+  const sessions = [...(scopedSessions ?? [])].reverse().filter((s) => sessionIdsWithData.has(s.id));
   return sessions[0]?.id ?? null;
 }
 
@@ -79,7 +96,7 @@ export function useAssessmentDashboard() {
   const setFilter = useCallback((key, value) => {
     setFiltersState((prev) => {
       const next = { ...prev, [key]: value };
-      if (key === 'viewMode' && (value === 'squad' || value === 'matrix')) {
+      if (key === 'viewMode' && (value === 'squad' || value === 'matrix' || value === 'coverage')) {
         next.athleteId = null;
       }
       return next;
@@ -345,6 +362,25 @@ export function useAssessmentDashboard() {
     [results, filters.sessionIds, filters.testIds],
   );
 
+  const dateScopeMode = useMemo(() => {
+    const n = filters.sessionIds.length;
+    if (n === 0) return 'empty';
+    if (n === 1) return 'snapshot';
+    return 'window';
+  }, [filters.sessionIds.length]);
+
+  const dateScopeHint = useMemo(() => {
+    if (dateScopeMode === 'empty') return null;
+    if (dateScopeMode === 'snapshot') {
+      const session = selectedTestingDates[0];
+      return session
+        ? `Showing results for ${formatShortTestingDate(session.assessed_on)}`
+        : null;
+    }
+    const n = selectedTestingDates.length;
+    return `Showing latest within ${n} selected dates · deltas vs previous selected date`;
+  }, [dateScopeMode, selectedTestingDates]);
+
   const squadValuesBySession = useMemo(
     () => buildValuesBySession(filteredResults, filters.testIds),
     [filteredResults, filters.testIds],
@@ -464,22 +500,32 @@ export function useAssessmentDashboard() {
   ]);
 
   const squadTestMultiples = useMemo(() => {
-    if (filters.viewMode !== 'squad') return {};
+    if (filters.viewMode !== 'squad' || dateScopeMode === 'empty') return {};
     const map = {};
     for (const test of selectedTests) {
       map[test.id] = computeSquadMultiplesProgression({
         testId: test.id,
-        allSessions,
-        allResults: results,
+        allSessions: selectedTestingDates,
+        allResults: filteredResults,
         athletes,
         direction: test.direction ?? 'higher_is_better',
       });
     }
     return map;
-  }, [filters.viewMode, selectedTests, allSessions, results, athletes]);
+  }, [
+    filters.viewMode,
+    dateScopeMode,
+    selectedTests,
+    selectedTestingDates,
+    filteredResults,
+    athletes,
+  ]);
 
   const matrixRows = useMemo(() => {
-    if (filters.viewMode !== 'matrix') return [];
+    if (filters.viewMode !== 'matrix' || dateScopeMode === 'empty') return [];
+
+    const isSnapshot = dateScopeMode === 'snapshot';
+    const snapshotSessionId = isSnapshot ? selectedTestingDates[0]?.id : null;
 
     return athletes.map((athlete) => {
       const testsMap = {};
@@ -487,8 +533,8 @@ export function useAssessmentDashboard() {
         const latest = computeLatestDelta({
           athleteId: athlete.id,
           testId: test.id,
-          allResults: results,
-          allSessions,
+          allResults: filteredResults,
+          allSessions: selectedTestingDates,
           direction: test.direction ?? 'higher_is_better',
         });
 
@@ -499,7 +545,7 @@ export function useAssessmentDashboard() {
             athleteId: athlete.id,
             testId: test.id,
             testingDateId: latest.latestSessionId,
-            allAthleteResults: results,
+            allAthleteResults: filteredResults,
             direction: test.direction ?? 'higher_is_better',
             percentileBands,
           });
@@ -515,25 +561,50 @@ export function useAssessmentDashboard() {
         };
       }
 
-      const testCount = countAthleteTestsWithData(athlete.id, results);
       let compositePercentile = null;
       let compositeTier = null;
       let compositeTierColor = null;
 
-      if (testCount >= 2) {
-        const sessionId = athleteMostRecentSessionId(athlete.id, results, allSessions);
-        if (sessionId) {
+      if (isSnapshot && snapshotSessionId) {
+        const testsAtSession = countAthleteTestsAtSession(
+          athlete.id,
+          snapshotSessionId,
+          filteredResults,
+        );
+        if (testsAtSession >= 2) {
           const composite = computeCompositePercentile({
             athleteId: athlete.id,
             testIds: filters.testIds,
-            testingDateId: sessionId,
-            allAthleteResults: results,
+            testingDateId: snapshotSessionId,
+            allAthleteResults: filteredResults,
             testDirections,
             percentileBands,
           });
           compositePercentile = composite.percentile;
           compositeTier = composite.tier;
           compositeTierColor = composite.tierColor;
+        }
+      } else {
+        const testCount = countAthleteTestsWithData(athlete.id, results);
+        if (testCount >= 2) {
+          const sessionId = athleteMostRecentSessionInScope(
+            athlete.id,
+            filteredResults,
+            selectedTestingDates,
+          );
+          if (sessionId) {
+            const composite = computeCompositePercentile({
+              athleteId: athlete.id,
+              testIds: filters.testIds,
+              testingDateId: sessionId,
+              allAthleteResults: filteredResults,
+              testDirections,
+              percentileBands,
+            });
+            compositePercentile = composite.percentile;
+            compositeTier = composite.tier;
+            compositeTierColor = composite.tierColor;
+          }
         }
       }
 
@@ -549,10 +620,12 @@ export function useAssessmentDashboard() {
   }, [
     filters.viewMode,
     filters.testIds,
+    dateScopeMode,
     athletes,
     selectedTests,
+    selectedTestingDates,
+    filteredResults,
     results,
-    allSessions,
     testDirections,
     percentileBands,
   ]);
@@ -570,6 +643,14 @@ export function useAssessmentDashboard() {
     }
     return crossings;
   }, [individualProgressions, testsById]);
+
+  const coverageData = useCoverageData({
+    enabled: filters.viewMode === 'coverage',
+    athletes,
+    results: filteredResults,
+    selectedTests,
+    selectedTestingDates,
+  });
 
   return {
     loading,
@@ -591,11 +672,14 @@ export function useAssessmentDashboard() {
     compositeClassification,
     squadTestMultiples,
     matrixRows,
+    dateScopeMode,
+    dateScopeHint,
     tierFallbackFlags,
     percentileBands,
     benchmarkTiersByTest,
     allTierCrossings,
     testsById,
     allSessions,
+    coverageData,
   };
 }

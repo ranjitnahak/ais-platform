@@ -119,6 +119,7 @@ function ModeToggle({ value, onChange }) {
         { id: 'individual', label: 'Individual' },
         { id: 'squad', label: 'Squad' },
         { id: 'matrix', label: 'Matrix' },
+        { id: 'coverage', label: 'Coverage' },
       ].map((mode) => (
         <button
           key={mode.id}
@@ -152,7 +153,11 @@ export default function AssessmentFilterBar({
     label: formatTestingDate(s.assessed_on),
   }));
 
-  const athleteDisabled = filters.viewMode === 'squad' || filters.viewMode === 'matrix';
+  const athleteDisabled =
+    filters.viewMode === 'squad'
+    || filters.viewMode === 'matrix'
+    || filters.viewMode === 'coverage';
+  const isCoverageMode = filters.viewMode === 'coverage';
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4">
@@ -173,19 +178,21 @@ export default function AssessmentFilterBar({
         selectedIds={filters.sessionIds}
         onChange={(ids) => setFilter('sessionIds', ids)}
       />
-      <select
-        value={filters.scoringMethod}
-        onChange={(e) => setFilter('scoringMethod', e.target.value)}
-        className={selectClass}
-        aria-label="Scoring method"
-      >
-        {SCORING_METHODS.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.label}
-          </option>
-        ))}
-      </select>
-      {onExportPDF && (
+      {!isCoverageMode && (
+        <select
+          value={filters.scoringMethod}
+          onChange={(e) => setFilter('scoringMethod', e.target.value)}
+          className={selectClass}
+          aria-label="Scoring method"
+        >
+          {SCORING_METHODS.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      )}
+      {onExportPDF && !isCoverageMode && (
         <div className="flex flex-col items-end gap-1">
           <button
             type="button"

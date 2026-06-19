@@ -11,6 +11,7 @@ import TrendChart from '../../components/assessment/TrendChart';
 import ProgressionTable from '../../components/assessment/ProgressionTable';
 import SquadTestMultiples from '../../components/assessment/SquadTestMultiples';
 import MatrixView from '../../components/assessment/MatrixView';
+import CoverageView from '../../components/assessment/CoverageView';
 import TierLegend from '../../components/assessment/TierLegend';
 import TierValue from '../../components/assessment/TierValue';
 
@@ -61,9 +62,12 @@ export default function AssessmentDashboard() {
     compositeClassification,
     squadTestMultiples,
     matrixRows,
+    dateScopeMode,
+    dateScopeHint,
     tierFallbackFlags,
     allTierCrossings,
     benchmarkTiersByTest,
+    coverageData,
   } = dashboard;
 
   const teamLogoUrl = availableTeams?.find((t) => t.id === effectiveTeamId)?.logo_url ?? null;
@@ -118,7 +122,13 @@ export default function AssessmentDashboard() {
         exportError={exportError}
       />
 
-      {!loading && <TierLegend />}
+      {!loading && filters.viewMode !== 'coverage' && <TierLegend />}
+
+      {!loading &&
+        (filters.viewMode === 'matrix' || filters.viewMode === 'squad') &&
+        dateScopeHint && (
+          <p className="text-xs text-[var(--color-on-surface-variant)]">{dateScopeHint}</p>
+        )}
 
       {loading && (
         <p className="text-sm text-[var(--color-on-surface-variant)]">Loading assessment data…</p>
@@ -223,18 +233,47 @@ export default function AssessmentDashboard() {
       )}
 
       {!loading && filters.viewMode === 'squad' && (
-        <SquadTestMultiples
-          selectedTests={selectedTests}
-          squadTestMultiples={squadTestMultiples}
-        />
+        dateScopeMode === 'empty' ? (
+          <p className="text-center text-sm text-[var(--color-on-surface-variant)]">
+            Select at least one testing date to view this table.
+          </p>
+        ) : (
+          <SquadTestMultiples
+            selectedTests={selectedTests}
+            squadTestMultiples={squadTestMultiples}
+            dateScopeMode={dateScopeMode}
+          />
+        )
       )}
 
       {!loading && filters.viewMode === 'matrix' && (
-        <MatrixView
-          matrixRows={matrixRows}
-          selectedTests={selectedTests}
-          onCellClick={navigateToIndividual}
-        />
+        dateScopeMode === 'empty' ? (
+          <p className="text-center text-sm text-[var(--color-on-surface-variant)]">
+            Select at least one testing date to view this table.
+          </p>
+        ) : (
+          <MatrixView
+            matrixRows={matrixRows}
+            selectedTests={selectedTests}
+            onCellClick={navigateToIndividual}
+          />
+        )
+      )}
+
+      {!loading && filters.viewMode === 'coverage' && (
+        dateScopeMode === 'empty' || !selectedTests.length ? (
+          <p className="text-center text-sm text-[var(--color-on-surface-variant)]">
+            {dateScopeMode === 'empty'
+              ? 'Select at least one testing date to view coverage.'
+              : 'Select at least one test to view coverage.'}
+          </p>
+        ) : (
+          <CoverageView
+            coverageData={coverageData}
+            selectedTests={selectedTests}
+            selectedTestingDates={selectedTestingDates}
+          />
+        )
       )}
     </div>
   );
