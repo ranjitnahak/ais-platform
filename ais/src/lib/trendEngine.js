@@ -223,7 +223,7 @@ function rankPercentileFromScores(scoreByAthleteId) {
   const map = new Map();
   entries.forEach(([id], index) => {
     const rank = index + 1;
-    map.set(id, ((rank - 0.5) / n) * 100);
+    map.set(id, ((n - rank + 0.5) / n) * 100);
   });
   return map;
 }
