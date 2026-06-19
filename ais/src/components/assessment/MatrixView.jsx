@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { athleteDisplayName } from '../../lib/athleteName';
+import { SHOW_COMPOSITE_PERCENTILE } from '../../lib/assessmentSettingsConstants';
 import TierValue from './TierValue';
 
 function DeltaIndicator({ delta, unit }) {
@@ -24,14 +25,20 @@ export default function MatrixView({ matrixRows, selectedTests, onCellClick }) {
 
   const sortedRows = useMemo(() => {
     const rows = [...(matrixRows ?? [])];
-    rows.sort((a, b) => {
-      const aVal = a.compositePercentile;
-      const bVal = b.compositePercentile;
-      if (aVal == null && bVal == null) return 0;
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
-      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
-    });
+    if (SHOW_COMPOSITE_PERCENTILE) {
+      rows.sort((a, b) => {
+        const aVal = a.compositePercentile;
+        const bVal = b.compositePercentile;
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return 1;
+        if (bVal == null) return -1;
+        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    } else {
+      rows.sort((a, b) =>
+        athleteDisplayName(a.athlete).localeCompare(athleteDisplayName(b.athlete)),
+      );
+    }
     return rows;
   }, [matrixRows, sortDir]);
 
@@ -51,15 +58,17 @@ export default function MatrixView({ matrixRows, selectedTests, onCellClick }) {
             <th className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-4 py-3 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">
               Athlete
             </th>
-            <th className="px-4 py-3">
-              <button
-                type="button"
-                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
-                className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary-container)] hover:underline"
-              >
-                Composite percentile {sortDir === 'asc' ? '↑' : '↓'}
-              </button>
-            </th>
+            {SHOW_COMPOSITE_PERCENTILE && (
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                  className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary-container)] hover:underline"
+                >
+                  Composite percentile {sortDir === 'asc' ? '↑' : '↓'}
+                </button>
+              </th>
+            )}
             {selectedTests.map((test) => (
               <th
                 key={test.id}
@@ -76,18 +85,20 @@ export default function MatrixView({ matrixRows, selectedTests, onCellClick }) {
               <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-4 py-3 font-bold text-[var(--color-on-surface)]">
                 {athleteDisplayName(row.athlete)}
               </td>
-              <td className="px-4 py-3">
-                {row.compositePercentile != null ? (
-                  <TierValue
-                    mode="pill"
-                    percentile={row.compositePercentile}
-                    tier={row.compositeTier}
-                    tierColor={row.compositeTierColor}
-                  />
-                ) : (
-                  <span className="text-[var(--color-on-surface-variant)]">—</span>
-                )}
-              </td>
+              {SHOW_COMPOSITE_PERCENTILE && (
+                <td className="px-4 py-3">
+                  {row.compositePercentile != null ? (
+                    <TierValue
+                      mode="pill"
+                      percentile={row.compositePercentile}
+                      tier={row.compositeTier}
+                      tierColor={row.compositeTierColor}
+                    />
+                  ) : (
+                    <span className="text-[var(--color-on-surface-variant)]">—</span>
+                  )}
+                </td>
+              )}
               {selectedTests.map((test) => {
                 const cell = row.tests?.[test.id];
                 const unit = test.unit === 'seconds' ? 's' : test.unit;

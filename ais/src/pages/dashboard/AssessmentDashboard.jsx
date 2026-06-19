@@ -4,6 +4,7 @@ import { canSync } from '../../lib/auth';
 import { exportAssessmentDashboardPDF } from '../../lib/exportAssessmentPDF';
 import { useAssessmentDashboard } from '../../hooks/useAssessmentDashboard';
 import { formatTestingDate } from '../../lib/trendEngine';
+import { SHOW_COMPOSITE_PERCENTILE } from '../../lib/assessmentSettingsConstants';
 import AthleteProfileCard from '../../components/assessment/AthleteProfileCard';
 import AssessmentFilterBar from '../../components/assessment/AssessmentFilterBar';
 import CompositeClassificationCard from '../../components/assessment/CompositeClassificationCard';
@@ -190,7 +191,9 @@ export default function AssessmentDashboard() {
                 );
               })}
 
-              <CompositeClassificationCard compositeClassification={compositeClassification} />
+              {SHOW_COMPOSITE_PERCENTILE && (
+                <CompositeClassificationCard compositeClassification={compositeClassification} />
+              )}
             </div>
           )}
 

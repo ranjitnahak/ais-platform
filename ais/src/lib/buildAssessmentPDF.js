@@ -4,6 +4,7 @@
  * Hex colours map 1-to-1 with index.css theme tokens.
  */
 import { formatShortTestingDate } from './trendEngine';
+import { SHOW_COMPOSITE_PERCENTILE } from './assessmentSettingsConstants';
 import { IMPROVEMENT_COLORS, resolveTierHex, TIER_COLORS } from './chartColors';
 import { athleteDisplayName } from './athleteName';
 import {
@@ -804,7 +805,7 @@ function rebalanceMatrixTestChunks(chunks, availableW) {
 
 function splitMatrixTestColumns(selectedTests, contentW) {
   const nameColW = 36;
-  const compositeColW = 30;
+  const compositeColW = SHOW_COMPOSITE_PERCENTILE ? 30 : 0;
   const MIN_TEST_COL_W = 15;
   const fixedW = nameColW + compositeColW;
   const availableW = contentW - fixedW;
@@ -843,9 +844,11 @@ function drawMatrixTableChunk(pag, sortedRows, chunk) {
   pdfFillRect(pag.pdf, x, pag.y, nameColW, headerH, C.surfaceHigh);
   pdfText(pag.pdf, 'Athlete', x + 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold');
   x += nameColW;
-  pdfFillRect(pag.pdf, x, pag.y, compositeColW, headerH, C.surfaceHigh);
-  pdfText(pag.pdf, 'Composite', x + compositeColW / 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold', { align: 'center' });
-  x += compositeColW;
+  if (SHOW_COMPOSITE_PERCENTILE) {
+    pdfFillRect(pag.pdf, x, pag.y, compositeColW, headerH, C.surfaceHigh);
+    pdfText(pag.pdf, 'Composite', x + compositeColW / 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold', { align: 'center' });
+    x += compositeColW;
+  }
   for (const test of tests) {
     pdfFillRect(pag.pdf, x, pag.y, testColW, headerH, C.surfaceHigh);
     pdfText(
@@ -879,18 +882,20 @@ function drawMatrixTableChunk(pag, sortedRows, chunk) {
     );
     x += nameColW;
 
-    pdfFillRect(pag.pdf, x, rowY, compositeColW, rowH, C.surfaceContainer);
-    drawMatrixCompositePill(
-      pag.pdf,
-      x,
-      rowY,
-      rowH,
-      compositeColW,
-      row.compositePercentile,
-      row.compositeTier,
-      row.compositeTierColor,
-    );
-    x += compositeColW;
+    if (SHOW_COMPOSITE_PERCENTILE) {
+      pdfFillRect(pag.pdf, x, rowY, compositeColW, rowH, C.surfaceContainer);
+      drawMatrixCompositePill(
+        pag.pdf,
+        x,
+        rowY,
+        rowH,
+        compositeColW,
+        row.compositePercentile,
+        row.compositeTier,
+        row.compositeTierColor,
+      );
+      x += compositeColW;
+    }
 
     for (const test of tests) {
       pdfFillRect(pag.pdf, x, rowY, testColW, rowH, C.surfaceContainer);
@@ -928,12 +933,15 @@ function drawMatrixBody(pag, { matrixRows, selectedTests }) {
   }
 
   const sortedRows = [...(matrixRows ?? [])].sort((a, b) => {
-    const aVal = a.compositePercentile;
-    const bVal = b.compositePercentile;
-    if (aVal == null && bVal == null) return 0;
-    if (aVal == null) return 1;
-    if (bVal == null) return -1;
-    return bVal - aVal;
+    if (SHOW_COMPOSITE_PERCENTILE) {
+      const aVal = a.compositePercentile;
+      const bVal = b.compositePercentile;
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      return bVal - aVal;
+    }
+    return athleteDisplayName(a.athlete).localeCompare(athleteDisplayName(b.athlete));
   });
 
   if (!sortedRows.length) {
@@ -970,7 +978,9 @@ function drawAthleteBody(pag, payload) {
   }
 
   drawSummaryCards(pag, { selectedTests, individualProgressions, summaryCardPercentiles });
-  drawCompositeTrend(pag, compositeClassification);
+  if (SHOW_COMPOSITE_PERCENTILE) {
+    drawCompositeTrend(pag, compositeClassification);
+  }
 
   drawSectionTitle(pag, 'Per-test trends');
   for (const test of selectedTests) {

@@ -13,6 +13,9 @@ export const SCORING_METHODS = [
 
 export const DEFAULT_SCORING_METHOD = 'team_percentile';
 
+/** When false, composite percentile UI is hidden (calculations still run). */
+export const SHOW_COMPOSITE_PERCENTILE = false;
+
 export const DEFAULT_TIERS = [
   { tier_order: 1, tier_name: 'Below Average', tier_color: '--color-below-avg' },
   { tier_order: 2, tier_name: 'Average', tier_color: '--color-avg' },
