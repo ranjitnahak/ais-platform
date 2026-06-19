@@ -68,16 +68,6 @@ function countAthleteTestsAtSession(athleteId, sessionId, scopedResults) {
   return testIds.size;
 }
 
-function athleteMostRecentSessionInScope(athleteId, scopedResults, scopedSessions) {
-  const sessionIdsWithData = new Set(
-    (scopedResults ?? [])
-      .filter((r) => r.athlete_id === athleteId && r.value != null)
-      .map((r) => r.session_id),
-  );
-  const sessions = [...(scopedSessions ?? [])].reverse().filter((s) => sessionIdsWithData.has(s.id));
-  return sessions[0]?.id ?? null;
-}
-
 export function useAssessmentDashboard() {
   const { user, activeOrgId, activeTeamId, availableTeams } = useUser();
   const [filters, setFiltersState] = useState(DEFAULT_FILTERS);
@@ -587,23 +577,28 @@ export function useAssessmentDashboard() {
       } else {
         const testCount = countAthleteTestsWithData(athlete.id, results);
         if (testCount >= 2) {
-          const sessionId = athleteMostRecentSessionInScope(
-            athlete.id,
-            filteredResults,
-            selectedTestingDates,
-          );
-          if (sessionId) {
+          const sessionsDescending = [...selectedTestingDates].reverse();
+          for (const session of sessionsDescending) {
+            const testsAtSession = countAthleteTestsAtSession(
+              athlete.id,
+              session.id,
+              filteredResults,
+            );
+            if (testsAtSession < 2) continue;
             const composite = computeCompositePercentile({
               athleteId: athlete.id,
               testIds: filters.testIds,
-              testingDateId: sessionId,
+              testingDateId: session.id,
               allAthleteResults: filteredResults,
               testDirections,
               percentileBands,
             });
-            compositePercentile = composite.percentile;
-            compositeTier = composite.tier;
-            compositeTierColor = composite.tierColor;
+            if (composite.percentile != null) {
+              compositePercentile = composite.percentile;
+              compositeTier = composite.tier;
+              compositeTierColor = composite.tierColor;
+              break;
+            }
           }
         }
       }
