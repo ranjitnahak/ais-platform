@@ -4,6 +4,7 @@
  * Hex colours map 1-to-1 with index.css theme tokens.
  */
 import { formatShortTestingDate } from './trendEngine';
+import { IMPROVEMENT_COLORS, resolveTierHex, TIER_COLORS } from './chartColors';
 import {
   drawCircularPhoto,
   pdfFillRect,
@@ -11,7 +12,7 @@ import {
   pdfText,
 } from './pdfHelpers';
 
-// ── Colours (resolved from index.css) ───────────────────────────────────────
+// ── Colours (layout chrome — not tier bands) ─────────────────────────────────
 const C = {
   surface: '#131315',
   surfaceContainer: '#1f1f21',
@@ -19,10 +20,6 @@ const C = {
   onSurface: '#e4e2e4',
   onSurfaceVariant: '#e0c0b1',
   primary: '#F97316',
-  belowAvg: '#93000a',
-  avg: '#F97316',
-  aboveAvg: '#3b82f6',
-  excellent: '#22c55e',
   error: '#ffb4ab',
   outlineVariant: '#584237',
 };
@@ -38,23 +35,7 @@ const CONTENT_BOTTOM = PAGE_H - MARGIN - FOOTER_H;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 
 function tierColorToHex(tierColorVar) {
-  if (!tierColorVar) return C.avg;
-  const key = String(tierColorVar)
-    .replace('--color-', '')
-    .replace(/-/g, '')
-    .toLowerCase();
-  const map = {
-    belowavg: C.belowAvg,
-    errorcontainer: C.belowAvg,
-    avg: C.avg,
-    primarycontainer: C.avg,
-    aboveavg: C.aboveAvg,
-    secondarycontainer: C.aboveAvg,
-    excellent: C.excellent,
-    tertiarycontainer: C.excellent,
-    outline: C.onSurfaceVariant,
-  };
-  return map[key] ?? C.avg;
+  return resolveTierHex(tierColorVar);
 }
 
 function formatOrdinal(n) {
@@ -78,7 +59,7 @@ function formatValue(value, unit) {
 
 function deltaColor(delta) {
   if (delta == null || delta === 0) return C.onSurfaceVariant;
-  return delta > 0 ? C.excellent : C.error;
+  return delta > 0 ? TIER_COLORS.excellent : TIER_COLORS.belowAverage;
 }
 
 function imageFormat(base64) {
@@ -475,141 +456,50 @@ function drawProgressionTable(pag, {
   pag.advance(4);
 }
 
-function drawHorizontalBarChart(pag, {
-  title,
-  squadProgression,
-  test,
-  firstDateLabel,
-  lastDateLabel,
-  colorLastBarByDelta = false,
-  chartH: fixedChartH,
-}) {
-  if (!squadProgression?.length) return;
+function drawSignedDeltaBarChart(pag, { title, progression, chartH: fixedChartH }) {
+  if (!progression?.length) return;
 
   const rowH = 7;
-  const chartH = fixedChartH ?? Math.max(50, squadProgression.length * rowH + 16);
+  const chartH = fixedChartH ?? Math.max(50, progression.length * rowH + 20);
   pag.ensureSpace(chartH + 10);
 
   pdfText(pag.pdf, title, MARGIN, pag.y, 9, C.onSurface, 'bold');
   pag.advance(5);
+  pdfText(
+    pag.pdf,
+    "Change between each athlete's two most recent available test dates",
+    MARGIN,
+    pag.y,
+    6,
+    C.onSurfaceVariant,
+    'normal',
+  );
+  pag.advance(6);
 
-  pdfText(pag.pdf, `■ ${firstDateLabel ?? 'First'}`, MARGIN, pag.y, 6, C.aboveAvg, 'bold');
-  pdfText(pag.pdf, `■ ${lastDateLabel ?? 'Last'}`, MARGIN + 40, pag.y, 6, C.primary, 'bold');
+  pdfText(pag.pdf, '■ Improved', MARGIN, pag.y, 6, IMPROVEMENT_COLORS.improved, 'bold');
+  pdfText(pag.pdf, '■ Declined', MARGIN + 28, pag.y, 6, IMPROVEMENT_COLORS.declined, 'bold');
   pag.advance(6);
 
   const labelW = 42;
   const barAreaW = CONTENT_W - labelW - 4;
   const chartTop = pag.y;
+  const maxAbs = Math.max(...progression.map((r) => Math.abs(r.delta ?? 0)), 0.001);
 
-  const allValues = squadProgression.flatMap((r) => [r.firstValue, r.lastValue]).filter((v) => v != null);
-  let vMin = Math.min(...allValues);
-  let vMax = Math.max(...allValues);
-  if (vMin === vMax) {
-    vMin -= 1;
-    vMax += 1;
-  }
-
-  const lowerBetter = test?.direction === 'lower_is_better';
-
-  squadProgression.forEach((row, i) => {
+  progression.forEach((row, i) => {
     const rowY = chartTop + i * rowH;
     const name = row.athleteName ?? row.athlete?.full_name ?? 'Athlete';
     pdfText(pag.pdf, name, MARGIN, rowY + rowH / 2, 6, C.onSurface, 'normal', { maxWidth: labelW - 2 });
 
     const barX = MARGIN + labelW;
-    const barH = 2.2;
-    const gap = 0.8;
-
-    const toBarW = (val) => {
-      const norm = (val - vMin) / (vMax - vMin);
-      const w = lowerBetter ? (1 - norm) * barAreaW * 0.45 : norm * barAreaW * 0.45;
-      return Math.max(1, w);
-    };
-
-    const firstW = toBarW(row.firstValue);
-    pdfFillRect(pag.pdf, barX, rowY + 1, firstW, barH, C.aboveAvg);
-
-    let lastColor = C.primary;
-    if (colorLastBarByDelta) {
-      lastColor = row.delta > 0 ? C.excellent : row.delta < 0 ? C.belowAvg : C.avg;
-    }
-    const lastW = toBarW(row.lastValue);
-    pdfFillRect(pag.pdf, barX, rowY + 1 + barH + gap, lastW, barH, lastColor);
+    const barH = 2.5;
+    const delta = row.delta ?? 0;
+    const barW = (Math.abs(delta) / maxAbs) * barAreaW * 0.5;
+    const color = delta > 0 ? IMPROVEMENT_COLORS.improved : IMPROVEMENT_COLORS.declined;
+    const startX = delta >= 0 ? barX + barAreaW * 0.5 : barX + barAreaW * 0.5 - barW;
+    pdfFillRect(pag.pdf, startX, rowY + 1.5, Math.max(0.5, barW), barH, color);
   });
 
   pag.advance(chartH);
-}
-
-function drawSquadTable(pag, { squadTableRows, test }) {
-  if (!squadTableRows?.length) return;
-
-  const unit = test?.unit === 'seconds' ? 's' : test?.unit;
-  const cols = [
-    { label: 'Athlete', w: 38 },
-    { label: 'First', w: 18 },
-    { label: 'Last', w: 18 },
-    { label: 'Raw Δ', w: 18 },
-    { label: 'Pct Δ', w: 16 },
-    { label: 'Composite', w: 22 },
-    { label: 'Tier', w: 28 },
-  ];
-  const totalW = cols.reduce((s, c) => s + c.w, 0);
-  const scale = CONTENT_W / totalW;
-  const scaledCols = cols.map((c) => ({ ...c, w: c.w * scale }));
-
-  const headerH = 8;
-  const rowH = 10;
-
-  drawSectionTitle(pag, 'Squad comparison table');
-  pag.ensureSpace(headerH);
-
-  let x = MARGIN;
-  for (const col of scaledCols) {
-    pdfFillRect(pag.pdf, x, pag.y, col.w, headerH, C.surfaceHigh);
-    pdfText(pag.pdf, col.label, x + col.w / 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold', { align: 'center' });
-    x += col.w;
-  }
-  pag.advance(headerH);
-
-  for (const row of squadTableRows) {
-    pag.ensureSpace(rowH);
-    const rowY = pag.y;
-    x = MARGIN;
-
-    const name = row.athlete?.full_name ?? row.athleteName ?? '—';
-    pdfFillRect(pag.pdf, x, rowY, scaledCols[0].w, rowH, C.surfaceContainer);
-    pdfText(pag.pdf, name, x + 2, rowY + rowH / 2, 6, C.onSurface, 'bold', { maxWidth: scaledCols[0].w - 4 });
-    x += scaledCols[0].w;
-
-    const cells = [
-      formatValue(row.firstValue, unit),
-      formatValue(row.lastValue, unit),
-      row.delta != null ? `${row.delta > 0 ? '+' : ''}${row.delta.toFixed(2)}${unit ? (unit === 's' ? 's' : ` ${unit}`) : ''}` : '—',
-      row.percentileDelta != null ? `${row.percentileDelta > 0 ? '+' : ''}${row.percentileDelta.toFixed(1)}` : '—',
-      row.compositePercentile != null
-        ? `${formatOrdinal(row.compositePercentile)}${row.compositeTier ? ` (${row.compositeTier})` : ''}`
-        : '—',
-      row.tierChanged ? `${row.firstTierName ?? '—'} → ${row.lastTierName ?? '—'}` : 'No change',
-    ];
-
-    const cellColors = [
-      C.onSurface,
-      C.onSurface,
-      deltaColor(row.delta),
-      deltaColor(row.percentileDelta),
-      C.onSurface,
-      C.onSurfaceVariant,
-    ];
-
-    for (let i = 0; i < cells.length; i += 1) {
-      const col = scaledCols[i + 1];
-      pdfFillRect(pag.pdf, x, rowY, col.w, rowH, C.surfaceContainer);
-      pdfText(pag.pdf, cells[i], x + 2, rowY + rowH / 2, 5.5, cellColors[i], i < 2 ? 'bold' : 'normal', { maxWidth: col.w - 4 });
-      x += col.w;
-    }
-    pag.advance(rowH);
-  }
-  pag.advance(4);
 }
 
 function drawEmptyState(pag, message) {
@@ -655,58 +545,25 @@ function drawAthleteBody(pag, payload) {
 }
 
 function drawTeamBody(pag, payload) {
-  const {
-    squadTest,
-    firstDateLabel,
-    lastDateLabel,
-    squadProgression,
-    squadTableRows,
-    squadTestMultiples,
-    tests,
-    allSessions,
-  } = payload;
+  const { squadTestMultiples, selectedTests } = payload;
 
-  if (squadTest) {
-    pag.ensureSpace(10);
-    pdfText(pag.pdf, squadTest.name, MARGIN, pag.y, 11, C.onSurface, 'bold');
-  }
-  if (firstDateLabel || lastDateLabel) {
-    pag.advance(6);
-    pdfText(pag.pdf, [firstDateLabel, lastDateLabel].filter(Boolean).join(' — '), MARGIN, pag.y, 8, C.onSurfaceVariant, 'normal');
-    pag.advance(8);
-  }
-
-  if (!squadProgression?.length && !squadTableRows?.length) {
-    drawEmptyState(pag, 'No squad data for current filters.');
-  } else {
-    drawHorizontalBarChart(pag, {
-      title: `Squad comparison — ${squadTest?.name ?? 'Test'}`,
-      squadProgression,
-      test: squadTest,
-      firstDateLabel,
-      lastDateLabel,
-    });
-    drawSquadTable(pag, { squadTableRows, test: squadTest });
-  }
-
-  const multiplesEntries = (tests ?? []).filter((test) => {
+  const multiplesEntries = (selectedTests ?? []).filter((test) => {
     const progression = squadTestMultiples?.[test.id];
     return progression?.length > 0;
   });
 
+  if (!multiplesEntries.length) {
+    drawEmptyState(pag, 'No improvement data for selected tests.');
+    return;
+  }
+
   for (const test of multiplesEntries) {
-    pag.newPage();
-    const progression = squadTestMultiples[test.id];
-    const firstLabel = allSessions?.find((s) => s.id === progression[0]?.firstSessionId);
-    const lastLabel = allSessions?.find((s) => s.id === progression[0]?.lastSessionId);
-    drawHorizontalBarChart(pag, {
+    if (pag.y > CONTENT_TOP + 20) pag.newPage();
+    drawSignedDeltaBarChart(pag, {
       title: test.name,
-      squadProgression: progression,
-      test,
-      firstDateLabel: firstLabel ? formatShortTestingDate(firstLabel.assessed_on) : '',
-      lastDateLabel: lastLabel ? formatShortTestingDate(lastLabel.assessed_on) : '',
-      colorLastBarByDelta: true,
+      progression: squadTestMultiples[test.id],
     });
+    pag.advance(6);
   }
 }
 
@@ -736,14 +593,7 @@ export async function buildAssessmentPDF({
   individualProgressions,
   benchmarkTiersByTest,
   selectedTestingDates,
-  squadTest,
-  firstDateLabel,
-  lastDateLabel,
-  squadProgression,
-  squadTableRows,
   squadTestMultiples,
-  tests,
-  allSessions,
 }) {
   const chrome = { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDims };
 
@@ -769,14 +619,8 @@ export async function buildAssessmentPDF({
   } else {
     drawTeamHeaderBlock(pag, teamName);
     drawTeamBody(pag, {
-      squadTest,
-      firstDateLabel,
-      lastDateLabel,
-      squadProgression,
-      squadTableRows,
       squadTestMultiples,
-      tests,
-      allSessions,
+      selectedTests,
     });
   }
 

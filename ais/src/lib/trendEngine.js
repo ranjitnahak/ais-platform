@@ -331,6 +331,54 @@ export function getAthleteSessionsForTest(athleteId, testId, allResults, allSess
     .sort((a, b) => new Date(a.assessed_on) - new Date(b.assessed_on));
 }
 
+export function computeLatestDelta({
+  athleteId,
+  testId,
+  allResults,
+  allSessions,
+  direction = 'higher_is_better',
+}) {
+  const sessions = getAthleteSessionsForTest(athleteId, testId, allResults, allSessions);
+
+  if (!sessions.length) {
+    return {
+      latestValue: null,
+      previousValue: null,
+      delta: null,
+      improved: null,
+      latestSessionId: null,
+      previousSessionId: null,
+      latestDate: null,
+      previousDate: null,
+      hasPrevious: false,
+    };
+  }
+
+  const latestSession = sessions[sessions.length - 1];
+  const previousSession = sessions.length >= 2 ? sessions[sessions.length - 2] : null;
+  const latestValue = findResultValue(allResults, athleteId, testId, latestSession.id);
+  const previousValue = previousSession
+    ? findResultValue(allResults, athleteId, testId, previousSession.id)
+    : null;
+
+  const delta =
+    latestValue != null && previousValue != null
+      ? improvementDelta(previousValue, latestValue, direction)
+      : null;
+
+  return {
+    latestValue,
+    previousValue,
+    delta,
+    improved: delta == null ? null : delta > 0,
+    latestSessionId: latestSession.id,
+    previousSessionId: previousSession?.id ?? null,
+    latestDate: latestSession.assessed_on,
+    previousDate: previousSession?.assessed_on ?? null,
+    hasPrevious: previousSession != null && previousValue != null,
+  };
+}
+
 export function computeCompositeClassification({
   athleteId,
   testIds,
@@ -535,32 +583,35 @@ export function computeSquadMultiplesProgression({
 }) {
   return (athletes ?? [])
     .map((athlete) => {
-      const sessions = getAthleteSessionsForTest(athlete.id, testId, allResults, allSessions);
-      if (sessions.length < 2) return null;
-
-      const firstSession = sessions[sessions.length - 2];
-      const lastSession = sessions[sessions.length - 1];
-      const firstValue = findResultValue(allResults, athlete.id, testId, firstSession.id);
-      const lastValue = findResultValue(allResults, athlete.id, testId, lastSession.id);
-      if (firstValue == null || lastValue == null) return null;
-
-      const delta = improvementDelta(firstValue, lastValue, direction);
-      const improvementMagnitude = delta != null ? Math.abs(delta) : 0;
+      const latest = computeLatestDelta({
+        athleteId: athlete.id,
+        testId,
+        allResults,
+        allSessions,
+        direction,
+      });
+      if (!latest.hasPrevious || latest.delta == null) return null;
 
       return {
         athleteId: athlete.id,
         athleteName: athlete.full_name ?? `${athlete.first_name ?? ''} ${athlete.last_name ?? ''}`.trim(),
         athlete,
-        firstValue,
-        lastValue,
-        firstSessionId: firstSession.id,
-        lastSessionId: lastSession.id,
-        delta,
-        improvementMagnitude,
+        firstValue: latest.previousValue,
+        lastValue: latest.latestValue,
+        firstSessionId: latest.previousSessionId,
+        lastSessionId: latest.latestSessionId,
+        delta: latest.delta,
+        improved: latest.improved,
+        improvementMagnitude: Math.abs(latest.delta),
       };
     })
     .filter(Boolean)
-    .sort((a, b) => b.improvementMagnitude - a.improvementMagnitude);
+    .sort((a, b) => {
+      if (b.improvementMagnitude !== a.improvementMagnitude) {
+        return b.improvementMagnitude - a.improvementMagnitude;
+      }
+      return (b.improved ? 1 : 0) - (a.improved ? 1 : 0);
+    });
 }
 
 export function computeSquadTableRows({

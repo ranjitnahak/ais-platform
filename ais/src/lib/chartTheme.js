@@ -77,13 +77,15 @@ export function getLoadMonitoringChartOptions(colors) {
   };
 }
 
+import { TIER_COLORS } from './chartColors';
+
 /** Chart.js canvas cannot resolve CSS variables — assessment tier band fallbacks. */
 export const ASSESSMENT_TIER_CHART_COLORS = {
-  belowAvg: '#93000a',
-  avg: '#F97316',
-  aboveAvg: '#0A84FF',
-  excellent: '#34C759',
-  line: '#F97316',
+  belowAvg: TIER_COLORS.belowAverage,
+  avg: TIER_COLORS.average,
+  aboveAvg: TIER_COLORS.aboveAverage,
+  excellent: TIER_COLORS.excellent,
+  line: TIER_COLORS.average,
   grid: '#545458',
   text: '#8E8E93',
   surface: '#2C2C2E',
@@ -102,21 +104,12 @@ export function getAssessmentChartColors() {
   };
 }
 
+import { resolveTierHex } from './chartColors';
+
 export function tierColorVarToHex(tierColorVar, colors) {
-  if (!tierColorVar) return colors.avg;
-  const key = tierColorVar.replace('--color-', '').replace(/-/g, '');
-  const map = {
-    belowavg: colors.belowAvg,
-    avg: colors.avg,
-    aboveavg: colors.aboveAvg,
-    excellent: colors.excellent,
-    errorcontainer: colors.belowAvg,
-    primarycontainer: colors.avg,
-    secondarycontainer: colors.aboveAvg,
-    tertiarycontainer: colors.excellent,
-  };
   const resolved = getChartColor(tierColorVar);
-  return resolved || map[key] || colors.avg;
+  if (resolved) return resolved;
+  return resolveTierHex(tierColorVar) || colors.avg;
 }
 
 export function getAssessmentChartOptions(colors) {

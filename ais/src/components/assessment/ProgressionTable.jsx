@@ -1,35 +1,7 @@
 import { formatShortTestingDate } from '../../lib/trendEngine';
+import TierValue from './TierValue';
 
-function TierPill({ tierName, tierColor }) {
-  if (!tierName || tierName === 'Unclassified') {
-    return (
-      <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--color-on-surface-variant)] bg-[var(--color-surface-container-high)]">
-        —
-      </span>
-    );
-  }
-
-  const cssVar = tierColor?.startsWith('--') ? tierColor : `--color-${tierColor}`;
-  return (
-    <span
-      className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-      style={{
-        color: `var(${cssVar}, var(--color-on-surface))`,
-        background: `color-mix(in srgb, var(${cssVar}, var(--color-primary-container)) 18%, var(--color-surface-container))`,
-      }}
-    >
-      {tierName}
-    </span>
-  );
-}
-
-function formatValue(value, unit) {
-  if (value == null) return '—';
-  const formatted = Number.isInteger(value) ? value : value.toFixed(2);
-  return unit ? `${formatted}${unit === 'seconds' ? 's' : ` ${unit}`}` : formatted;
-}
-
-function deltaClass(delta, direction) {
+function deltaClass(delta) {
   if (delta == null) return 'text-[var(--color-on-surface-variant)]';
   const improving = delta > 0;
   return improving
@@ -43,7 +15,6 @@ export default function ProgressionTable({
   selectedTests,
   selectedTestingDates,
   individualProgressions,
-  testsById,
 }) {
   if (!selectedTests.length || !selectedTestingDates.length) return null;
 
@@ -91,16 +62,19 @@ export default function ProgressionTable({
                   return (
                     <td key={session.id} className="px-4 py-3">
                       {point ? (
-                        <div className="flex flex-col gap-1">
-                          <span className="font-bold text-[var(--color-on-surface)]">
-                            {formatValue(point.value, unit)}
-                            {crossings.has(session.id) && (
-                              <span className="ml-1 text-[var(--color-primary-container)]" title="Tier crossing">
-                                ↑
-                              </span>
-                            )}
-                          </span>
-                          <TierPill tierName={point.tierName} tierColor={point.tierColor} />
+                        <div className="flex items-center gap-1">
+                          <TierValue
+                            mode="value-only"
+                            value={point.value}
+                            tier={point.tierName}
+                            tierColor={point.tierColor}
+                            unit={unit}
+                          />
+                          {crossings.has(session.id) && (
+                            <span className="text-[var(--color-primary-container)]" title="Tier crossing">
+                              ↑
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[var(--color-on-surface-variant)]">—</span>
@@ -108,7 +82,7 @@ export default function ProgressionTable({
                     </td>
                   );
                 })}
-                <td className={`px-4 py-3 font-black ${deltaClass(progression?.overallDelta, test.direction)}`}>
+                <td className={`px-4 py-3 font-black ${deltaClass(progression?.overallDelta)}`}>
                   {progression?.overallDelta != null
                     ? `${progression.overallDelta > 0 ? '+' : ''}${progression.overallDelta.toFixed(2)}${unit === 's' ? 's' : unit ? ` ${unit}` : ''}`
                     : '—'}
@@ -121,5 +95,3 @@ export default function ProgressionTable({
     </div>
   );
 }
-
-export { TierPill };

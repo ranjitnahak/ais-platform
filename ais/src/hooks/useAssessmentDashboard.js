@@ -13,9 +13,9 @@ import {
 import {
   computeAthleteProgression,
   computeCompositeClassification,
+  computeCompositePercentile,
+  computeLatestDelta,
   computeSquadMultiplesProgression,
-  computeSquadProgression,
-  computeSquadTableRows,
   computeTestPercentile,
 } from '../lib/trendEngine';
 import { athleteDisplayName } from '../lib/athleteName';
@@ -41,6 +41,26 @@ function buildValuesBySession(results, testIds) {
   return map;
 }
 
+function countAthleteTestsWithData(athleteId, allResults) {
+  const testIds = new Set();
+  for (const row of allResults ?? []) {
+    if (row.athlete_id === athleteId && row.value != null && !Number.isNaN(Number(row.value))) {
+      testIds.add(row.test_id);
+    }
+  }
+  return testIds.size;
+}
+
+function athleteMostRecentSessionId(athleteId, allResults, allSessions) {
+  const sessionIdsWithData = new Set(
+    (allResults ?? [])
+      .filter((r) => r.athlete_id === athleteId && r.value != null)
+      .map((r) => r.session_id),
+  );
+  const sessions = [...(allSessions ?? [])].reverse().filter((s) => sessionIdsWithData.has(s.id));
+  return sessions[0]?.id ?? null;
+}
+
 export function useAssessmentDashboard() {
   const { user, activeOrgId, activeTeamId, availableTeams } = useUser();
   const [filters, setFiltersState] = useState(DEFAULT_FILTERS);
@@ -59,14 +79,20 @@ export function useAssessmentDashboard() {
   const setFilter = useCallback((key, value) => {
     setFiltersState((prev) => {
       const next = { ...prev, [key]: value };
-      if (key === 'viewMode' && value === 'squad') {
+      if (key === 'viewMode' && (value === 'squad' || value === 'matrix')) {
         next.athleteId = null;
-        if (next.testIds.length > 1) {
-          next.testIds = [next.testIds[0]];
-        }
       }
       return next;
     });
+  }, []);
+
+  const navigateToIndividual = useCallback(({ athleteId, testId }) => {
+    setFiltersState((prev) => ({
+      ...prev,
+      viewMode: 'individual',
+      athleteId,
+      testIds: testId ? [testId] : prev.testIds,
+    }));
   }, []);
 
   const effectiveTeamId = useMemo(() => {
@@ -205,11 +231,15 @@ export function useAssessmentDashboard() {
             const next = { ...prev };
             const validTestIds = new Set(testRows.map((t) => t.id));
             const validSessionIds = new Set(sessionRows.map((s) => s.id));
+            const allTestIds = testRows.map((t) => t.id);
 
             if (!next.testIds.length && testRows.length) {
-              next.testIds = testRows.slice(0, Math.min(3, testRows.length)).map((t) => t.id);
+              next.testIds = allTestIds;
             } else {
               next.testIds = next.testIds.filter((id) => validTestIds.has(id));
+              if (!next.testIds.length && allTestIds.length) {
+                next.testIds = allTestIds;
+              }
             }
 
             if (!next.sessionIds.length && sessionRows.length) {
@@ -218,10 +248,6 @@ export function useAssessmentDashboard() {
                 .map((s) => s.id);
             } else {
               next.sessionIds = next.sessionIds.filter((id) => validSessionIds.has(id));
-            }
-
-            if (next.viewMode === 'squad' && next.testIds.length > 1) {
-              next.testIds = [next.testIds[0]];
             }
 
             return next;
@@ -239,7 +265,7 @@ export function useAssessmentDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [user, activeOrgId, activeTeamId, filters.scoringMethod, filters.viewMode]);
+  }, [user, activeOrgId, activeTeamId, filters.scoringMethod]);
 
   useEffect(() => {
     let cancelled = false;
@@ -309,11 +335,6 @@ export function useAssessmentDashboard() {
     return map;
   }, [benchmarkTiers]);
 
-  const allSquadValuesBySession = useMemo(
-    () => buildValuesBySession(results, tests.map((t) => t.id)),
-    [results, tests],
-  );
-
   const filteredResults = useMemo(
     () =>
       results.filter(
@@ -379,20 +400,34 @@ export function useAssessmentDashboard() {
     athleteProfile?.gender,
   ]);
 
+  const summaryCardDeltas = useMemo(() => {
+    if (filters.viewMode !== 'individual' || !filters.athleteId) return {};
+    const map = {};
+    for (const test of selectedTests) {
+      map[test.id] = computeLatestDelta({
+        athleteId: filters.athleteId,
+        testId: test.id,
+        allResults: results,
+        allSessions,
+        direction: test.direction ?? 'higher_is_better',
+      });
+    }
+    return map;
+  }, [filters.viewMode, filters.athleteId, selectedTests, results, allSessions]);
+
   const summaryCardPercentiles = useMemo(() => {
     if (filters.viewMode !== 'individual' || !filters.athleteId) return {};
     const map = {};
     for (const test of selectedTests) {
-      const progression = individualProgressions[test.id];
-      const lastPoint = progression?.dataPoints?.[progression.dataPoints.length - 1];
-      if (!lastPoint) {
+      const latest = summaryCardDeltas[test.id];
+      if (!latest?.latestSessionId) {
         map[test.id] = null;
         continue;
       }
       map[test.id] = computeTestPercentile({
         athleteId: filters.athleteId,
         testId: test.id,
-        testingDateId: lastPoint.sessionId,
+        testingDateId: latest.latestSessionId,
         allAthleteResults: results,
         direction: test.direction ?? 'higher_is_better',
         percentileBands,
@@ -403,7 +438,7 @@ export function useAssessmentDashboard() {
     filters.viewMode,
     filters.athleteId,
     selectedTests,
-    individualProgressions,
+    summaryCardDeltas,
     results,
     percentileBands,
   ]);
@@ -428,77 +463,10 @@ export function useAssessmentDashboard() {
     percentileBands,
   ]);
 
-  const squadProgression = useMemo(() => {
-    if (filters.viewMode !== 'squad' || !filters.testIds.length) return [];
-    const testId = filters.testIds[0];
-    const test = testsById[testId];
-    if (!test) return [];
-    return computeSquadProgression({
-      testId,
-      testingDates: selectedTestingDates,
-      results: filteredResults,
-      athletes,
-      benchmarkTiers: benchmarkTiersByTest[testId] ?? [],
-      percentileBands,
-      direction: test.direction ?? 'higher_is_better',
-      squadValuesBySession,
-      orgValuesBySession,
-      scoringMethod: filters.scoringMethod,
-    });
-  }, [
-    filters.viewMode,
-    filters.testIds,
-    filters.scoringMethod,
-    selectedTestingDates,
-    filteredResults,
-    athletes,
-    benchmarkTiersByTest,
-    percentileBands,
-    squadValuesBySession,
-    orgValuesBySession,
-    testsById,
-  ]);
-
-  const squadTableRows = useMemo(() => {
-    if (filters.viewMode !== 'squad' || !filters.testIds.length) return [];
-    const testId = filters.testIds[0];
-    const test = testsById[testId];
-    if (!test) return [];
-    return computeSquadTableRows({
-      testId,
-      filterTestingDates: selectedTestingDates,
-      allSessions,
-      allResults: results,
-      athletes,
-      compositeTestIds: filters.testIds,
-      testDirections,
-      percentileBands,
-      benchmarkTiers: benchmarkTiersByTest[testId] ?? [],
-      direction: test.direction ?? 'higher_is_better',
-      squadValuesBySession: allSquadValuesBySession,
-      orgValuesBySession,
-      scoringMethod: filters.scoringMethod,
-    });
-  }, [
-    filters.viewMode,
-    filters.testIds,
-    filters.scoringMethod,
-    selectedTestingDates,
-    allSessions,
-    results,
-    athletes,
-    testDirections,
-    percentileBands,
-    benchmarkTiersByTest,
-    allSquadValuesBySession,
-    orgValuesBySession,
-    testsById,
-  ]);
-
   const squadTestMultiples = useMemo(() => {
     if (filters.viewMode !== 'squad') return {};
     const map = {};
-    for (const test of tests) {
+    for (const test of selectedTests) {
       map[test.id] = computeSquadMultiplesProgression({
         testId: test.id,
         allSessions,
@@ -508,7 +476,86 @@ export function useAssessmentDashboard() {
       });
     }
     return map;
-  }, [filters.viewMode, tests, allSessions, results, athletes]);
+  }, [filters.viewMode, selectedTests, allSessions, results, athletes]);
+
+  const matrixRows = useMemo(() => {
+    if (filters.viewMode !== 'matrix') return [];
+
+    return athletes.map((athlete) => {
+      const testsMap = {};
+      for (const test of selectedTests) {
+        const latest = computeLatestDelta({
+          athleteId: athlete.id,
+          testId: test.id,
+          allResults: results,
+          allSessions,
+          direction: test.direction ?? 'higher_is_better',
+        });
+
+        let tierName = null;
+        let tierColor = null;
+        if (latest.latestSessionId && latest.latestValue != null) {
+          const pct = computeTestPercentile({
+            athleteId: athlete.id,
+            testId: test.id,
+            testingDateId: latest.latestSessionId,
+            allAthleteResults: results,
+            direction: test.direction ?? 'higher_is_better',
+            percentileBands,
+          });
+          tierName = pct.tier;
+          tierColor = pct.tierColor;
+        }
+
+        testsMap[test.id] = {
+          latestValue: latest.latestValue,
+          delta: latest.hasPrevious ? latest.delta : null,
+          tierName,
+          tierColor,
+        };
+      }
+
+      const testCount = countAthleteTestsWithData(athlete.id, results);
+      let compositePercentile = null;
+      let compositeTier = null;
+      let compositeTierColor = null;
+
+      if (testCount >= 2) {
+        const sessionId = athleteMostRecentSessionId(athlete.id, results, allSessions);
+        if (sessionId) {
+          const composite = computeCompositePercentile({
+            athleteId: athlete.id,
+            testIds: filters.testIds,
+            testingDateId: sessionId,
+            allAthleteResults: results,
+            testDirections,
+            percentileBands,
+          });
+          compositePercentile = composite.percentile;
+          compositeTier = composite.tier;
+          compositeTierColor = composite.tierColor;
+        }
+      }
+
+      return {
+        athleteId: athlete.id,
+        athlete,
+        tests: testsMap,
+        compositePercentile,
+        compositeTier,
+        compositeTierColor,
+      };
+    });
+  }, [
+    filters.viewMode,
+    filters.testIds,
+    athletes,
+    selectedTests,
+    results,
+    allSessions,
+    testDirections,
+    percentileBands,
+  ]);
 
   const allTierCrossings = useMemo(() => {
     const crossings = [];
@@ -529,6 +576,7 @@ export function useAssessmentDashboard() {
     error,
     filters,
     setFilter,
+    navigateToIndividual,
     testingDates,
     tests,
     athletes,
@@ -538,11 +586,11 @@ export function useAssessmentDashboard() {
     teamName,
     effectiveTeamId,
     individualProgressions,
+    summaryCardDeltas,
     summaryCardPercentiles,
     compositeClassification,
-    squadProgression,
-    squadTableRows,
     squadTestMultiples,
+    matrixRows,
     tierFallbackFlags,
     percentileBands,
     benchmarkTiersByTest,

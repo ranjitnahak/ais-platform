@@ -2,38 +2,7 @@ import { useMemo, useState } from 'react';
 import { SCORING_METHODS } from '../../lib/assessmentSettingsConstants';
 import { formatTestingDate } from '../../lib/trendEngine';
 import { athleteDisplayName } from '../../lib/athleteName';
-
-const selectClass =
-  'min-h-10 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-3 text-xs font-bold outline-none text-[var(--color-on-surface)]';
-
-function FilterDropdown({ label, children, className = '' }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className={`relative ${className}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`${selectClass} flex min-w-[140px] items-center justify-between gap-2`}
-      >
-        <span className="truncate">{label}</span>
-        <span className="material-symbols-outlined text-base">expand_more</span>
-      </button>
-      {open && (
-        <>
-          <button
-            type="button"
-            aria-label="Close filter"
-            className="fixed inset-0 z-40"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute left-0 top-full z-50 mt-1 max-h-64 min-w-[220px] overflow-y-auto rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-2 shadow-xl">
-            {children({ close: () => setOpen(false) })}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
+import TestSelector, { FilterDropdown, selectClass } from './TestSelector';
 
 function AthleteFilter({ athletes, value, onChange, disabled }) {
   const [query, setQuery] = useState('');
@@ -97,7 +66,7 @@ function AthleteFilter({ athletes, value, onChange, disabled }) {
   );
 }
 
-function CheckboxFilter({ label, options, selectedIds, onChange, singleSelect = false }) {
+function CheckboxFilter({ label, options, selectedIds, onChange }) {
   const count = selectedIds.length;
   const displayLabel = count ? `${label} (${count})` : label;
   const allIds = options.map((opt) => opt.id);
@@ -105,9 +74,9 @@ function CheckboxFilter({ label, options, selectedIds, onChange, singleSelect = 
 
   return (
     <FilterDropdown label={displayLabel}>
-      {({ close }) => (
+      {() => (
         <div className="space-y-1">
-          {!singleSelect && allIds.length > 0 && (
+          {allIds.length > 0 && (
             <button
               type="button"
               className="mb-1 w-full rounded-lg border-b border-[var(--color-outline-variant)] px-2 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-[var(--color-primary-container)] hover:bg-[var(--color-surface)]"
@@ -124,18 +93,12 @@ function CheckboxFilter({ label, options, selectedIds, onChange, singleSelect = 
                 className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-[var(--color-surface)]"
               >
                 <input
-                  type={singleSelect ? 'radio' : 'checkbox'}
-                  name={singleSelect ? label : opt.id}
+                  type="checkbox"
                   checked={checked}
                   onChange={() => {
-                    if (singleSelect) {
-                      onChange([opt.id]);
-                      close();
-                    } else {
-                      onChange(
-                        checked ? selectedIds.filter((id) => id !== opt.id) : [...selectedIds, opt.id],
-                      );
-                    }
+                    onChange(
+                      checked ? selectedIds.filter((id) => id !== opt.id) : [...selectedIds, opt.id],
+                    );
                   }}
                   className="accent-[var(--color-primary-container)]"
                 />
@@ -152,18 +115,22 @@ function CheckboxFilter({ label, options, selectedIds, onChange, singleSelect = 
 function ModeToggle({ value, onChange }) {
   return (
     <div className="ml-auto flex rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-1">
-      {['individual', 'squad'].map((mode) => (
+      {[
+        { id: 'individual', label: 'Individual' },
+        { id: 'squad', label: 'Squad' },
+        { id: 'matrix', label: 'Matrix' },
+      ].map((mode) => (
         <button
-          key={mode}
+          key={mode.id}
           type="button"
-          onClick={() => onChange(mode)}
+          onClick={() => onChange(mode.id)}
           className={`rounded-lg px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
-            value === mode
+            value === mode.id
               ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
               : 'text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]'
           }`}
         >
-          {mode === 'individual' ? 'Individual' : 'Squad'}
+          {mode.label}
         </button>
       ))}
     </div>
@@ -180,11 +147,12 @@ export default function AssessmentFilterBar({
   exporting = false,
   exportError = null,
 }) {
-  const testOptions = tests.map((t) => ({ id: t.id, label: t.name }));
   const dateOptions = testingDates.map((s) => ({
     id: s.id,
     label: formatTestingDate(s.assessed_on),
   }));
+
+  const athleteDisabled = filters.viewMode === 'squad' || filters.viewMode === 'matrix';
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4">
@@ -192,14 +160,12 @@ export default function AssessmentFilterBar({
         athletes={athletes}
         value={filters.athleteId}
         onChange={(id) => setFilter('athleteId', id)}
-        disabled={filters.viewMode === 'squad'}
+        disabled={athleteDisabled}
       />
-      <CheckboxFilter
-        label="Tests"
-        options={testOptions}
+      <TestSelector
+        tests={tests}
         selectedIds={filters.testIds}
         onChange={(ids) => setFilter('testIds', ids)}
-        singleSelect={filters.viewMode === 'squad'}
       />
       <CheckboxFilter
         label="Testing dates"

@@ -8,7 +8,6 @@ import { athleteDisplayName } from './athleteName';
 import { toTitleCase } from './formatters';
 import { AIS_LOGO_URL, loadLogoData } from './pdfPageChrome';
 import { cropToCircle, urlToBase64 } from './pdfHelpers';
-import { formatShortTestingDate } from './trendEngine';
 import { supabase } from './supabase';
 
 function computeAge(dob) {
@@ -76,12 +75,7 @@ export async function exportAssessmentDashboardPDF({
     summaryCardPercentiles,
     compositeClassification,
     benchmarkTiersByTest,
-    squadProgression,
-    squadTableRows,
     squadTestMultiples,
-    tests,
-    allSessions,
-    testsById,
   } = dashboard;
 
   if (mode === 'athlete' && !filters.athleteId) {
@@ -89,15 +83,8 @@ export async function exportAssessmentDashboardPDF({
   }
 
   if (mode === 'team' && !filters.testIds?.length) {
-    throw new Error('Select a test to export.');
+    throw new Error('Select at least one test to export.');
   }
-
-  const squadTest = filters.testIds[0] ? testsById[filters.testIds[0]] : null;
-  const sortedDates = selectedTestingDates ?? [];
-  const firstDateLabel = sortedDates[0] ? formatShortTestingDate(sortedDates[0].assessed_on) : '';
-  const lastDateLabel = sortedDates[sortedDates.length - 1]
-    ? formatShortTestingDate(sortedDates[sortedDates.length - 1].assessed_on)
-    : '';
 
   const [teamLogo, aisLogo, signatory, athletePhotoRaw] = await Promise.all([
     loadLogoData(teamLogoUrl ?? null),
@@ -143,14 +130,7 @@ export async function exportAssessmentDashboardPDF({
     individualProgressions,
     benchmarkTiersByTest,
     selectedTestingDates,
-    squadTest,
-    firstDateLabel,
-    lastDateLabel,
-    squadProgression,
-    squadTableRows,
     squadTestMultiples,
-    tests,
-    allSessions,
   });
 
   pdf.save(filename);

@@ -3,40 +3,35 @@ import { useUser } from '../../context/UserContext';
 import { canSync } from '../../lib/auth';
 import { exportAssessmentDashboardPDF } from '../../lib/exportAssessmentPDF';
 import { useAssessmentDashboard } from '../../hooks/useAssessmentDashboard';
-import { formatShortTestingDate, formatTestingDate } from '../../lib/trendEngine';
+import { formatTestingDate } from '../../lib/trendEngine';
 import AthleteProfileCard from '../../components/assessment/AthleteProfileCard';
 import AssessmentFilterBar from '../../components/assessment/AssessmentFilterBar';
 import CompositeClassificationCard from '../../components/assessment/CompositeClassificationCard';
 import TrendChart from '../../components/assessment/TrendChart';
 import ProgressionTable from '../../components/assessment/ProgressionTable';
-import SquadComparisonChart from '../../components/assessment/SquadComparisonChart';
-import SquadComparisonTable from '../../components/assessment/SquadComparisonTable';
 import SquadTestMultiples from '../../components/assessment/SquadTestMultiples';
+import MatrixView from '../../components/assessment/MatrixView';
+import TierLegend from '../../components/assessment/TierLegend';
+import TierValue from '../../components/assessment/TierValue';
 
-function TrendArrow({ direction }) {
-  if (direction === 'improving') return <span className="text-[var(--color-excellent)]">↑</span>;
-  if (direction === 'declining') return <span className="text-[var(--color-error)]">↓</span>;
-  return <span className="text-[var(--color-on-surface-variant)]">→</span>;
-}
+function DeltaRow({ delta, unit }) {
+  if (delta == null) return null;
+  const deltaClass =
+    delta > 0
+      ? 'text-[var(--color-excellent)]'
+      : delta < 0
+        ? 'text-[var(--color-error)]'
+        : 'text-[var(--color-on-surface-variant)]';
+  const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+  const suffix = unit === 'seconds' || unit === 's' ? 's' : unit ? ` ${unit}` : '';
 
-function formatOrdinal(n) {
-  if (n == null) return '';
-  const rounded = Math.round(n);
-  const mod10 = rounded % 10;
-  const mod100 = rounded % 100;
-  let suffix = 'th';
-  if (mod10 === 1 && mod100 !== 11) suffix = 'st';
-  else if (mod10 === 2 && mod100 !== 12) suffix = 'nd';
-  else if (mod10 === 3 && mod100 !== 13) suffix = 'rd';
-  return `${rounded}${suffix}`;
-}
-
-function formatLatestValue(points, unit) {
-  const last = points?.[points.length - 1];
-  if (!last) return '—';
-  const suffix = unit === 'seconds' ? 's' : unit ? ` ${unit}` : '';
-  const formatted = Number.isInteger(last.value) ? last.value : last.value.toFixed(2);
-  return `${formatted}${suffix}`;
+  return (
+    <div className="mt-2 flex items-center gap-1">
+      <span className={`text-sm font-black ${deltaClass}`}>
+        {arrow} {delta > 0 ? '+' : ''}{delta.toFixed(2)}{suffix}
+      </span>
+    </div>
+  );
 }
 
 export default function AssessmentDashboard() {
@@ -51,6 +46,7 @@ export default function AssessmentDashboard() {
     error,
     filters,
     setFilter,
+    navigateToIndividual,
     testingDates,
     tests,
     athletes,
@@ -60,16 +56,14 @@ export default function AssessmentDashboard() {
     teamName,
     effectiveTeamId,
     individualProgressions,
+    summaryCardDeltas,
     summaryCardPercentiles,
     compositeClassification,
-    squadProgression,
-    squadTableRows,
     squadTestMultiples,
+    matrixRows,
     tierFallbackFlags,
     allTierCrossings,
     benchmarkTiersByTest,
-    testsById,
-    allSessions,
   } = dashboard;
 
   const teamLogoUrl = availableTeams?.find((t) => t.id === effectiveTeamId)?.logo_url ?? null;
@@ -79,7 +73,7 @@ export default function AssessmentDashboard() {
     setExporting(true);
     setExportError(null);
     try {
-      const mode = filters.viewMode === 'squad' ? 'team' : 'athlete';
+      const mode = filters.viewMode === 'individual' ? 'athlete' : 'team';
       await exportAssessmentDashboardPDF({
         mode,
         user,
@@ -102,14 +96,6 @@ export default function AssessmentDashboard() {
     );
   }
 
-  const sortedDates = selectedTestingDates;
-  const firstDateLabel = sortedDates[0] ? formatShortTestingDate(sortedDates[0].assessed_on) : '';
-  const lastDateLabel = sortedDates[sortedDates.length - 1]
-    ? formatShortTestingDate(sortedDates[sortedDates.length - 1].assessed_on)
-    : '';
-
-  const squadTest = filters.testIds[0] ? testsById[filters.testIds[0]] : null;
-
   return (
     <div className="space-y-6 pb-8">
       <div>
@@ -131,6 +117,8 @@ export default function AssessmentDashboard() {
         exporting={exporting}
         exportError={exportError}
       />
+
+      {!loading && <TierLegend />}
 
       {loading && (
         <p className="text-sm text-[var(--color-on-surface-variant)]">Loading assessment data…</p>
@@ -155,14 +143,10 @@ export default function AssessmentDashboard() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {selectedTests.map((test) => {
                 const progression = individualProgressions[test.id];
-                const delta = progression?.overallDelta;
+                const lastPoint = progression?.dataPoints?.[progression.dataPoints.length - 1];
+                const latestDelta = summaryCardDeltas[test.id];
                 const percentile = summaryCardPercentiles[test.id];
-                const deltaClass =
-                  delta > 0
-                    ? 'text-[var(--color-excellent)]'
-                    : delta < 0
-                      ? 'text-[var(--color-error)]'
-                      : 'text-[var(--color-on-surface-variant)]';
+                const unit = test.unit === 'seconds' ? 's' : test.unit;
 
                 return (
                   <div
@@ -172,21 +156,18 @@ export default function AssessmentDashboard() {
                     <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">
                       {test.name}
                     </p>
-                    <p className="mt-2 text-sm font-bold text-[var(--color-on-surface)]">
-                      {formatLatestValue(progression?.dataPoints, test.unit)}
-                      {percentile?.percentile != null && (
-                        <span className="font-bold text-[var(--color-on-surface-variant)]">
-                          {' '}
-                          — {formatOrdinal(percentile.percentile)} percentile (team)
-                        </span>
-                      )}
-                    </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className={`text-lg font-black ${deltaClass}`}>
-                        {delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(2)}` : '—'}
-                      </span>
-                      <TrendArrow direction={progression?.trendDirection} />
+                    <div className="mt-2">
+                      <TierValue
+                        mode="value-only"
+                        value={lastPoint?.value ?? '—'}
+                        tier={percentile?.tier ?? lastPoint?.tierName}
+                        tierColor={percentile?.tierColor ?? lastPoint?.tierColor}
+                        unit={unit}
+                      />
                     </div>
+                    {latestDelta?.hasPrevious && (
+                      <DeltaRow delta={latestDelta.delta} unit={test.unit} />
+                    )}
                   </div>
                 );
               })}
@@ -230,7 +211,6 @@ export default function AssessmentDashboard() {
               selectedTests={selectedTests}
               selectedTestingDates={selectedTestingDates}
               individualProgressions={individualProgressions}
-              testsById={testsById}
             />
           )}
 
@@ -243,20 +223,18 @@ export default function AssessmentDashboard() {
       )}
 
       {!loading && filters.viewMode === 'squad' && (
-        <>
-          <SquadComparisonChart
-            squadProgression={squadProgression}
-            test={squadTest}
-            firstDateLabel={firstDateLabel}
-            lastDateLabel={lastDateLabel}
-          />
-          <SquadComparisonTable squadRows={squadTableRows} test={squadTest} />
-          <SquadTestMultiples
-            tests={tests}
-            squadTestMultiples={squadTestMultiples}
-            allSessions={allSessions}
-          />
-        </>
+        <SquadTestMultiples
+          selectedTests={selectedTests}
+          squadTestMultiples={squadTestMultiples}
+        />
+      )}
+
+      {!loading && filters.viewMode === 'matrix' && (
+        <MatrixView
+          matrixRows={matrixRows}
+          selectedTests={selectedTests}
+          onCellClick={navigateToIndividual}
+        />
       )}
     </div>
   );

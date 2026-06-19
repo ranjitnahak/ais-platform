@@ -1,21 +1,10 @@
 import { formatShortTestingDate } from '../../lib/trendEngine';
+import TierValue from './TierValue';
 
 function TrendArrow({ direction }) {
   if (direction === 'improving') return <span className="text-[var(--color-excellent)]">↑</span>;
   if (direction === 'declining') return <span className="text-[var(--color-error)]">↓</span>;
   return <span className="text-[var(--color-on-surface-variant)]">→</span>;
-}
-
-function formatOrdinal(n) {
-  if (n == null) return '';
-  const rounded = Math.round(n);
-  const mod10 = rounded % 10;
-  const mod100 = rounded % 100;
-  let suffix = 'th';
-  if (mod10 === 1 && mod100 !== 11) suffix = 'st';
-  else if (mod10 === 2 && mod100 !== 12) suffix = 'nd';
-  else if (mod10 === 3 && mod100 !== 13) suffix = 'rd';
-  return `${rounded}${suffix}`;
 }
 
 export default function CompositeClassificationCard({ compositeClassification }) {
@@ -34,18 +23,23 @@ export default function CompositeClassificationCard({ compositeClassification })
       <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">
         Overall classification
       </p>
-      <div className="mt-2 space-y-1">
+      <div className="mt-2 space-y-2">
         {progression.map((point) => (
-          <p key={point.sessionId} className="text-sm font-bold text-[var(--color-on-surface)]">
-            {formatShortTestingDate(point.date)}:{' '}
+          <div key={point.sessionId} className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[var(--color-on-surface-variant)]">
+              {formatShortTestingDate(point.date)}:
+            </span>
             {point.percentile != null ? (
-              <>
-                {formatOrdinal(point.percentile)} percentile ({point.tierName})
-              </>
+              <TierValue
+                mode="pill"
+                percentile={point.percentile}
+                tier={point.tierName}
+                tierColor={point.tierColor}
+              />
             ) : (
-              <span className="text-[var(--color-on-surface-variant)]">—</span>
+              <span className="text-sm text-[var(--color-on-surface-variant)]">—</span>
             )}
-          </p>
+          </div>
         ))}
       </div>
       <div className="mt-2 flex items-center gap-2">
