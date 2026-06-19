@@ -125,7 +125,11 @@ export async function exportAssessmentDashboardPDF({
   });
 
   const [{ default: jsPDF }] = await Promise.all([import('jspdf')]);
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pdf = new jsPDF({
+    orientation: mode === 'matrix' ? 'landscape' : 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
 
   await buildAssessmentPDF({
     pdf,

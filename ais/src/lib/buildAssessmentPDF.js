@@ -25,18 +25,70 @@ const C = {
   outlineVariant: '#584237',
 };
 
-const PAGE_W = 210;
-const PAGE_H = 297;
 const MARGIN = 15;
 const HEADER_H = 22;
 const FOOTER_H = 14;
 const ORANGE_RULE = 0.6;
+
+/** @deprecated portrait defaults — prefer getPageLayout(pdf) */
+const PAGE_W = 210;
+const PAGE_H = 297;
 const CONTENT_TOP = MARGIN + HEADER_H + ORANGE_RULE + 6;
 const CONTENT_BOTTOM = PAGE_H - MARGIN - FOOTER_H;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 
+function getPageLayout(pdf) {
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const contentTop = MARGIN + HEADER_H + ORANGE_RULE + 6;
+  return {
+    pageW,
+    pageH,
+    contentW: pageW - MARGIN * 2,
+    contentTop,
+    contentBottom: pageH - MARGIN - FOOTER_H,
+  };
+}
+
 function tierColorToHex(tierColorVar) {
   return resolveTierHex(tierColorVar);
+}
+
+function blendTierOnSurface(tierHex, surfaceHex = C.surfaceContainer, opacity = 0.18) {
+  const parse = (hex) => {
+    const n = hex.replace('#', '');
+    return [
+      parseInt(n.slice(0, 2), 16),
+      parseInt(n.slice(2, 4), 16),
+      parseInt(n.slice(4, 6), 16),
+    ];
+  };
+  const [tr, tg, tb] = parse(tierHex);
+  const [sr, sg, sb] = parse(surfaceHex);
+  const r = Math.round(tr * opacity + sr * (1 - opacity));
+  const g = Math.round(tg * opacity + sg * (1 - opacity));
+  const b = Math.round(tb * opacity + sb * (1 - opacity));
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Composite column — matches MatrixView TierValue mode="pill" (ordinal + tier on tinted background). */
+function drawMatrixCompositePill(pdf, x, rowY, rowH, colW, percentile, tier, tierColorVar) {
+  if (percentile == null || !tier) {
+    pdfText(pdf, '—', x + colW / 2, rowY + rowH / 2, 7, C.onSurfaceVariant, 'normal', { align: 'center' });
+    return;
+  }
+  const hex = tierColorToHex(tierColorVar);
+  const label = `${formatOrdinal(percentile).toUpperCase()} - ${String(tier).toUpperCase()}`;
+  const pillH = 5;
+  const fontSize = 5.5;
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(fontSize);
+  const textW = pdf.getTextWidth(label);
+  const pillW = Math.min(colW - 4, textW + 3);
+  const pillX = x + (colW - pillW) / 2;
+  const pillY = rowY + (rowH - pillH) / 2;
+  pdfFillRect(pdf, pillX, pillY, pillW, pillH, blendTierOnSurface(hex));
+  pdfText(pdf, label, pillX + pillW / 2, pillY + pillH / 2, fontSize, hex, 'bold', { align: 'center' });
 }
 
 function formatOrdinal(n) {
@@ -69,11 +121,11 @@ function imageFormat(base64) {
   return 'JPEG';
 }
 
-function fillPageBackground(pdf) {
-  pdfFillRect(pdf, 0, 0, PAGE_W, PAGE_H, C.surface);
+function fillPageBackground(pdf, layout) {
+  pdfFillRect(pdf, 0, 0, layout.pageW, layout.pageH, C.surface);
 }
 
-function drawLogos(pdf, { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDims }) {
+function drawLogos(pdf, layout, { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDims }) {
   const logoH = 10;
   const logoY = MARGIN + (HEADER_H - logoH) / 2;
 
@@ -90,7 +142,7 @@ function drawLogos(pdf, { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDi
       pdf.addImage(
         aisLogoBase64,
         imageFormat(aisLogoBase64),
-        PAGE_W - MARGIN - lw,
+        layout.pageW - MARGIN - lw,
         logoY,
         lw,
         logoH,
@@ -99,13 +151,13 @@ function drawLogos(pdf, { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDi
   }
 }
 
-function drawPageChrome(pdf, { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDims }) {
-  fillPageBackground(pdf);
-  drawLogos(pdf, { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDims });
-  pdfFillRect(pdf, 0, MARGIN + HEADER_H, PAGE_W, ORANGE_RULE, C.primary);
+function drawPageChrome(pdf, layout, { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDims }) {
+  fillPageBackground(pdf, layout);
+  drawLogos(pdf, layout, { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDims });
+  pdfFillRect(pdf, 0, MARGIN + HEADER_H, layout.pageW, ORANGE_RULE, C.primary);
 }
 
-function drawFooters(pdf, { signatoryName, signatoryTitle }) {
+function drawFooters(pdf, layout, { signatoryName, signatoryTitle }) {
   const n = pdf.internal.getNumberOfPages();
   const signatory = [
     signatoryName ? `Prepared by ${signatoryName}` : null,
@@ -115,33 +167,34 @@ function drawFooters(pdf, { signatoryName, signatoryTitle }) {
 
   for (let i = 1; i <= n; i += 1) {
     pdf.setPage(i);
-    const footerY = PAGE_H - MARGIN;
-    pdfFillRect(pdf, MARGIN, footerY - FOOTER_H, CONTENT_W, FOOTER_H, C.surface);
-    pdfLine(pdf, MARGIN, footerY - FOOTER_H + 2, PAGE_W - MARGIN, footerY - FOOTER_H + 2, C.outlineVariant, 0.2);
+    const footerY = layout.pageH - MARGIN;
+    pdfFillRect(pdf, MARGIN, footerY - FOOTER_H, layout.contentW, FOOTER_H, C.surface);
+    pdfLine(pdf, MARGIN, footerY - FOOTER_H + 2, layout.pageW - MARGIN, footerY - FOOTER_H + 2, C.outlineVariant, 0.2);
     if (signatory) {
-      pdfText(pdf, signatory, PAGE_W - MARGIN, footerY - 5, 7, C.onSurfaceVariant, 'normal', { align: 'right' });
+      pdfText(pdf, signatory, layout.pageW - MARGIN, footerY - 5, 7, C.onSurfaceVariant, 'normal', { align: 'right' });
     }
-    pdfText(pdf, `Page ${i} of ${n}`, PAGE_W - MARGIN, footerY - 1, 7, C.onSurface, 'bold', { align: 'right' });
+    pdfText(pdf, `Page ${i} of ${n}`, layout.pageW - MARGIN, footerY - 1, 7, C.onSurface, 'bold', { align: 'right' });
   }
 }
 
-function createPaginator(pdf, chrome) {
-  let y = CONTENT_TOP;
+function createPaginator(pdf, layout, chrome) {
+  let y = layout.contentTop;
 
   function newPage() {
     pdf.addPage();
-    drawPageChrome(pdf, chrome);
-    y = CONTENT_TOP;
+    drawPageChrome(pdf, layout, chrome);
+    y = layout.contentTop;
   }
 
   function ensureSpace(needed) {
-    if (y + needed > CONTENT_BOTTOM) {
+    if (y + needed > layout.contentBottom) {
       newPage();
     }
   }
 
   return {
     pdf,
+    layout,
     get y() { return y; },
     set y(v) { y = v; },
     ensureSpace,
@@ -359,7 +412,7 @@ function drawLineChart(pag, {
   pdfText(pag.pdf, formatValue(yMin, unit), chartX - 2, chartY + innerH, 6, C.onSurfaceVariant, 'normal', { align: 'right' });
 
   if (direction === 'lower_is_better') {
-    pdfText(pag.pdf, '↓ better', chartX + chartW, chartY - 2, 5, C.onSurfaceVariant, 'normal', { align: 'right' });
+    pdfText(pag.pdf, 'v better', chartX + chartW, chartY - 2, 5, C.onSurfaceVariant, 'normal', { align: 'right' });
   }
 
   pag.advance(chartH + 6);
@@ -722,33 +775,45 @@ function drawCoverageBody(pag, { coverageData, selectedTests, selectedTestingDat
   }
 }
 
-function drawMatrixBody(pag, { matrixRows, selectedTests }) {
-  if (!selectedTests?.length) {
-    drawEmptyState(pag, 'Select tests to export the matrix.');
-    return;
+function splitMatrixTestColumns(selectedTests, contentW) {
+  const nameColW = 36;
+  const compositeColW = 30;
+  const MIN_TEST_COL_W = 15;
+  const MAX_TEST_COL_W = 24;
+  const fixedW = nameColW + compositeColW;
+  const chunks = [];
+  let idx = 0;
+
+  while (idx < selectedTests.length) {
+    const remaining = selectedTests.length - idx;
+    const availableW = contentW - fixedW;
+    let count = Math.min(remaining, Math.max(1, Math.floor(availableW / MIN_TEST_COL_W)));
+    let colW = Math.min(MAX_TEST_COL_W, availableW / count);
+    while (count > 1 && colW < MIN_TEST_COL_W) {
+      count -= 1;
+      colW = Math.min(MAX_TEST_COL_W, availableW / count);
+    }
+    chunks.push({
+      tests: selectedTests.slice(idx, idx + count),
+      testColW: colW,
+      nameColW,
+      compositeColW,
+    });
+    idx += count;
   }
 
-  const sortedRows = [...(matrixRows ?? [])].sort((a, b) => {
-    const aVal = a.compositePercentile;
-    const bVal = b.compositePercentile;
-    if (aVal == null && bVal == null) return 0;
-    if (aVal == null) return 1;
-    if (bVal == null) return -1;
-    return bVal - aVal;
-  });
+  return chunks;
+}
 
-  if (!sortedRows.length) {
-    drawEmptyState(pag, 'No matrix data for current filters.');
-    return;
-  }
+function formatMatrixDelta(delta, unit) {
+  if (delta == null || delta === 0) return null;
+  const suffix = unit === 'seconds' || unit === 's' ? 's' : unit ? ` ${unit}` : '';
+  return `${delta > 0 ? '+' : ''}${delta.toFixed(2)}${suffix}`;
+}
 
-  drawSectionTitle(pag, 'Squad matrix');
-
-  const nameColW = 32;
-  const compositeColW = 28;
-  const remainingW = CONTENT_W - nameColW - compositeColW;
-  const testColW = Math.min(24, remainingW / Math.max(selectedTests.length, 1));
-  const headerH = 8;
+function drawMatrixTableChunk(pag, sortedRows, chunk) {
+  const { tests, testColW, nameColW, compositeColW } = chunk;
+  const headerH = 10;
   const rowH = 12;
 
   pag.ensureSpace(headerH);
@@ -759,9 +824,18 @@ function drawMatrixBody(pag, { matrixRows, selectedTests }) {
   pdfFillRect(pag.pdf, x, pag.y, compositeColW, headerH, C.surfaceHigh);
   pdfText(pag.pdf, 'Composite', x + compositeColW / 2, pag.y + headerH / 2, 5, C.onSurfaceVariant, 'bold', { align: 'center' });
   x += compositeColW;
-  for (const test of selectedTests) {
+  for (const test of tests) {
     pdfFillRect(pag.pdf, x, pag.y, testColW, headerH, C.surfaceHigh);
-    pdfText(pag.pdf, test.name, x + testColW / 2, pag.y + headerH / 2, 4.5, C.onSurfaceVariant, 'bold', { align: 'center', maxWidth: testColW - 2 });
+    pdfText(
+      pag.pdf,
+      test.name,
+      x + testColW / 2,
+      pag.y + headerH / 2,
+      4.5,
+      C.onSurfaceVariant,
+      'bold',
+      { align: 'center', maxWidth: testColW - 2 },
+    );
     x += testColW;
   }
   pag.advance(headerH);
@@ -784,34 +858,38 @@ function drawMatrixBody(pag, { matrixRows, selectedTests }) {
     x += nameColW;
 
     pdfFillRect(pag.pdf, x, rowY, compositeColW, rowH, C.surfaceContainer);
-    if (row.compositePercentile != null) {
-      pdfText(
-        pag.pdf,
-        formatOrdinal(row.compositePercentile),
-        x + 2,
-        rowY + 4,
-        7,
-        C.onSurface,
-        'bold',
-      );
-      drawTierPill(pag.pdf, x + 2, rowY + 9, row.compositeTier, row.compositeTierColor, compositeColW - 4);
-    } else {
-      pdfText(pag.pdf, '—', x + compositeColW / 2, rowY + rowH / 2, 7, C.onSurfaceVariant, 'normal', { align: 'center' });
-    }
+    drawMatrixCompositePill(
+      pag.pdf,
+      x,
+      rowY,
+      rowH,
+      compositeColW,
+      row.compositePercentile,
+      row.compositeTier,
+      row.compositeTierColor,
+    );
     x += compositeColW;
 
-    for (const test of selectedTests) {
+    for (const test of tests) {
       pdfFillRect(pag.pdf, x, rowY, testColW, rowH, C.surfaceContainer);
       const cell = row.tests?.[test.id];
       const unit = test.unit === 'seconds' ? 's' : test.unit;
       if (cell?.latestValue != null) {
-        pdfText(pag.pdf, formatValue(cell.latestValue, unit), x + 2, rowY + 4, 6, C.onSurface, 'bold');
-        if (cell.delta != null) {
-          const deltaStr = `${cell.delta > 0 ? '+' : ''}${cell.delta.toFixed(2)}`;
-          pdfText(pag.pdf, deltaStr, x + 2, rowY + 8, 5, deltaColor(cell.delta), 'bold');
-        }
-        if (cell.tierName) {
-          drawTierPill(pag.pdf, x + 2, rowY + 11, cell.tierName, cell.tierColor, testColW - 4);
+        const valueHex = cell.tierColor ? tierColorToHex(cell.tierColor) : C.onSurface;
+        const deltaStr = formatMatrixDelta(cell.delta, unit);
+        const valueY = deltaStr ? rowY + 4.5 : rowY + rowH / 2;
+        pdfText(pag.pdf, formatValue(cell.latestValue, unit), x + 2, valueY, 6, valueHex, 'bold');
+        if (deltaStr) {
+          pdfText(
+            pag.pdf,
+            deltaStr,
+            x + 2,
+            rowY + 9,
+            5,
+            deltaColor(cell.delta),
+            'bold',
+            { maxWidth: testColW - 4 },
+          );
         }
       } else {
         pdfText(pag.pdf, '—', x + testColW / 2, rowY + rowH / 2, 7, C.onSurfaceVariant, 'normal', { align: 'center' });
@@ -821,6 +899,39 @@ function drawMatrixBody(pag, { matrixRows, selectedTests }) {
     pag.advance(rowH);
   }
   pag.advance(4);
+}
+
+function drawMatrixBody(pag, { matrixRows, selectedTests }) {
+  if (!selectedTests?.length) {
+    drawEmptyState(pag, 'Select tests to export the matrix.');
+    return;
+  }
+
+  const sortedRows = [...(matrixRows ?? [])].sort((a, b) => {
+    const aVal = a.compositePercentile;
+    const bVal = b.compositePercentile;
+    if (aVal == null && bVal == null) return 0;
+    if (aVal == null) return 1;
+    if (bVal == null) return -1;
+    return bVal - aVal;
+  });
+
+  if (!sortedRows.length) {
+    drawEmptyState(pag, 'No matrix data for current filters.');
+    return;
+  }
+
+  const contentW = pag.layout.contentW;
+  const chunks = splitMatrixTestColumns(selectedTests, contentW);
+
+  chunks.forEach((chunk, chunkIdx) => {
+    if (chunkIdx > 0) pag.newPage();
+    const title = chunks.length > 1
+      ? `Squad matrix (${chunkIdx + 1}/${chunks.length})`
+      : 'Squad matrix';
+    drawSectionTitle(pag, title);
+    drawMatrixTableChunk(pag, sortedRows, chunk);
+  });
 }
 
 function drawAthleteBody(pag, payload) {
@@ -873,7 +984,7 @@ function drawTeamBody(pag, payload) {
   }
 
   for (const test of multiplesEntries) {
-    if (pag.y > CONTENT_TOP + 20) pag.newPage();
+    if (pag.y > pag.layout.contentTop + 20) pag.newPage();
     drawSignedDeltaBarChart(pag, {
       title: test.name,
       progression: squadTestMultiples[test.id],
@@ -913,9 +1024,10 @@ export async function buildAssessmentPDF({
   matrixRows,
 }) {
   const chrome = { teamLogoBase64, teamLogoDims, aisLogoBase64, aisLogoDims };
+  const layout = getPageLayout(pdf);
 
-  drawPageChrome(pdf, chrome);
-  const pag = createPaginator(pdf, chrome);
+  drawPageChrome(pdf, layout, chrome);
+  const pag = createPaginator(pdf, layout, chrome);
 
   if (mode === 'athlete') {
     drawAthleteHeaderBlock(pag, {
@@ -947,6 +1059,6 @@ export async function buildAssessmentPDF({
     });
   }
 
-  drawFooters(pdf, { signatoryName, signatoryTitle });
+  drawFooters(pdf, layout, { signatoryName, signatoryTitle });
   return pdf;
 }
