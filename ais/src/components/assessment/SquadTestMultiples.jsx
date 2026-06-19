@@ -38,8 +38,13 @@ function ImprovementLegend() {
   );
 }
 
-function DeltaChart({ test, progression }) {
+function DeltaChart({ test, progression, dateScopeMode }) {
   const colors = useMemo(() => getAssessmentChartColors(), []);
+
+  const subtitle =
+    dateScopeMode === 'snapshot'
+      ? 'Select two or more testing dates to compare improvement'
+      : "Change between each athlete's latest two selected testing dates";
 
   const { data, options } = useMemo(() => {
     const labels = progression.map((row) =>
@@ -87,7 +92,7 @@ function DeltaChart({ test, progression }) {
         {test?.name}
       </h3>
       <p className="mt-1 text-[10px] text-[var(--color-on-surface-variant)]">
-        Change between each athlete&apos;s two most recent available test dates
+        {subtitle}
       </p>
       <div className="mt-3" style={{ height: chartHeight }}>
         <Bar data={data} options={options} />
@@ -96,7 +101,7 @@ function DeltaChart({ test, progression }) {
   );
 }
 
-export default function SquadTestMultiples({ selectedTests, squadTestMultiples }) {
+export default function SquadTestMultiples({ selectedTests, squadTestMultiples, dateScopeMode }) {
   const charts = (selectedTests ?? []).filter(
     (test) => (squadTestMultiples[test.id] ?? []).length > 0,
   );
@@ -104,7 +109,9 @@ export default function SquadTestMultiples({ selectedTests, squadTestMultiples }
   if (!charts.length) {
     return (
       <p className="text-center text-sm text-[var(--color-on-surface-variant)]">
-        No improvement data for selected tests
+        {dateScopeMode === 'snapshot'
+          ? 'Select two or more testing dates to compare improvement across the squad.'
+          : 'No improvement data for selected tests'}
       </p>
     );
   }
@@ -118,6 +125,7 @@ export default function SquadTestMultiples({ selectedTests, squadTestMultiples }
             key={test.id}
             test={test}
             progression={squadTestMultiples[test.id]}
+            dateScopeMode={dateScopeMode}
           />
         ))}
       </div>
