@@ -187,6 +187,193 @@ function findResultValue(results, athleteId, testId, sessionId) {
   return row?.value != null ? Number(row.value) : null;
 }
 
+function teamStatsForTest(testId, testingDateId, allAthleteResults) {
+  const values = (allAthleteResults ?? [])
+    .filter(
+      (r) =>
+        r.test_id === testId &&
+        r.session_id === testingDateId &&
+        r.value != null &&
+        !Number.isNaN(Number(r.value)),
+    )
+    .map((r) => ({ athleteId: r.athlete_id, value: Number(r.value) }));
+
+  if (!values.length) return { mean: null, stddev: null, values };
+
+  const nums = values.map((v) => v.value);
+  const mean = nums.reduce((sum, v) => sum + v, 0) / nums.length;
+  const variance = nums.reduce((sum, v) => sum + (v - mean) ** 2, 0) / nums.length;
+  const stddev = Math.sqrt(variance);
+  return { mean, stddev, values };
+}
+
+function computeZScore(value, mean, stddev, direction) {
+  if (value == null || mean == null || stddev == null || stddev === 0) return null;
+  let z = (value - mean) / stddev;
+  if (direction === 'lower_is_better') z = -z;
+  return z;
+}
+
+function rankPercentileFromScores(scoreByAthleteId) {
+  const entries = [...scoreByAthleteId.entries()].filter(([, score]) => score != null);
+  const n = entries.length;
+  if (!n) return new Map();
+
+  entries.sort((a, b) => b[1] - a[1]);
+  const map = new Map();
+  entries.forEach(([id], index) => {
+    const rank = index + 1;
+    map.set(id, ((rank - 0.5) / n) * 100);
+  });
+  return map;
+}
+
+function zScoresForTestAtSession(testId, testingDateId, allAthleteResults, direction) {
+  const { mean, stddev, values } = teamStatsForTest(testId, testingDateId, allAthleteResults);
+  const scoreByAthlete = new Map();
+  for (const { athleteId, value } of values) {
+    const z = computeZScore(value, mean, stddev, direction);
+    if (z != null) scoreByAthlete.set(athleteId, z);
+  }
+  return scoreByAthlete;
+}
+
+export function computeTestPercentile({
+  athleteId,
+  testId,
+  testingDateId,
+  allAthleteResults,
+  direction = 'higher_is_better',
+  percentileBands,
+}) {
+  const scoreByAthlete = zScoresForTestAtSession(
+    testId,
+    testingDateId,
+    allAthleteResults,
+    direction,
+  );
+  if (!scoreByAthlete.has(athleteId)) {
+    return { z: null, percentile: null, tier: null, tierColor: null };
+  }
+
+  const percentileMap = rankPercentileFromScores(scoreByAthlete);
+  const percentile = percentileMap.get(athleteId) ?? null;
+  const band = bandForPercentile(percentile, percentileBands);
+
+  return {
+    z: scoreByAthlete.get(athleteId),
+    percentile,
+    tier: band.tierName === 'Unclassified' ? null : band.tierName,
+    tierColor: band.tierColor,
+  };
+}
+
+export function computeCompositePercentile({
+  athleteId,
+  testIds,
+  testingDateId,
+  allAthleteResults,
+  testDirections,
+  percentileBands,
+}) {
+  const athleteIds = new Set();
+  for (const testId of testIds ?? []) {
+    const { values } = teamStatsForTest(testId, testingDateId, allAthleteResults);
+    values.forEach((v) => athleteIds.add(v.athleteId));
+  }
+
+  const compositeZByAthlete = new Map();
+  for (const aid of athleteIds) {
+    const zs = [];
+    for (const testId of testIds ?? []) {
+      const value = findResultValue(allAthleteResults, aid, testId, testingDateId);
+      if (value == null) continue;
+      const { mean, stddev } = teamStatsForTest(testId, testingDateId, allAthleteResults);
+      const direction = testDirections?.[testId] ?? 'higher_is_better';
+      const z = computeZScore(value, mean, stddev, direction);
+      if (z != null) zs.push(z);
+    }
+    if (zs.length) {
+      compositeZByAthlete.set(aid, zs.reduce((sum, z) => sum + z, 0) / zs.length);
+    }
+  }
+
+  if (!compositeZByAthlete.has(athleteId)) {
+    return { compositeZ: null, percentile: null, tier: null, tierColor: null };
+  }
+
+  const percentileMap = rankPercentileFromScores(compositeZByAthlete);
+  const percentile = percentileMap.get(athleteId) ?? null;
+  const band = bandForPercentile(percentile, percentileBands);
+
+  return {
+    compositeZ: compositeZByAthlete.get(athleteId),
+    percentile,
+    tier: band.tierName === 'Unclassified' ? null : band.tierName,
+    tierColor: band.tierColor,
+  };
+}
+
+export function getAthleteSessionsForTest(athleteId, testId, allResults, allSessions) {
+  const sessionIds = new Set(
+    (allResults ?? [])
+      .filter(
+        (r) =>
+          r.athlete_id === athleteId &&
+          r.test_id === testId &&
+          r.value != null &&
+          !Number.isNaN(Number(r.value)),
+      )
+      .map((r) => r.session_id),
+  );
+  return [...(allSessions ?? [])]
+    .filter((s) => sessionIds.has(s.id))
+    .sort((a, b) => new Date(a.assessed_on) - new Date(b.assessed_on));
+}
+
+export function computeCompositeClassification({
+  athleteId,
+  testIds,
+  testingDates,
+  allAthleteResults,
+  testDirections,
+  percentileBands,
+}) {
+  const sortedDates = [...(testingDates ?? [])].sort(
+    (a, b) => new Date(a.assessed_on) - new Date(b.assessed_on),
+  );
+
+  const progression = sortedDates.map((session) => {
+    const result = computeCompositePercentile({
+      athleteId,
+      testIds,
+      testingDateId: session.id,
+      allAthleteResults,
+      testDirections,
+      percentileBands,
+    });
+    return {
+      sessionId: session.id,
+      date: session.assessed_on,
+      compositeZ: result.compositeZ,
+      percentile: result.percentile,
+      tierName: result.tier,
+      tierColor: result.tierColor,
+    };
+  });
+
+  const first = progression.find((p) => p.percentile != null);
+  const last = [...progression].reverse().find((p) => p.percentile != null);
+  const overallDelta =
+    first && last && first !== last ? last.percentile - first.percentile : null;
+
+  return {
+    progression,
+    overallDelta,
+    trendDirection: trendDirectionFromDelta(overallDelta, first?.percentile ?? 0),
+  };
+}
+
 export function computeAthleteProgression({
   athleteId,
   testId,
@@ -324,6 +511,8 @@ export function computeSquadProgression({
         athlete,
         firstValue,
         lastValue,
+        firstSessionId: firstSession.id,
+        lastSessionId: lastSession.id,
         delta,
         firstTier: firstScore.tier,
         lastTier: lastScore.tier,
@@ -335,6 +524,187 @@ export function computeSquadProgression({
     })
     .filter(Boolean)
     .sort((a, b) => b.improvementMagnitude - a.improvementMagnitude);
+}
+
+export function computeSquadMultiplesProgression({
+  testId,
+  allSessions,
+  allResults,
+  athletes,
+  direction = 'higher_is_better',
+}) {
+  return (athletes ?? [])
+    .map((athlete) => {
+      const sessions = getAthleteSessionsForTest(athlete.id, testId, allResults, allSessions);
+      if (sessions.length < 2) return null;
+
+      const firstSession = sessions[sessions.length - 2];
+      const lastSession = sessions[sessions.length - 1];
+      const firstValue = findResultValue(allResults, athlete.id, testId, firstSession.id);
+      const lastValue = findResultValue(allResults, athlete.id, testId, lastSession.id);
+      if (firstValue == null || lastValue == null) return null;
+
+      const delta = improvementDelta(firstValue, lastValue, direction);
+      const improvementMagnitude = delta != null ? Math.abs(delta) : 0;
+
+      return {
+        athleteId: athlete.id,
+        athleteName: athlete.full_name ?? `${athlete.first_name ?? ''} ${athlete.last_name ?? ''}`.trim(),
+        athlete,
+        firstValue,
+        lastValue,
+        firstSessionId: firstSession.id,
+        lastSessionId: lastSession.id,
+        delta,
+        improvementMagnitude,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.improvementMagnitude - a.improvementMagnitude);
+}
+
+export function computeSquadTableRows({
+  testId,
+  filterTestingDates,
+  allSessions,
+  allResults,
+  athletes,
+  compositeTestIds,
+  testDirections,
+  percentileBands,
+  benchmarkTiers,
+  direction = 'higher_is_better',
+  squadValuesBySession,
+  orgValuesBySession,
+  scoringMethod,
+}) {
+  const sortedFilterDates = [...(filterTestingDates ?? [])].sort(
+    (a, b) => new Date(a.assessed_on) - new Date(b.assessed_on),
+  );
+  const filterFirst = sortedFilterDates[0];
+  const filterLast = sortedFilterDates[sortedFilterDates.length - 1];
+
+  const athletesWithData = (athletes ?? []).filter((athlete) =>
+    (allResults ?? []).some(
+      (r) => r.athlete_id === athlete.id && r.test_id === testId && r.value != null,
+    ),
+  );
+
+  return athletesWithData.map((athlete) => {
+    const availableSessions = getAthleteSessionsForTest(athlete.id, testId, allResults, allSessions);
+    const hasTwoDates = availableSessions.length >= 2;
+
+    const latestTwo = hasTwoDates
+      ? [availableSessions[availableSessions.length - 2], availableSessions[availableSessions.length - 1]]
+      : [];
+
+    const firstAvailable = latestTwo[0];
+    const lastAvailable = latestTwo[1];
+
+    const firstAvailableValue = firstAvailable
+      ? findResultValue(allResults, athlete.id, testId, firstAvailable.id)
+      : null;
+    const lastAvailableValue = lastAvailable
+      ? findResultValue(allResults, athlete.id, testId, lastAvailable.id)
+      : null;
+
+    const improvementDeltaValue =
+      hasTwoDates && firstAvailableValue != null && lastAvailableValue != null
+        ? improvementDelta(firstAvailableValue, lastAvailableValue, direction)
+        : null;
+
+    let percentileDelta = null;
+    if (hasTwoDates && firstAvailable && lastAvailable) {
+      const firstPct = computeTestPercentile({
+        athleteId: athlete.id,
+        testId,
+        testingDateId: firstAvailable.id,
+        allAthleteResults: allResults,
+        direction,
+        percentileBands,
+      });
+      const lastPct = computeTestPercentile({
+        athleteId: athlete.id,
+        testId,
+        testingDateId: lastAvailable.id,
+        allAthleteResults: allResults,
+        direction,
+        percentileBands,
+      });
+      if (firstPct.percentile != null && lastPct.percentile != null) {
+        percentileDelta = lastPct.percentile - firstPct.percentile;
+      }
+    }
+
+    const filterFirstValue =
+      filterFirst && findResultValue(allResults, athlete.id, testId, filterFirst.id);
+    const filterLastValue =
+      filterLast && findResultValue(allResults, athlete.id, testId, filterLast.id);
+
+    const classifyAt = (sessionId, value) =>
+      resolveScore({
+        value,
+        scoringMethod,
+        squadValues: squadValuesBySession?.[sessionId]?.[testId] ?? [],
+        orgValues: orgValuesBySession?.[sessionId]?.[testId] ?? [],
+        benchmarkTiers,
+        direction,
+        percentileBands,
+        gender: athlete.gender,
+      });
+
+    const firstScore =
+      filterFirst && filterFirstValue != null
+        ? classifyAt(filterFirst.id, filterFirstValue)
+        : null;
+    const lastScore =
+      filterLast && filterLastValue != null ? classifyAt(filterLast.id, filterLastValue) : null;
+
+    let compositePercentile = null;
+    let compositeTier = null;
+    let compositeTierColor = null;
+    if (compositeTestIds?.length) {
+      const sessionsDescending = [...allSessions].reverse();
+      for (const session of sessionsDescending) {
+        const composite = computeCompositePercentile({
+          athleteId: athlete.id,
+          testIds: compositeTestIds,
+          testingDateId: session.id,
+          allAthleteResults: allResults,
+          testDirections,
+          percentileBands,
+        });
+        if (composite.percentile != null) {
+          compositePercentile = composite.percentile;
+          compositeTier = composite.tier;
+          compositeTierColor = composite.tierColor;
+          break;
+        }
+      }
+    }
+
+    return {
+      athleteId: athlete.id,
+      athleteName: athlete.full_name ?? `${athlete.first_name ?? ''} ${athlete.last_name ?? ''}`.trim(),
+      athlete,
+      firstValue: filterFirstValue ?? null,
+      lastValue: filterLastValue ?? null,
+      delta:
+        filterFirstValue != null && filterLastValue != null
+          ? improvementDelta(filterFirstValue, filterLastValue, direction)
+          : null,
+      improvementDelta: improvementDeltaValue,
+      percentileDelta,
+      compositePercentile,
+      compositeTier,
+      compositeTierColor,
+      hasTwoDates,
+      firstTierName: firstScore?.tierName,
+      lastTierName: lastScore?.tierName,
+      tierChanged: firstScore && lastScore ? firstScore.tier !== lastScore.tier : false,
+      improvementMagnitude: improvementDeltaValue != null ? Math.abs(improvementDeltaValue) : 0,
+    };
+  });
 }
 
 export function computeOverallClassification({

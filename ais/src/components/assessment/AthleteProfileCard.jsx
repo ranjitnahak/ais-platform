@@ -1,4 +1,5 @@
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../../lib/athleteName';
+import { toTitleCase } from '../../lib/formatters';
 
 function computeAge(dob) {
   if (!dob) return null;
@@ -36,7 +37,7 @@ export default function AthleteProfileCard({ athlete, teamName, testingDatesCoun
           {name}
         </h2>
         <p className="mt-0.5 text-sm text-[var(--color-on-surface-variant)]">
-          {[athlete.position, age != null ? `Age ${age}` : null, teamName].filter(Boolean).join(' · ')}
+          {[athlete.position ? toTitleCase(athlete.position) : null, age != null ? `Age ${age}` : null, teamName].filter(Boolean).join(' · ')}
         </p>
       </div>
       <div className="shrink-0 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-3 py-2 text-center">

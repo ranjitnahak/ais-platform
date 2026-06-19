@@ -13,7 +13,14 @@ import { athleteDisplayName } from '../../lib/athleteName';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
-export default function SquadComparisonChart({ squadProgression, test, firstDateLabel, lastDateLabel }) {
+export default function SquadComparisonChart({
+  squadProgression,
+  test,
+  firstDateLabel,
+  lastDateLabel,
+  colorLastBarByDelta = false,
+  compact = false,
+}) {
   const colors = useMemo(() => getAssessmentChartColors(), []);
 
   const { data, options } = useMemo(() => {
@@ -21,6 +28,12 @@ export default function SquadComparisonChart({ squadProgression, test, firstDate
       athleteDisplayName(row.athlete ?? { full_name: row.athleteName }),
     );
     const base = getAssessmentChartOptions(colors);
+
+    const lastBarColors = colorLastBarByDelta
+      ? squadProgression.map((r) =>
+          r.delta > 0 ? colors.excellent : r.delta < 0 ? colors.belowAvg : colors.avg,
+        )
+      : colors.line;
 
     return {
       data: {
@@ -35,7 +48,7 @@ export default function SquadComparisonChart({ squadProgression, test, firstDate
           {
             label: lastDateLabel ?? 'Last',
             data: squadProgression.map((r) => r.lastValue),
-            backgroundColor: colors.line,
+            backgroundColor: lastBarColors,
             borderRadius: 4,
           },
         ],
@@ -62,9 +75,10 @@ export default function SquadComparisonChart({ squadProgression, test, firstDate
         },
       },
     };
-  }, [squadProgression, colors, test, firstDateLabel, lastDateLabel]);
+  }, [squadProgression, colors, test, firstDateLabel, lastDateLabel, colorLastBarByDelta]);
 
   if (!squadProgression.length) {
+    if (compact) return null;
     return (
       <div className="flex h-64 items-center justify-center rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] text-sm text-[var(--color-on-surface-variant)]">
         No squad data for selected testing dates
@@ -72,12 +86,16 @@ export default function SquadComparisonChart({ squadProgression, test, firstDate
     );
   }
 
+  const chartHeight = compact
+    ? Math.max(200, squadProgression.length * 28)
+    : Math.max(280, squadProgression.length * 36);
+
   return (
     <div className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4">
       <h3 className="mb-3 text-sm font-black uppercase tracking-widest text-[var(--color-on-surface)]">
-        Squad comparison — {test?.name}
+        {compact ? test?.name : `Squad comparison — ${test?.name}`}
       </h3>
-      <div style={{ height: Math.max(280, squadProgression.length * 36) }}>
+      <div style={{ height: chartHeight }}>
         <Bar data={data} options={options} />
       </div>
     </div>

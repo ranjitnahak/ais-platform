@@ -7,15 +7,27 @@ function formatValue(value, unit) {
   return unit ? `${formatted}${unit === 'seconds' ? 's' : ` ${unit}`}` : formatted;
 }
 
-export default function SquadComparisonTable({ squadProgression, test }) {
-  if (!squadProgression.length) return null;
+function formatOrdinal(n) {
+  if (n == null) return '';
+  const rounded = Math.round(n);
+  const mod10 = rounded % 10;
+  const mod100 = rounded % 100;
+  let suffix = 'th';
+  if (mod10 === 1 && mod100 !== 11) suffix = 'st';
+  else if (mod10 === 2 && mod100 !== 12) suffix = 'nd';
+  else if (mod10 === 3 && mod100 !== 13) suffix = 'rd';
+  return `${rounded}${suffix}`;
+}
 
-  const maxMagnitude = Math.max(...squadProgression.map((r) => r.improvementMagnitude), 0.001);
+export default function SquadComparisonTable({ squadRows, test }) {
+  if (!squadRows?.length) return null;
+
   const unit = test?.unit === 'seconds' ? 's' : test?.unit;
+  const maxMagnitude = Math.max(...squadRows.map((r) => r.improvementMagnitude), 0.001);
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]">
-      <table className="w-full min-w-[720px] text-left text-sm">
+      <table className="w-full min-w-[960px] text-left text-sm">
         <thead>
           <tr className="border-b border-[var(--color-outline-variant)]">
             <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">
@@ -34,15 +46,23 @@ export default function SquadComparisonTable({ squadProgression, test }) {
               Improvement
             </th>
             <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">
+              Percentile Δ
+            </th>
+            <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">
+              Composite percentile
+            </th>
+            <th className="px-4 py-3 text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">
               Tier change
             </th>
           </tr>
         </thead>
         <tbody>
-          {squadProgression.map((row) => {
+          {squadRows.map((row) => {
             const athlete = row.athlete;
-            const barWidth = (row.improvementMagnitude / maxMagnitude) * 100;
+            const barWidth = row.hasTwoDates ? (row.improvementMagnitude / maxMagnitude) * 100 : 0;
             const deltaPositive = row.delta > 0;
+            const improvementPositive = row.improvementDelta > 0;
+            const pctDeltaPositive = row.percentileDelta > 0;
 
             return (
               <tr key={row.athleteId} className="border-b border-[var(--color-outline-variant)] last:border-b-0">
@@ -84,12 +104,61 @@ export default function SquadComparisonTable({ squadProgression, test }) {
                     : '—'}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="h-2 w-full max-w-[120px] rounded-full bg-[var(--color-surface-container-high)]">
-                    <div
-                      className="h-2 rounded-full bg-[var(--color-primary-container)]"
-                      style={{ width: `${barWidth}%` }}
-                    />
-                  </div>
+                  {row.hasTwoDates && row.improvementDelta != null ? (
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-full max-w-[80px] rounded-full bg-[var(--color-surface-container-high)]">
+                        <div
+                          className={`h-2 rounded-full ${
+                            improvementPositive
+                              ? 'bg-[var(--color-excellent)]'
+                              : row.improvementDelta < 0
+                                ? 'bg-[var(--color-error)]'
+                                : 'bg-[var(--color-on-surface-variant)]'
+                          }`}
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      </div>
+                      <span
+                        className={`text-xs font-black ${
+                          improvementPositive
+                            ? 'text-[var(--color-excellent)]'
+                            : row.improvementDelta < 0
+                              ? 'text-[var(--color-error)]'
+                              : 'text-[var(--color-on-surface-variant)]'
+                        }`}
+                      >
+                        {row.improvementDelta > 0 ? '+' : ''}
+                        {row.improvementDelta.toFixed(2)}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[var(--color-on-surface-variant)]">—</span>
+                  )}
+                </td>
+                <td
+                  className={`px-4 py-3 font-black ${
+                    row.percentileDelta == null
+                      ? 'text-[var(--color-on-surface-variant)]'
+                      : pctDeltaPositive
+                        ? 'text-[var(--color-excellent)]'
+                        : row.percentileDelta < 0
+                          ? 'text-[var(--color-error)]'
+                          : 'text-[var(--color-on-surface-variant)]'
+                  }`}
+                >
+                  {row.percentileDelta != null
+                    ? `${row.percentileDelta > 0 ? '+' : ''}${row.percentileDelta.toFixed(1)}`
+                    : '—'}
+                </td>
+                <td className="px-4 py-3">
+                  {row.compositePercentile != null ? (
+                    <span className="font-bold text-[var(--color-on-surface)]">
+                      {formatOrdinal(row.compositePercentile)}
+                      {row.compositeTier ? ` (${row.compositeTier})` : ''}
+                    </span>
+                  ) : (
+                    <span className="text-[var(--color-on-surface-variant)]">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {row.tierChanged ? (

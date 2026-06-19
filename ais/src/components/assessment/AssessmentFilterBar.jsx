@@ -100,11 +100,22 @@ function AthleteFilter({ athletes, value, onChange, disabled }) {
 function CheckboxFilter({ label, options, selectedIds, onChange, singleSelect = false }) {
   const count = selectedIds.length;
   const displayLabel = count ? `${label} (${count})` : label;
+  const allIds = options.map((opt) => opt.id);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.includes(id));
 
   return (
     <FilterDropdown label={displayLabel}>
       {({ close }) => (
         <div className="space-y-1">
+          {!singleSelect && allIds.length > 0 && (
+            <button
+              type="button"
+              className="mb-1 w-full rounded-lg border-b border-[var(--color-outline-variant)] px-2 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-[var(--color-primary-container)] hover:bg-[var(--color-surface)]"
+              onClick={() => onChange(allSelected ? [] : allIds)}
+            >
+              {allSelected ? 'Deselect all' : 'Select all'}
+            </button>
+          )}
           {options.map((opt) => {
             const checked = selectedIds.includes(opt.id);
             return (

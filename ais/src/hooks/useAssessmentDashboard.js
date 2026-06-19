@@ -12,8 +12,11 @@ import {
 } from '../lib/assessmentSettingsConstants';
 import {
   computeAthleteProgression,
-  computeOverallClassification,
+  computeCompositeClassification,
+  computeSquadMultiplesProgression,
   computeSquadProgression,
+  computeSquadTableRows,
+  computeTestPercentile,
 } from '../lib/trendEngine';
 import { athleteDisplayName } from '../lib/athleteName';
 
@@ -157,10 +160,7 @@ export function useAssessmentDashboard() {
           athleteDisplayName(a).localeCompare(athleteDisplayName(b)),
         );
 
-        const sessionIdsToFetch =
-          filters.sessionIds.length > 0
-            ? filters.sessionIds
-            : sessionRows.map((s) => s.id);
+        const sessionIdsToFetch = sessionRows.map((s) => s.id);
 
         let resultRows = [];
         if (sessionIdsToFetch.length) {
@@ -174,18 +174,12 @@ export function useAssessmentDashboard() {
 
         let orgResultRows = [];
         if (filters.scoringMethod === 'org_percentile' && sessionIdsToFetch.length) {
-          const selectedDates = [
-            ...new Set(
-              sessionRows
-                .filter((s) => sessionIdsToFetch.includes(s.id))
-                .map((s) => s.assessed_on),
-            ),
-          ];
+          const allDates = [...new Set(sessionRows.map((s) => s.assessed_on))];
           const { data: orgSessions, error: orgSessionsErr } = await supabase
             .from('assessment_sessions')
             .select('id')
             .eq('org_id', orgId)
-            .in('assessed_on', selectedDates);
+            .in('assessed_on', allDates);
           if (orgSessionsErr) throw orgSessionsErr;
           const orgSessionIds = (orgSessions ?? []).map((s) => s.id);
           if (orgSessionIds.length) {
@@ -245,7 +239,7 @@ export function useAssessmentDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [user, activeOrgId, activeTeamId, filters.scoringMethod, filters.sessionIds.join(','), filters.viewMode]);
+  }, [user, activeOrgId, activeTeamId, filters.scoringMethod, filters.viewMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,8 +273,16 @@ export function useAssessmentDashboard() {
   }, [filters.athleteId, user, activeOrgId]);
 
   const selectedTestingDates = useMemo(
-    () => testingDates.filter((s) => filters.sessionIds.includes(s.id)),
+    () =>
+      testingDates
+        .filter((s) => filters.sessionIds.includes(s.id))
+        .sort((a, b) => new Date(a.assessed_on) - new Date(b.assessed_on)),
     [testingDates, filters.sessionIds],
+  );
+
+  const allSessions = useMemo(
+    () => [...testingDates].sort((a, b) => new Date(a.assessed_on) - new Date(b.assessed_on)),
+    [testingDates],
   );
 
   const selectedTests = useMemo(
@@ -293,6 +295,11 @@ export function useAssessmentDashboard() {
     [tests],
   );
 
+  const testDirections = useMemo(
+    () => Object.fromEntries(tests.map((t) => [t.id, t.direction ?? 'higher_is_better'])),
+    [tests],
+  );
+
   const benchmarkTiersByTest = useMemo(() => {
     const map = {};
     for (const tier of benchmarkTiers) {
@@ -301,6 +308,11 @@ export function useAssessmentDashboard() {
     }
     return map;
   }, [benchmarkTiers]);
+
+  const allSquadValuesBySession = useMemo(
+    () => buildValuesBySession(results, tests.map((t) => t.id)),
+    [results, tests],
+  );
 
   const filteredResults = useMemo(
     () =>
@@ -367,34 +379,53 @@ export function useAssessmentDashboard() {
     athleteProfile?.gender,
   ]);
 
-  const overallClassification = useMemo(() => {
+  const summaryCardPercentiles = useMemo(() => {
+    if (filters.viewMode !== 'individual' || !filters.athleteId) return {};
+    const map = {};
+    for (const test of selectedTests) {
+      const progression = individualProgressions[test.id];
+      const lastPoint = progression?.dataPoints?.[progression.dataPoints.length - 1];
+      if (!lastPoint) {
+        map[test.id] = null;
+        continue;
+      }
+      map[test.id] = computeTestPercentile({
+        athleteId: filters.athleteId,
+        testId: test.id,
+        testingDateId: lastPoint.sessionId,
+        allAthleteResults: results,
+        direction: test.direction ?? 'higher_is_better',
+        percentileBands,
+      });
+    }
+    return map;
+  }, [
+    filters.viewMode,
+    filters.athleteId,
+    selectedTests,
+    individualProgressions,
+    results,
+    percentileBands,
+  ]);
+
+  const compositeClassification = useMemo(() => {
     if (filters.viewMode !== 'individual' || !filters.athleteId) return null;
-    return computeOverallClassification({
+    return computeCompositeClassification({
       athleteId: filters.athleteId,
       testIds: filters.testIds,
       testingDates: selectedTestingDates,
-      results: filteredResults,
-      testsById,
-      squadValuesBySession,
-      orgValuesBySession,
-      scoringMethod: filters.scoringMethod,
+      allAthleteResults: results,
+      testDirections,
       percentileBands,
-      benchmarkTiersByTest,
-      gender: athleteProfile?.gender,
     });
   }, [
     filters.viewMode,
     filters.athleteId,
     filters.testIds,
-    filters.scoringMethod,
     selectedTestingDates,
-    filteredResults,
-    testsById,
-    squadValuesBySession,
-    orgValuesBySession,
+    results,
+    testDirections,
     percentileBands,
-    benchmarkTiersByTest,
-    athleteProfile?.gender,
   ]);
 
   const squadProgression = useMemo(() => {
@@ -428,6 +459,57 @@ export function useAssessmentDashboard() {
     testsById,
   ]);
 
+  const squadTableRows = useMemo(() => {
+    if (filters.viewMode !== 'squad' || !filters.testIds.length) return [];
+    const testId = filters.testIds[0];
+    const test = testsById[testId];
+    if (!test) return [];
+    return computeSquadTableRows({
+      testId,
+      filterTestingDates: selectedTestingDates,
+      allSessions,
+      allResults: results,
+      athletes,
+      compositeTestIds: filters.testIds,
+      testDirections,
+      percentileBands,
+      benchmarkTiers: benchmarkTiersByTest[testId] ?? [],
+      direction: test.direction ?? 'higher_is_better',
+      squadValuesBySession: allSquadValuesBySession,
+      orgValuesBySession,
+      scoringMethod: filters.scoringMethod,
+    });
+  }, [
+    filters.viewMode,
+    filters.testIds,
+    filters.scoringMethod,
+    selectedTestingDates,
+    allSessions,
+    results,
+    athletes,
+    testDirections,
+    percentileBands,
+    benchmarkTiersByTest,
+    allSquadValuesBySession,
+    orgValuesBySession,
+    testsById,
+  ]);
+
+  const squadTestMultiples = useMemo(() => {
+    if (filters.viewMode !== 'squad') return {};
+    const map = {};
+    for (const test of tests) {
+      map[test.id] = computeSquadMultiplesProgression({
+        testId: test.id,
+        allSessions,
+        allResults: results,
+        athletes,
+        direction: test.direction ?? 'higher_is_better',
+      });
+    }
+    return map;
+  }, [filters.viewMode, tests, allSessions, results, athletes]);
+
   const allTierCrossings = useMemo(() => {
     const crossings = [];
     for (const [testId, progression] of Object.entries(individualProgressions)) {
@@ -455,12 +537,16 @@ export function useAssessmentDashboard() {
     athleteProfile,
     teamName,
     individualProgressions,
-    overallClassification,
+    summaryCardPercentiles,
+    compositeClassification,
     squadProgression,
+    squadTableRows,
+    squadTestMultiples,
     tierFallbackFlags,
     percentileBands,
     benchmarkTiersByTest,
     allTierCrossings,
     testsById,
+    allSessions,
   };
 }

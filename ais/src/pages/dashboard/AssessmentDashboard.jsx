@@ -4,10 +4,12 @@ import { useAssessmentDashboard } from '../../hooks/useAssessmentDashboard';
 import { formatShortTestingDate, formatTestingDate } from '../../lib/trendEngine';
 import AthleteProfileCard from '../../components/assessment/AthleteProfileCard';
 import AssessmentFilterBar from '../../components/assessment/AssessmentFilterBar';
+import CompositeClassificationCard from '../../components/assessment/CompositeClassificationCard';
 import TrendChart from '../../components/assessment/TrendChart';
-import ProgressionTable, { TierPill } from '../../components/assessment/ProgressionTable';
+import ProgressionTable from '../../components/assessment/ProgressionTable';
 import SquadComparisonChart from '../../components/assessment/SquadComparisonChart';
 import SquadComparisonTable from '../../components/assessment/SquadComparisonTable';
+import SquadTestMultiples from '../../components/assessment/SquadTestMultiples';
 
 function TrendArrow({ direction }) {
   if (direction === 'improving') return <span className="text-[var(--color-excellent)]">↑</span>;
@@ -15,10 +17,24 @@ function TrendArrow({ direction }) {
   return <span className="text-[var(--color-on-surface-variant)]">→</span>;
 }
 
-function formatValueChain(points, unit) {
-  if (!points?.length) return '—';
+function formatOrdinal(n) {
+  if (n == null) return '';
+  const rounded = Math.round(n);
+  const mod10 = rounded % 10;
+  const mod100 = rounded % 100;
+  let suffix = 'th';
+  if (mod10 === 1 && mod100 !== 11) suffix = 'st';
+  else if (mod10 === 2 && mod100 !== 12) suffix = 'nd';
+  else if (mod10 === 3 && mod100 !== 13) suffix = 'rd';
+  return `${rounded}${suffix}`;
+}
+
+function formatLatestValue(points, unit) {
+  const last = points?.[points.length - 1];
+  if (!last) return '—';
   const suffix = unit === 'seconds' ? 's' : unit ? ` ${unit}` : '';
-  return points.map((p) => `${Number.isInteger(p.value) ? p.value : p.value.toFixed(2)}${suffix}`).join(' → ');
+  const formatted = Number.isInteger(last.value) ? last.value : last.value.toFixed(2);
+  return `${formatted}${suffix}`;
 }
 
 export default function AssessmentDashboard() {
@@ -38,12 +54,16 @@ export default function AssessmentDashboard() {
     athleteProfile,
     teamName,
     individualProgressions,
-    overallClassification,
+    summaryCardPercentiles,
+    compositeClassification,
     squadProgression,
+    squadTableRows,
+    squadTestMultiples,
     tierFallbackFlags,
     allTierCrossings,
     benchmarkTiersByTest,
     testsById,
+    allSessions,
   } = useAssessmentDashboard();
 
   if (!canView) {
@@ -54,9 +74,7 @@ export default function AssessmentDashboard() {
     );
   }
 
-  const sortedDates = [...selectedTestingDates].sort(
-    (a, b) => new Date(a.assessed_on) - new Date(b.assessed_on),
-  );
+  const sortedDates = selectedTestingDates;
   const firstDateLabel = sortedDates[0] ? formatShortTestingDate(sortedDates[0].assessed_on) : '';
   const lastDateLabel = sortedDates[sortedDates.length - 1]
     ? formatShortTestingDate(sortedDates[sortedDates.length - 1].assessed_on)
@@ -107,6 +125,7 @@ export default function AssessmentDashboard() {
               {selectedTests.map((test) => {
                 const progression = individualProgressions[test.id];
                 const delta = progression?.overallDelta;
+                const percentile = summaryCardPercentiles[test.id];
                 const deltaClass =
                   delta > 0
                     ? 'text-[var(--color-excellent)]'
@@ -123,7 +142,13 @@ export default function AssessmentDashboard() {
                       {test.name}
                     </p>
                     <p className="mt-2 text-sm font-bold text-[var(--color-on-surface)]">
-                      {formatValueChain(progression?.dataPoints, test.unit)}
+                      {formatLatestValue(progression?.dataPoints, test.unit)}
+                      {percentile?.percentile != null && (
+                        <span className="font-bold text-[var(--color-on-surface-variant)]">
+                          {' '}
+                          — {formatOrdinal(percentile.percentile)} percentile (team)
+                        </span>
+                      )}
                     </p>
                     <div className="mt-2 flex items-center gap-2">
                       <span className={`text-lg font-black ${deltaClass}`}>
@@ -135,23 +160,7 @@ export default function AssessmentDashboard() {
                 );
               })}
 
-              {overallClassification && (
-                <div className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-on-surface-variant)]">
-                    Overall classification
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {overallClassification.progression
-                      .filter((p) => p.medianPercentile != null)
-                      .map((p) => (
-                        <TierPill key={p.sessionId} tierName={p.tierName} tierColor={p.tierColor} />
-                      ))}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <TrendArrow direction={overallClassification.trendDirection} />
-                  </div>
-                </div>
-              )}
+              <CompositeClassificationCard compositeClassification={compositeClassification} />
             </div>
           )}
 
@@ -210,7 +219,12 @@ export default function AssessmentDashboard() {
             firstDateLabel={firstDateLabel}
             lastDateLabel={lastDateLabel}
           />
-          <SquadComparisonTable squadProgression={squadProgression} test={squadTest} />
+          <SquadComparisonTable squadRows={squadTableRows} test={squadTest} />
+          <SquadTestMultiples
+            tests={tests}
+            squadTestMultiples={squadTestMultiples}
+            allSessions={allSessions}
+          />
         </>
       )}
     </div>
