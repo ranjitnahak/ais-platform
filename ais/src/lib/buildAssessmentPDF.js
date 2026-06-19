@@ -157,11 +157,10 @@ function drawPageChrome(pdf, layout, { teamLogoBase64, teamLogoDims, aisLogoBase
   pdfFillRect(pdf, 0, MARGIN + HEADER_H, layout.pageW, ORANGE_RULE, C.primary);
 }
 
-function drawFooters(pdf, layout, { signatoryName, signatoryTitle }) {
+function drawFooters(pdf, layout, { signatoryName }) {
   const n = pdf.internal.getNumberOfPages();
   const signatory = [
     signatoryName ? `Prepared by ${signatoryName}` : null,
-    signatoryTitle,
     'Athlete Intelligence System',
   ].filter(Boolean).join(' · ');
 
@@ -775,34 +774,57 @@ function drawCoverageBody(pag, { coverageData, selectedTests, selectedTestingDat
   }
 }
 
-function splitMatrixTestColumns(selectedTests, contentW) {
-  const nameColW = 36;
-  const compositeColW = 30;
-  const MIN_TEST_COL_W = 15;
-  const MAX_TEST_COL_W = 24;
-  const fixedW = nameColW + compositeColW;
-  const chunks = [];
-  let idx = 0;
+function rebalanceMatrixTestChunks(chunks, availableW) {
+  if (chunks.length < 2) return chunks;
 
-  while (idx < selectedTests.length) {
-    const remaining = selectedTests.length - idx;
-    const availableW = contentW - fixedW;
-    let count = Math.min(remaining, Math.max(1, Math.floor(availableW / MIN_TEST_COL_W)));
-    let colW = Math.min(MAX_TEST_COL_W, availableW / count);
-    while (count > 1 && colW < MIN_TEST_COL_W) {
-      count -= 1;
-      colW = Math.min(MAX_TEST_COL_W, availableW / count);
-    }
-    chunks.push({
-      tests: selectedTests.slice(idx, idx + count),
-      testColW: colW,
+  const last = chunks[chunks.length - 1];
+  if (last.tests.length >= 3) return chunks;
+
+  const pageCount = chunks.length;
+  const allTests = chunks.flatMap((chunk) => chunk.tests);
+  const base = Math.floor(allTests.length / pageCount);
+  const extra = allTests.length % pageCount;
+  const { nameColW, compositeColW } = chunks[0];
+
+  const rebalanced = [];
+  let idx = 0;
+  for (let page = 0; page < pageCount; page += 1) {
+    const count = base + (page < extra ? 1 : 0);
+    rebalanced.push({
+      tests: allTests.slice(idx, idx + count),
+      testColW: availableW / count,
       nameColW,
       compositeColW,
     });
     idx += count;
   }
 
-  return chunks;
+  return rebalanced;
+}
+
+function splitMatrixTestColumns(selectedTests, contentW) {
+  const nameColW = 36;
+  const compositeColW = 30;
+  const MIN_TEST_COL_W = 15;
+  const fixedW = nameColW + compositeColW;
+  const availableW = contentW - fixedW;
+  const chunks = [];
+  let idx = 0;
+
+  while (idx < selectedTests.length) {
+    const remaining = selectedTests.length - idx;
+    const maxFit = Math.max(1, Math.floor(availableW / MIN_TEST_COL_W));
+    const count = Math.min(remaining, maxFit);
+    chunks.push({
+      tests: selectedTests.slice(idx, idx + count),
+      testColW: availableW / count,
+      nameColW,
+      compositeColW,
+    });
+    idx += count;
+  }
+
+  return rebalanceMatrixTestChunks(chunks, availableW);
 }
 
 function formatMatrixDelta(delta, unit) {
@@ -874,25 +896,23 @@ function drawMatrixTableChunk(pag, sortedRows, chunk) {
       pdfFillRect(pag.pdf, x, rowY, testColW, rowH, C.surfaceContainer);
       const cell = row.tests?.[test.id];
       const unit = test.unit === 'seconds' ? 's' : test.unit;
+      const cellCenterX = x + testColW / 2;
       if (cell?.latestValue != null) {
         const valueHex = cell.tierColor ? tierColorToHex(cell.tierColor) : C.onSurface;
         const deltaStr = formatMatrixDelta(cell.delta, unit);
         const valueY = deltaStr ? rowY + 4.5 : rowY + rowH / 2;
-        pdfText(pag.pdf, formatValue(cell.latestValue, unit), x + 2, valueY, 6, valueHex, 'bold');
+        pdfText(pag.pdf, formatValue(cell.latestValue, unit), cellCenterX, valueY, 6, valueHex, 'bold', {
+          align: 'center',
+          maxWidth: testColW - 4,
+        });
         if (deltaStr) {
-          pdfText(
-            pag.pdf,
-            deltaStr,
-            x + 2,
-            rowY + 9,
-            5,
-            deltaColor(cell.delta),
-            'bold',
-            { maxWidth: testColW - 4 },
-          );
+          pdfText(pag.pdf, deltaStr, cellCenterX, rowY + 9, 5, deltaColor(cell.delta), 'bold', {
+            align: 'center',
+            maxWidth: testColW - 4,
+          });
         }
       } else {
-        pdfText(pag.pdf, '—', x + testColW / 2, rowY + rowH / 2, 7, C.onSurfaceVariant, 'normal', { align: 'center' });
+        pdfText(pag.pdf, '—', cellCenterX, rowY + rowH / 2, 7, C.onSurfaceVariant, 'normal', { align: 'center' });
       }
       x += testColW;
     }
@@ -1008,7 +1028,6 @@ export async function buildAssessmentPDF({
   aisLogoBase64,
   aisLogoDims,
   signatoryName,
-  signatoryTitle,
   athleteName,
   athletePosition,
   athleteAge,
@@ -1059,6 +1078,6 @@ export async function buildAssessmentPDF({
     });
   }
 
-  drawFooters(pdf, layout, { signatoryName, signatoryTitle });
+  drawFooters(pdf, layout, { signatoryName });
   return pdf;
 }

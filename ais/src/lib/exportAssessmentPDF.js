@@ -37,26 +37,24 @@ export function assessmentPdfFilename({ mode, athleteName, teamName }) {
   return `assessment_${teamSlug}_${date}.pdf`;
 }
 
-async function loadSignatory(orgId, user) {
+async function loadSignatoryName(orgId, user) {
   let signatoryName = user?.fullName ?? null;
-  let signatoryTitle = user?.roleLabel ?? null;
 
-  if (!orgId) return { signatoryName, signatoryTitle };
+  if (!orgId) return signatoryName;
 
   try {
     const { data, error } = await supabase
       .from('organisations')
-      .select('report_signatory_name, report_signatory_title')
+      .select('report_signatory_name')
       .eq('id', orgId)
       .maybeSingle();
     if (error) throw error;
     if (data?.report_signatory_name) signatoryName = data.report_signatory_name;
-    if (data?.report_signatory_title) signatoryTitle = data.report_signatory_title;
   } catch (err) {
     console.error('[exportAssessmentPDF] signatory load failed:', err);
   }
 
-  return { signatoryName, signatoryTitle };
+  return signatoryName;
 }
 
 /**
@@ -103,10 +101,10 @@ export async function exportAssessmentDashboardPDF({
     throw new Error('Select at least one testing date to export.');
   }
 
-  const [teamLogo, aisLogo, signatory, athletePhotoRaw] = await Promise.all([
+  const [teamLogo, aisLogo, signatoryName, athletePhotoRaw] = await Promise.all([
     loadLogoData(teamLogoUrl ?? null),
     loadLogoData(AIS_LOGO_URL),
-    loadSignatory(user?.orgId, user),
+    loadSignatoryName(user?.orgId, user),
     mode === 'athlete' && athleteProfile?.photo_url
       ? urlToBase64(athleteProfile.photo_url)
       : Promise.resolve(null),
@@ -139,8 +137,7 @@ export async function exportAssessmentDashboardPDF({
     teamLogoDims: teamLogo.dims,
     aisLogoBase64: aisLogo.base64,
     aisLogoDims: aisLogo.dims,
-    signatoryName: signatory.signatoryName,
-    signatoryTitle: signatory.signatoryTitle,
+    signatoryName,
     athleteName,
     athletePosition: athleteProfile?.position ? toTitleCase(athleteProfile.position) : null,
     athleteAge: computeAge(athleteProfile?.date_of_birth),
