@@ -26,68 +26,9 @@ import {
 import jsPDF from 'jspdf';
 import { getCurrentUser } from '../../lib/auth';
 import { buildPeriodisationPDF } from '../../lib/buildPeriodisationPDF';
+import { cropToCircle, getBase64Dims, urlToBase64 } from '../../lib/pdfHelpers';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
-
-// ── Logo helpers ──────────────────────────────────────────────────────────────
-
-/** Convert a remote URL to a base64 data URL. Returns null on any error. */
-async function urlToBase64(url) {
-  try {
-    const res = await fetch(url, {
-      mode: 'cors',
-      cache: 'no-cache',
-    });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
-
-/** Crop a base64 image into a circle and return a PNG base64. Falls back to original on error. */
-async function cropToCircle(base64) {
-  return new Promise((resolve) => {
-    try {
-      const img = new Image();
-      img.onload = () => {
-        const size = Math.min(img.width, img.height);
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        ctx.beginPath();
-        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.clip();
-        const offsetX = (img.width - size) / 2;
-        const offsetY = (img.height - size) / 2;
-        ctx.drawImage(img, -offsetX, -offsetY);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      img.onerror = () => resolve(base64);
-      img.src = base64;
-    } catch {
-      resolve(base64);
-    }
-  });
-}
-
-/** Return the natural pixel dimensions of a base64 image. Returns null on error. */
-async function getBase64Dims(base64) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-    img.onerror = () => resolve(null);
-    img.src = base64;
-  });
-}
 
 // ── Chart capture ─────────────────────────────────────────────────────────────
 

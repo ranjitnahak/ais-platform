@@ -1,0 +1,158 @@
+/**
+ * Orchestrates Assessment Dashboard PDF export — loads assets, assembles payload, saves file.
+ * All dashboard data must be pre-resolved by the caller (no scoring recompute here).
+ */
+import { slugifyFilename } from './buildDashboardPDF';
+import { buildAssessmentPDF } from './buildAssessmentPDF';
+import { athleteDisplayName } from './athleteName';
+import { toTitleCase } from './formatters';
+import { AIS_LOGO_URL, loadLogoData } from './pdfPageChrome';
+import { cropToCircle, urlToBase64 } from './pdfHelpers';
+import { formatShortTestingDate } from './trendEngine';
+import { supabase } from './supabase';
+
+function computeAge(dob) {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const hadBirthday =
+    today.getMonth() > birth.getMonth()
+    || (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate());
+  if (!hadBirthday) age -= 1;
+  return age;
+}
+
+export function assessmentPdfFilename({ mode, athleteName, teamName }) {
+  const date = new Date().toISOString().slice(0, 10);
+  const slug = mode === 'athlete'
+    ? slugifyFilename(athleteName ?? 'athlete')
+    : slugifyFilename(teamName ?? 'team');
+  return `assessment_${slug}_${date}.pdf`;
+}
+
+async function loadSignatory(orgId, user) {
+  let signatoryName = user?.fullName ?? null;
+  let signatoryTitle = user?.roleLabel ?? null;
+
+  if (!orgId) return { signatoryName, signatoryTitle };
+
+  try {
+    const { data, error } = await supabase
+      .from('organisations')
+      .select('report_signatory_name, report_signatory_title')
+      .eq('id', orgId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.report_signatory_name) signatoryName = data.report_signatory_name;
+    if (data?.report_signatory_title) signatoryTitle = data.report_signatory_title;
+  } catch (err) {
+    console.error('[exportAssessmentPDF] signatory load failed:', err);
+  }
+
+  return { signatoryName, signatoryTitle };
+}
+
+/**
+ * @param {object} opts
+ * @param {'athlete'|'team'} opts.mode
+ * @param {object} opts.user — from useUser()
+ * @param {string|null} opts.teamLogoUrl
+ * @param {object} opts.dashboard — hook outputs (filters, data)
+ */
+export async function exportAssessmentDashboardPDF({
+  mode,
+  user,
+  teamLogoUrl,
+  dashboard,
+}) {
+  const {
+    filters,
+    teamName,
+    athleteProfile,
+    selectedTests,
+    selectedTestingDates,
+    individualProgressions,
+    summaryCardPercentiles,
+    compositeClassification,
+    benchmarkTiersByTest,
+    squadProgression,
+    squadTableRows,
+    squadTestMultiples,
+    tests,
+    allSessions,
+    testsById,
+  } = dashboard;
+
+  if (mode === 'athlete' && !filters.athleteId) {
+    throw new Error('Select an athlete to export.');
+  }
+
+  if (mode === 'team' && !filters.testIds?.length) {
+    throw new Error('Select a test to export.');
+  }
+
+  const squadTest = filters.testIds[0] ? testsById[filters.testIds[0]] : null;
+  const sortedDates = selectedTestingDates ?? [];
+  const firstDateLabel = sortedDates[0] ? formatShortTestingDate(sortedDates[0].assessed_on) : '';
+  const lastDateLabel = sortedDates[sortedDates.length - 1]
+    ? formatShortTestingDate(sortedDates[sortedDates.length - 1].assessed_on)
+    : '';
+
+  const [teamLogo, aisLogo, signatory, athletePhotoRaw] = await Promise.all([
+    loadLogoData(teamLogoUrl ?? null),
+    loadLogoData(AIS_LOGO_URL),
+    loadSignatory(user?.orgId, user),
+    mode === 'athlete' && athleteProfile?.photo_url
+      ? urlToBase64(athleteProfile.photo_url)
+      : Promise.resolve(null),
+  ]);
+
+  let athletePhotoBase64 = athletePhotoRaw;
+  if (athletePhotoBase64) {
+    athletePhotoBase64 = await cropToCircle(athletePhotoBase64);
+  }
+
+  const athleteName = athleteProfile ? athleteDisplayName(athleteProfile) : '';
+  const filename = assessmentPdfFilename({
+    mode,
+    athleteName,
+    teamName,
+  });
+
+  const [{ default: jsPDF }] = await Promise.all([import('jspdf')]);
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  await buildAssessmentPDF({
+    pdf,
+    mode,
+    teamName,
+    teamLogoBase64: teamLogo.base64,
+    teamLogoDims: teamLogo.dims,
+    aisLogoBase64: aisLogo.base64,
+    aisLogoDims: aisLogo.dims,
+    signatoryName: signatory.signatoryName,
+    signatoryTitle: signatory.signatoryTitle,
+    athleteName,
+    athletePosition: athleteProfile?.position ? toTitleCase(athleteProfile.position) : null,
+    athleteAge: computeAge(athleteProfile?.date_of_birth),
+    athletePhotoBase64,
+    selectedTests,
+    summaryCardPercentiles,
+    compositeClassification,
+    individualProgressions,
+    benchmarkTiersByTest,
+    selectedTestingDates,
+    squadTest,
+    firstDateLabel,
+    lastDateLabel,
+    squadProgression,
+    squadTableRows,
+    squadTestMultiples,
+    tests,
+    allSessions,
+  });
+
+  pdf.save(filename);
+  return filename;
+}

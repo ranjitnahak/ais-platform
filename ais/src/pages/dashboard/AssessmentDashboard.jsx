@@ -1,5 +1,7 @@
+import { useCallback, useState } from 'react';
 import { useUser } from '../../context/UserContext';
 import { canSync } from '../../lib/auth';
+import { exportAssessmentDashboardPDF } from '../../lib/exportAssessmentPDF';
 import { useAssessmentDashboard } from '../../hooks/useAssessmentDashboard';
 import { formatShortTestingDate, formatTestingDate } from '../../lib/trendEngine';
 import AthleteProfileCard from '../../components/assessment/AthleteProfileCard';
@@ -38,9 +40,12 @@ function formatLatestValue(points, unit) {
 }
 
 export default function AssessmentDashboard() {
-  const { user } = useUser();
+  const { user, availableTeams } = useUser();
   const canView = canSync(user, 'assessments', 'view');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
 
+  const dashboard = useAssessmentDashboard();
   const {
     loading,
     error,
@@ -53,6 +58,7 @@ export default function AssessmentDashboard() {
     selectedTestingDates,
     athleteProfile,
     teamName,
+    effectiveTeamId,
     individualProgressions,
     summaryCardPercentiles,
     compositeClassification,
@@ -64,7 +70,29 @@ export default function AssessmentDashboard() {
     benchmarkTiersByTest,
     testsById,
     allSessions,
-  } = useAssessmentDashboard();
+  } = dashboard;
+
+  const teamLogoUrl = availableTeams?.find((t) => t.id === effectiveTeamId)?.logo_url ?? null;
+
+  const handleExportPDF = useCallback(async () => {
+    if (exporting || loading) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const mode = filters.viewMode === 'squad' ? 'team' : 'athlete';
+      await exportAssessmentDashboardPDF({
+        mode,
+        user,
+        teamLogoUrl,
+        dashboard,
+      });
+    } catch (err) {
+      console.error('[AssessmentDashboard] PDF export failed:', err);
+      setExportError(err?.message ?? 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, loading, filters.viewMode, user, teamLogoUrl, dashboard]);
 
   if (!canView) {
     return (
@@ -99,6 +127,9 @@ export default function AssessmentDashboard() {
         athletes={athletes}
         tests={tests}
         testingDates={testingDates}
+        onExportPDF={handleExportPDF}
+        exporting={exporting}
+        exportError={exportError}
       />
 
       {loading && (

@@ -170,7 +170,16 @@ function ModeToggle({ value, onChange }) {
   );
 }
 
-export default function AssessmentFilterBar({ filters, setFilter, athletes, tests, testingDates }) {
+export default function AssessmentFilterBar({
+  filters,
+  setFilter,
+  athletes,
+  tests,
+  testingDates,
+  onExportPDF,
+  exporting = false,
+  exportError = null,
+}) {
   const testOptions = tests.map((t) => ({ id: t.id, label: t.name }));
   const dateOptions = testingDates.map((s) => ({
     id: s.id,
@@ -210,6 +219,31 @@ export default function AssessmentFilterBar({ filters, setFilter, athletes, test
           </option>
         ))}
       </select>
+      {onExportPDF && (
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            onClick={onExportPDF}
+            disabled={exporting}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] px-4 text-xs font-bold text-[var(--color-on-surface)] transition-opacity disabled:opacity-50"
+          >
+            {exporting ? (
+              <>
+                <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
+                Exporting…
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-base">download</span>
+                Export PDF
+              </>
+            )}
+          </button>
+          {exportError && (
+            <p className="max-w-[12rem] text-right text-[10px] text-[var(--color-error)]">{exportError}</p>
+          )}
+        </div>
+      )}
       <ModeToggle value={filters.viewMode} onChange={(mode) => setFilter('viewMode', mode)} />
     </div>
   );

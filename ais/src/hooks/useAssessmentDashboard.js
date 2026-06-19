@@ -536,6 +536,7 @@ export function useAssessmentDashboard() {
     selectedTestingDates,
     athleteProfile,
     teamName,
+    effectiveTeamId,
     individualProgressions,
     summaryCardPercentiles,
     compositeClassification,
