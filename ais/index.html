@@ -49,6 +49,23 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        var search = window.location.search || '';
+        var hash = window.location.hash || '';
+        var hasCallback =
+          search.indexOf('code=') >= 0 ||
+          search.indexOf('token_hash=') >= 0 ||
+          hash.indexOf('access_token=') >= 0 ||
+          hash.indexOf('type=recovery') >= 0 ||
+          hash.indexOf('type=invite') >= 0;
+        if (!hasCallback) return;
+        sessionStorage.setItem('ais_pending_password_reset', '1');
+        if (window.location.pathname !== '/reset-password') {
+          window.location.replace(window.location.origin + '/reset-password' + search + hash);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

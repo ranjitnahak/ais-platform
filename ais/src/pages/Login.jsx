@@ -122,6 +122,7 @@ export default function Login() {
           <div className="mt-6 text-center">
             <Link
               to="/reset-password"
+              state={{ voluntaryForgotPassword: true }}
               className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-primary)] hover:text-[var(--color-primary-container)]"
             >
               Forgot password?

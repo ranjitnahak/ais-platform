@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { redirectAuthCallbackToResetPassword } from './authRedirect';
 
 // NOTE: RLS may be enabled in Supabase. Superuser cross-org reads require
 // ais/sql/superuser_cross_org_rls_v1.sql applied on the project.
@@ -13,4 +14,12 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+redirectAuthCallbackToResetPassword();
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // Handle recovery/invite hash tokens in ResetPassword only — avoids consuming
+    // tokens on `/` before our redirect logic can forward them to /reset-password.
+    detectSessionInUrl: false,
+  },
+});

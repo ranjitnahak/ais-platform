@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
+import {
+  getResetPasswordRedirectUrl,
+  consumePendingPasswordReset,
+  cameFromSupabaseAuthVerify,
+  isVoluntaryForgotPasswordVisit,
+} from '../lib/authRedirect';
 
 const EXPIRED_LINK_MESSAGE =
   'This link has expired or is invalid. Please contact your administrator to resend your invite.';
@@ -14,10 +20,6 @@ const ACCOUNT_DEACTIVATED_AFTER_RESET_MESSAGE =
 
 const RESET_EMAIL_SUCCESS_MESSAGE =
   "If an account exists for that email, we've sent a password reset link.";
-
-function getResetPasswordRedirectUrl() {
-  return `${window.location.origin}/reset-password`;
-}
 
 function parseHashParams() {
   const hash = window.location.hash;
@@ -33,8 +35,41 @@ function looksLikeTokenHash(token) {
   return typeof token === 'string' && /^[a-f0-9]{40,}$/i.test(token);
 }
 
+function waitForAuthSession(timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      subscription.unsubscribe();
+      clearTimeout(timer);
+      resolve(result);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) return;
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+        finish({ event, session });
+        return;
+      }
+      if (event === 'INITIAL_SESSION') {
+        finish({ event, session });
+      }
+    });
+
+    const timer = setTimeout(async () => {
+      const { data } = await supabase.auth.getSession();
+      finish({ event: 'TIMEOUT', session: data.session });
+    }, timeoutMs);
+  });
+}
+
 export default function ResetPassword() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const voluntaryForgotPassword = location.state?.voluntaryForgotPassword === true;
   const [mode, setMode] = useState('loading');
   const [tokenType, setTokenType] = useState(null);
   const [email, setEmail] = useState('');
@@ -44,15 +79,28 @@ export default function ResetPassword() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const recoveryDetectedRef = useRef(false);
+  const expectPasswordResetRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
+    expectPasswordResetRef.current =
+      consumePendingPasswordReset() || cameFromSupabaseAuthVerify();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
       if (event === 'PASSWORD_RECOVERY') {
         recoveryDetectedRef.current = true;
+        setTokenType('recovery');
+        setMode('set_password');
+        return;
+      }
+      if (
+        session &&
+        expectPasswordResetRef.current &&
+        (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')
+      ) {
+        expectPasswordResetRef.current = false;
         setTokenType('recovery');
         setMode('set_password');
       }
@@ -99,19 +147,56 @@ export default function ResetPassword() {
             });
             if (sessionError) throw sessionError;
           } else {
+            const pendingFromEmailLink = expectPasswordResetRef.current;
+            if (pendingFromEmailLink) {
+              const { event, session } = await waitForAuthSession();
+              if (!mounted) return;
+              if (session) {
+                expectPasswordResetRef.current = false;
+                setTokenType(type || queryType || 'recovery');
+                setMode('set_password');
+                window.history.replaceState(null, '', window.location.pathname);
+                return;
+              }
+              if (!mounted) return;
+              expectPasswordResetRef.current = false;
+              setError(EXPIRED_LINK_MESSAGE);
+              setMode('token_error');
+              return;
+            }
+
             const { data: sessionData } = await supabase.auth.getSession();
             if (sessionData.session) {
               await new Promise((resolve) => {
                 queueMicrotask(resolve);
               });
               if (!mounted) return;
-              if (recoveryDetectedRef.current) {
+              if (recoveryDetectedRef.current || expectPasswordResetRef.current) {
                 setTokenType('recovery');
                 setMode('set_password');
                 window.history.replaceState(null, '', window.location.pathname);
                 return;
               }
-              await supabase.auth.signOut();
+              const shouldSignOutForEmailForm =
+                voluntaryForgotPassword || isVoluntaryForgotPasswordVisit();
+              if (shouldSignOutForEmailForm) {
+                await supabase.auth.signOut();
+                if (mounted) setMode('email_request');
+                return;
+              }
+              setTokenType('recovery');
+              setMode('set_password');
+              window.history.replaceState(null, '', window.location.pathname);
+              return;
+            }
+
+            const { event, session } = await waitForAuthSession(3000);
+            if (!mounted) return;
+            if (session && !voluntaryForgotPassword && !isVoluntaryForgotPasswordVisit()) {
+              setTokenType('recovery');
+              setMode('set_password');
+              window.history.replaceState(null, '', window.location.pathname);
+              return;
             }
             if (mounted) setMode('email_request');
             return;

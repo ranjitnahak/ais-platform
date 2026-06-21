@@ -29,26 +29,29 @@ import AthleteProfileSelf from './pages/AthleteProfileSelf';
 import AthleteSettings from './pages/AthleteSettings';
 import { getDefaultStaffHomeRoute } from './nav/navResourceMap';
 import AppLoadingScreen from './components/shared/AppLoadingScreen';
+import { hasAuthCallbackInUrl } from './lib/authRedirect';
 
 const PUBLIC_PATHS = ['/login', '/reset-password'];
-
-function hasAuthCallbackInUrl(search, hash) {
-  const searchParams = new URLSearchParams(search);
-  if (searchParams.has('code') || searchParams.has('token_hash')) return true;
-  if (!hash) return false;
-  const hashParams = new URLSearchParams(hash.replace('#', '?'));
-  if (hashParams.has('access_token')) return true;
-  const type = hashParams.get('type');
-  return type === 'recovery' || type === 'invite';
-}
 
 function AuthRecoveryRedirect() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== 'PASSWORD_RECOVERY') return;
+      if (location.pathname === '/reset-password') return;
+      navigate('/reset-password', { replace: true });
+    });
+    return () => subscription.unsubscribe();
+  }, [location.pathname, navigate]);
+
   useLayoutEffect(() => {
+    const hasCallback = hasAuthCallbackInUrl(location.search, location.hash);
     if (location.pathname === '/reset-password') return;
-    if (!hasAuthCallbackInUrl(location.search, location.hash)) return;
+    if (!hasCallback) return;
     navigate(`/reset-password${location.search}${location.hash}`, { replace: true });
   }, [location.pathname, location.search, location.hash, navigate]);
 
@@ -141,7 +144,8 @@ function AuthGate({ children }) {
 
 function HomeRedirect({ user }) {
   const location = useLocation();
-  if (hasAuthCallbackInUrl(location.search, location.hash)) {
+  const hasCallback = hasAuthCallbackInUrl(location.search, location.hash);
+  if (hasCallback) {
     return <AppLoadingScreen />;
   }
   if (!user) return <RoleLoading />;
