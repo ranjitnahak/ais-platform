@@ -6,6 +6,19 @@ import { getCurrentUser } from '../lib/auth';
 const EXPIRED_LINK_MESSAGE =
   'This link has expired or is invalid. Please contact your administrator to resend your invite.';
 
+const ACCOUNT_SETUP_MESSAGE =
+  'Account setup incomplete. Please contact your administrator.';
+
+const ACCOUNT_DEACTIVATED_AFTER_RESET_MESSAGE =
+  'Your password was updated, but your account has been deactivated. Please contact your administrator.';
+
+const RESET_EMAIL_SUCCESS_MESSAGE =
+  "If an account exists for that email, we've sent a password reset link.";
+
+function getResetPasswordRedirectUrl() {
+  return `${window.location.origin}/reset-password`;
+}
+
 function parseHashParams() {
   const hash = window.location.hash;
   if (!hash) return new URLSearchParams();
@@ -85,13 +98,8 @@ export default function ResetPassword() {
             if (sessionError) throw sessionError;
           } else {
             const { data: sessionData } = await supabase.auth.getSession();
-            const hasSession = Boolean(sessionData.session);
-            if (hasSession) {
-              if (!mounted) return;
-              setTokenType('recovery');
-              setMode('set_password');
-              window.history.replaceState(null, '', window.location.pathname);
-              return;
+            if (sessionData.session) {
+              await supabase.auth.signOut();
             }
             if (mounted) setMode('email_request');
             return;
@@ -129,9 +137,11 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: getResetPasswordRedirectUrl(),
+      });
       if (resetError) throw resetError;
-      setMessage('Check your email for a password reset link');
+      setMessage(RESET_EMAIL_SUCCESS_MESSAGE);
     } catch (err) {
       setError(err.message || 'Unable to send reset link.');
     } finally {
@@ -155,20 +165,43 @@ export default function ResetPassword() {
       const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
       if (updateError) throw updateError;
 
-      if (isInvite) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const authId = sessionData.session?.user?.id;
-        if (authId) {
-          await supabase
-            .from('users')
-            .update({ is_active: true, deactivated_at: null })
-            .eq('auth_id', authId);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const authId = sessionData.session?.user?.id;
+
+      if (isInvite && authId) {
+        await supabase
+          .from('users')
+          .update({ is_active: true, deactivated_at: null })
+          .eq('auth_id', authId);
+      }
+
+      if (authId) {
+        const { data: profileRow } = await supabase
+          .from('users')
+          .select('is_active')
+          .eq('auth_id', authId)
+          .maybeSingle();
+
+        if (!profileRow) {
+          await supabase.auth.signOut();
+          navigate('/login', { replace: true, state: { message: ACCOUNT_SETUP_MESSAGE } });
+          return;
+        }
+
+        if (profileRow.is_active === false) {
+          await supabase.auth.signOut();
+          navigate('/login', {
+            replace: true,
+            state: { message: ACCOUNT_DEACTIVATED_AFTER_RESET_MESSAGE },
+          });
+          return;
         }
       }
 
       const user = await getCurrentUser();
       if (!user) {
-        navigate('/login', { replace: true });
+        await supabase.auth.signOut();
+        navigate('/login', { replace: true, state: { message: ACCOUNT_SETUP_MESSAGE } });
         return;
       }
       if (user.role?.toLowerCase() === 'athlete') {
@@ -310,7 +343,7 @@ export default function ResetPassword() {
             Reset Password
           </h1>
           <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
-            Enter your invited email address to receive a reset link.
+            Enter the email address for your account.
           </p>
         </div>
 
