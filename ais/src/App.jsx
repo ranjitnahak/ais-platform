@@ -50,6 +50,9 @@ function AuthRecoveryRedirect() {
 
   useLayoutEffect(() => {
     const hasCallback = hasAuthCallbackInUrl(location.search, location.hash);
+    // #region agent log
+    fetch('http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7b82e9'},body:JSON.stringify({sessionId:'7b82e9',runId:'post-fix-2',hypothesisId:'H1-H2',location:'App.jsx:AuthRecoveryRedirect',message:'AuthRecoveryRedirect layout',data:{pathname:location.pathname,searchLen:location.search.length,hashLen:location.hash.length,hasCallback},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (location.pathname === '/reset-password') return;
     if (!hasCallback) return;
     navigate(`/reset-password${location.search}${location.hash}`, { replace: true });

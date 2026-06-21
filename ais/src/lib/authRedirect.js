@@ -1,4 +1,5 @@
 const PENDING_PASSWORD_RESET_KEY = 'ais_pending_password_reset';
+const AUTH_CALLBACK_STORAGE_KEY = 'ais_auth_callback';
 
 export function hasAuthCallbackInUrl(search, hash) {
   const searchParams = new URLSearchParams(search);
@@ -14,16 +15,64 @@ export function getResetPasswordRedirectUrl() {
   return `${window.location.origin}/reset-password`;
 }
 
-export function markPendingPasswordReset() {
+export function storeAuthCallback(search, hash) {
   if (typeof window === 'undefined') return;
-  sessionStorage.setItem(PENDING_PASSWORD_RESET_KEY, '1');
+  const suffix = `${search || ''}${hash || ''}`;
+  if (!suffix) return;
+  sessionStorage.setItem(AUTH_CALLBACK_STORAGE_KEY, suffix);
 }
 
-export function consumePendingPasswordReset() {
+export function getStoredAuthCallback() {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(AUTH_CALLBACK_STORAGE_KEY);
+}
+
+export function clearStoredAuthCallback() {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(AUTH_CALLBACK_STORAGE_KEY);
+}
+
+/** Resolve auth query/hash from URL or sessionStorage fallback (survives StrictMode remounts). */
+export function resolveAuthCallbackParts(search, hash) {
+  if (hasAuthCallbackInUrl(search, hash)) {
+    return { search: search || '', hash: hash || '' };
+  }
+
+  const stored = getStoredAuthCallback();
+  if (!stored) {
+    return { search: search || '', hash: hash || '' };
+  }
+
+  const hashIdx = stored.indexOf('#');
+  if (hashIdx >= 0) {
+    return {
+      search: hashIdx > 0 ? stored.slice(0, hashIdx) : '',
+      hash: stored.slice(hashIdx),
+    };
+  }
+
+  const queryIdx = stored.indexOf('?');
+  if (queryIdx >= 0) {
+    return { search: stored.slice(queryIdx), hash: '' };
+  }
+
+  return { search: search || '', hash: hash || '' };
+}
+
+export function markPendingPasswordReset(search = '', hash = '') {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(PENDING_PASSWORD_RESET_KEY, '1');
+  storeAuthCallback(search, hash);
+}
+
+export function peekPendingPasswordReset() {
   if (typeof window === 'undefined') return false;
-  const pending = sessionStorage.getItem(PENDING_PASSWORD_RESET_KEY) === '1';
-  if (pending) sessionStorage.removeItem(PENDING_PASSWORD_RESET_KEY);
-  return pending;
+  return sessionStorage.getItem(PENDING_PASSWORD_RESET_KEY) === '1';
+}
+
+export function clearPendingPasswordReset() {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(PENDING_PASSWORD_RESET_KEY);
 }
 
 export function cameFromSupabaseAuthVerify() {
@@ -47,6 +96,15 @@ export function isVoluntaryForgotPasswordVisit() {
   }
 }
 
+export function isEmailRecoveryVisit(search, hash) {
+  return (
+    hasAuthCallbackInUrl(search, hash) ||
+    Boolean(getStoredAuthCallback()) ||
+    peekPendingPasswordReset() ||
+    cameFromSupabaseAuthVerify()
+  );
+}
+
 /** Run before Supabase createClient so detectSessionInUrl does not consume tokens on `/`. */
 export function redirectAuthCallbackToResetPassword() {
   if (typeof window === 'undefined') return false;
@@ -55,7 +113,10 @@ export function redirectAuthCallbackToResetPassword() {
   const hasCallback = hasAuthCallbackInUrl(search, hash);
 
   if (hasCallback) {
-    markPendingPasswordReset();
+    markPendingPasswordReset(search, hash);
+    // #region agent log
+    fetch('http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7b82e9'},body:JSON.stringify({sessionId:'7b82e9',runId:'post-fix-2',hypothesisId:'H12',location:'authRedirect.js:redirect',message:'Pre-client auth callback captured',data:{pathname,searchLen:search.length,hashLen:hash.length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
   }
 
   if (pathname === '/reset-password') {

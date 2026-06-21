@@ -16,10 +16,12 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 redirectAuthCallbackToResetPassword();
 
+const detectSessionInUrl =
+  typeof window !== 'undefined' && window.location.pathname === '/reset-password';
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Handle recovery/invite hash tokens in ResetPassword only — avoids consuming
-    // tokens on `/` before our redirect logic can forward them to /reset-password.
-    detectSessionInUrl: false,
+    // Only auto-detect on /reset-password; `/` callbacks are forwarded there first.
+    detectSessionInUrl,
   },
 });

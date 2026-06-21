@@ -4,8 +4,11 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import {
   getResetPasswordRedirectUrl,
-  consumePendingPasswordReset,
-  cameFromSupabaseAuthVerify,
+  peekPendingPasswordReset,
+  clearPendingPasswordReset,
+  clearStoredAuthCallback,
+  resolveAuthCallbackParts,
+  isEmailRecoveryVisit,
   isVoluntaryForgotPasswordVisit,
 } from '../lib/authRedirect';
 
@@ -21,8 +24,7 @@ const ACCOUNT_DEACTIVATED_AFTER_RESET_MESSAGE =
 const RESET_EMAIL_SUCCESS_MESSAGE =
   "If an account exists for that email, we've sent a password reset link.";
 
-function parseHashParams() {
-  const hash = window.location.hash;
+function parseHashParams(hash) {
   if (!hash) return new URLSearchParams();
   return new URLSearchParams(hash.replace('#', '?'));
 }
@@ -83,16 +85,39 @@ export default function ResetPassword() {
 
   useEffect(() => {
     let mounted = true;
+    const resolved = resolveAuthCallbackParts(
+      window.location.search,
+      window.location.hash,
+    );
+    const emailRecoveryVisit = isEmailRecoveryVisit(resolved.search, resolved.hash);
     expectPasswordResetRef.current =
-      consumePendingPasswordReset() || cameFromSupabaseAuthVerify();
+      peekPendingPasswordReset() || emailRecoveryVisit;
+    const treatAsVoluntary =
+      !emailRecoveryVisit &&
+      (voluntaryForgotPassword || isVoluntaryForgotPasswordVisit());
+    // #region agent log
+    fetch('http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7b82e9'},body:JSON.stringify({sessionId:'7b82e9',runId:'post-fix-2',hypothesisId:'H11-H12',location:'ResetPassword.jsx:mount',message:'ResetPassword mount',data:{expectPasswordReset:expectPasswordResetRef.current,emailRecoveryVisit,treatAsVoluntary,voluntaryForgotPassword,hashLen:resolved.hash.length,searchLen:resolved.search.length,referrer:typeof document!=='undefined'?document.referrer.slice(0,100):''},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    function enterSetPasswordMode(nextTokenType) {
+      clearPendingPasswordReset();
+      clearStoredAuthCallback();
+      expectPasswordResetRef.current = false;
+      setTokenType(nextTokenType);
+      setMode('set_password');
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
+      // #region agent log
+      fetch('http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7b82e9'},body:JSON.stringify({sessionId:'7b82e9',runId:'post-fix-2',hypothesisId:'H12',location:'ResetPassword.jsx:onAuthStateChange',message:'Auth state change',data:{event,hasSession:Boolean(session),expectPasswordReset:expectPasswordResetRef.current},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       if (event === 'PASSWORD_RECOVERY') {
         recoveryDetectedRef.current = true;
-        setTokenType('recovery');
-        setMode('set_password');
+        enterSetPasswordMode('recovery');
         return;
       }
       if (
@@ -100,13 +125,11 @@ export default function ResetPassword() {
         expectPasswordResetRef.current &&
         (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')
       ) {
-        expectPasswordResetRef.current = false;
-        setTokenType('recovery');
-        setMode('set_password');
+        enterSetPasswordMode('recovery');
       }
     });
-    const params = parseHashParams();
-    const queryParams = new URLSearchParams(window.location.search);
+    const params = parseHashParams(resolved.hash);
+    const queryParams = new URLSearchParams(resolved.search);
     const hashError = params.get('error');
     const accessToken = params.get('access_token');
     const refreshToken = params.get('refresh_token');
@@ -121,6 +144,9 @@ export default function ResetPassword() {
 
     async function initSession() {
       setLoading(true);
+      // #region agent log
+      fetch('http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7b82e9'},body:JSON.stringify({sessionId:'7b82e9',runId:'post-fix-2',hypothesisId:'H12',location:'ResetPassword.jsx:initSession:start',message:'initSession start',data:{hasQueryCode:Boolean(queryCode),hasAccessToken:Boolean(accessToken),hashType:type??null,queryType:queryType??null,searchLen:resolved.search.length,hashLen:resolved.hash.length,treatAsVoluntary},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       try {
         const hashTokenHash = params.get('token_hash');
         const queryTokenHash = queryParams.get('token_hash');
@@ -149,16 +175,15 @@ export default function ResetPassword() {
           } else {
             const pendingFromEmailLink = expectPasswordResetRef.current;
             if (pendingFromEmailLink) {
-              const { event, session } = await waitForAuthSession();
+              const { session } = await waitForAuthSession();
               if (!mounted) return;
               if (session) {
-                expectPasswordResetRef.current = false;
-                setTokenType(type || queryType || 'recovery');
-                setMode('set_password');
-                window.history.replaceState(null, '', window.location.pathname);
+                enterSetPasswordMode(type || queryType || 'recovery');
                 return;
               }
               if (!mounted) return;
+              clearPendingPasswordReset();
+              clearStoredAuthCallback();
               expectPasswordResetRef.current = false;
               setError(EXPIRED_LINK_MESSAGE);
               setMode('token_error');
@@ -172,30 +197,22 @@ export default function ResetPassword() {
               });
               if (!mounted) return;
               if (recoveryDetectedRef.current || expectPasswordResetRef.current) {
-                setTokenType('recovery');
-                setMode('set_password');
-                window.history.replaceState(null, '', window.location.pathname);
+                enterSetPasswordMode('recovery');
                 return;
               }
-              const shouldSignOutForEmailForm =
-                voluntaryForgotPassword || isVoluntaryForgotPasswordVisit();
-              if (shouldSignOutForEmailForm) {
+              if (treatAsVoluntary) {
                 await supabase.auth.signOut();
                 if (mounted) setMode('email_request');
                 return;
               }
-              setTokenType('recovery');
-              setMode('set_password');
-              window.history.replaceState(null, '', window.location.pathname);
+              enterSetPasswordMode('recovery');
               return;
             }
 
-            const { event, session } = await waitForAuthSession(3000);
+            const { session } = await waitForAuthSession(3000);
             if (!mounted) return;
-            if (session && !voluntaryForgotPassword && !isVoluntaryForgotPasswordVisit()) {
-              setTokenType('recovery');
-              setMode('set_password');
-              window.history.replaceState(null, '', window.location.pathname);
+            if (session && !treatAsVoluntary) {
+              enterSetPasswordMode('recovery');
               return;
             }
             if (mounted) setMode('email_request');
@@ -203,9 +220,7 @@ export default function ResetPassword() {
           }
         }
         if (!mounted) return;
-        setTokenType(type || queryType || 'recovery');
-        setMode('set_password');
-        window.history.replaceState(null, '', window.location.pathname);
+        enterSetPasswordMode(type || queryType || 'recovery');
       } catch (err) {
         console.error('[ResetPassword] setSession', err);
         if (mounted) {

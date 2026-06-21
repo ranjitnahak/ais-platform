@@ -61,6 +61,7 @@
           hash.indexOf('type=invite') >= 0;
         if (!hasCallback) return;
         sessionStorage.setItem('ais_pending_password_reset', '1');
+        sessionStorage.setItem('ais_auth_callback', search + hash);
         if (window.location.pathname !== '/reset-password') {
           window.location.replace(window.location.origin + '/reset-password' + search + hash);
         }
