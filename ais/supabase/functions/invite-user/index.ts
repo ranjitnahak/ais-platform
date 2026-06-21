@@ -54,10 +54,32 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
     // Step 1: Send invite email
-    // Try inviteUserByEmail first — works for new users
-    // Falls back to admin user lookup + recovery email if user already exists in auth.users
+    // If a public.users profile already exists for this org+email, resend recovery only.
+    // Skipping inviteUserByEmail avoids creating a new auth.users id that cannot be inserted
+    // because users_org_email_key already holds this email for the org.
     let authId: string
 
+    const { data: existingOrgProfile, error: existingOrgProfileErr } = await supabaseAdmin
+      .from('users')
+      .select('id, org_id')
+      .eq('org_id', orgId)
+      .ilike('email', email)
+      .maybeSingle()
+    if (existingOrgProfileErr) throw existingOrgProfileErr
+
+    if (existingOrgProfile?.id) {
+      authId = existingOrgProfile.id
+      const { error: recoverError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+        redirectTo: SITE_URL,
+      })
+      if (recoverError) {
+        const recoverMsg = String(recoverError.message ?? '')
+        if (recoverError.status === 429 || recoverMsg.includes('over_email_send_rate_limit') || recoverMsg.includes('only request this after')) {
+          throw new Error('Invite email is rate-limited by Auth provider. Please wait longer before retrying (can be several minutes to an hour), or increase Auth email rate limits in Supabase settings.')
+        }
+        throw recoverError
+      }
+    } else {
     const { data: inviteData, error: inviteError } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
         data: { full_name: fullName },
@@ -112,18 +134,38 @@ serve(async (req) => {
     } else {
       authId = inviteData.user.id
     }
+    }
 
     // Step 2: Create or update identity rows
     if (userType === 'athlete') {
       if (!athleteId) throw new Error('athleteId is required for athlete userType')
 
-      const { data: existingUser } = await supabaseAdmin
+      const { data: existingUserById } = await supabaseAdmin
         .from('users')
         .select('id')
         .eq('id', authId)
         .maybeSingle()
+      const { data: existingUserByEmail } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('org_id', orgId)
+        .ilike('email', email)
+        .maybeSingle()
 
-      if (!existingUser) {
+      const profileUserId = existingUserByEmail?.id ?? existingUserById?.id ?? null
+      if (profileUserId) {
+        authId = profileUserId
+        await supabaseAdmin
+          .from('users')
+          .update({
+            full_name: fullName,
+            athlete_id: athleteId,
+            auth_id: profileUserId,
+            role: 'athlete',
+          })
+          .eq('id', profileUserId)
+          .eq('org_id', orgId)
+      } else {
         const { error: userError } = await supabaseAdmin
           .from('users')
           .insert({
@@ -164,19 +206,30 @@ serve(async (req) => {
       if (athleteError) throw athleteError
 
     } else {
-      const { data: existingUser } = await supabaseAdmin
+      const { data: existingUserById } = await supabaseAdmin
         .from('users')
         .select('id, org_id')
         .eq('id', authId)
         .maybeSingle()
+      const { data: existingUserByEmail } = await supabaseAdmin
+        .from('users')
+        .select('id, org_id')
+        .eq('org_id', orgId)
+        .ilike('email', email)
+        .maybeSingle()
 
-      if (existingUser?.org_id && existingUser.org_id !== orgId) {
+      const profileUserId = existingUserByEmail?.id ?? existingUserById?.id ?? null
+      if (profileUserId) {
+        authId = profileUserId
+      }
+
+      if (existingUserById?.org_id && existingUserById.org_id !== orgId) {
         throw new Error(
           'This email already has a login in another organisation. Use a different email for a separate account.',
         )
       }
 
-      if (!existingUser) {
+      if (!profileUserId) {
         const { error: userError } = await supabaseAdmin
           .from('users')
           .insert({
