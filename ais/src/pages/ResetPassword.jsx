@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
@@ -43,6 +43,7 @@ export default function ResetPassword() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const recoveryDetectedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -51,6 +52,7 @@ export default function ResetPassword() {
     } = supabase.auth.onAuthStateChange((event) => {
       if (!mounted) return;
       if (event === 'PASSWORD_RECOVERY') {
+        recoveryDetectedRef.current = true;
         setTokenType('recovery');
         setMode('set_password');
       }
@@ -99,6 +101,16 @@ export default function ResetPassword() {
           } else {
             const { data: sessionData } = await supabase.auth.getSession();
             if (sessionData.session) {
+              await new Promise((resolve) => {
+                queueMicrotask(resolve);
+              });
+              if (!mounted) return;
+              if (recoveryDetectedRef.current) {
+                setTokenType('recovery');
+                setMode('set_password');
+                window.history.replaceState(null, '', window.location.pathname);
+                return;
+              }
               await supabase.auth.signOut();
             }
             if (mounted) setMode('email_request');

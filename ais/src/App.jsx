@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import DashboardWellness from './pages/dashboard/DashboardWellness';
@@ -31,6 +31,29 @@ import { getDefaultStaffHomeRoute } from './nav/navResourceMap';
 import AppLoadingScreen from './components/shared/AppLoadingScreen';
 
 const PUBLIC_PATHS = ['/login', '/reset-password'];
+
+function hasAuthCallbackInUrl(search, hash) {
+  const searchParams = new URLSearchParams(search);
+  if (searchParams.has('code') || searchParams.has('token_hash')) return true;
+  if (!hash) return false;
+  const hashParams = new URLSearchParams(hash.replace('#', '?'));
+  if (hashParams.has('access_token')) return true;
+  const type = hashParams.get('type');
+  return type === 'recovery' || type === 'invite';
+}
+
+function AuthRecoveryRedirect() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useLayoutEffect(() => {
+    if (location.pathname === '/reset-password') return;
+    if (!hasAuthCallbackInUrl(location.search, location.hash)) return;
+    navigate(`/reset-password${location.search}${location.hash}`, { replace: true });
+  }, [location.pathname, location.search, location.hash, navigate]);
+
+  return null;
+}
 
 function Placeholder({ title }) {
   return (
@@ -117,6 +140,10 @@ function AuthGate({ children }) {
 }
 
 function HomeRedirect({ user }) {
+  const location = useLocation();
+  if (hasAuthCallbackInUrl(location.search, location.hash)) {
+    return <AppLoadingScreen />;
+  }
   if (!user) return <RoleLoading />;
   if (user.role?.toLowerCase() === 'athlete') return <Navigate to="/athlete-home" replace />;
   return <Navigate to={getDefaultStaffHomeRoute(user)} replace />;
@@ -150,6 +177,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <AuthRecoveryRedirect />
       <AuthGate>
         <Routes>
           <Route path="/login" element={<Login />} />
