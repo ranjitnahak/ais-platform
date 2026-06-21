@@ -73,6 +73,26 @@ export function getPaddingRange(sessions) {
   };
 }
 
+function collapsibleHourSegments(collapsibleHours) {
+  if (!collapsibleHours.length) return [];
+  const segments = [];
+  let fromHour = collapsibleHours[0];
+  let prevHour = collapsibleHours[0];
+
+  for (let i = 1; i < collapsibleHours.length; i += 1) {
+    const hour = collapsibleHours[i];
+    if (hour === prevHour + 1) {
+      prevHour = hour;
+      continue;
+    }
+    segments.push({ fromHour, toHour: prevHour + 1 });
+    fromHour = hour;
+    prevHour = hour;
+  }
+  segments.push({ fromHour, toHour: prevHour + 1 });
+  return segments;
+}
+
 function expandedCollapseBarBeforeHour(hour, expandedZones) {
   for (const [zoneKey, isExpanded] of Object.entries(expandedZones)) {
     if (!isExpanded) continue;
@@ -104,11 +124,13 @@ export function buildGridRows(sessions, expandedZones = {}) {
     }
     if (!collapsibleHours.length) continue;
 
-    const zoneKey = `${collapsibleHours[0]}-${collapsibleHours[collapsibleHours.length - 1] + 1}`;
-    if (expandedZones[zoneKey]) continue;
+    for (const segment of collapsibleHourSegments(collapsibleHours)) {
+      const zoneKey = `${segment.fromHour}-${segment.toHour}`;
+      if (expandedZones[zoneKey]) continue;
 
-    for (const hour of collapsibleHours) {
-      hourStatus[hour] = 'collapsed';
+      for (let hour = segment.fromHour; hour < segment.toHour; hour += 1) {
+        hourStatus[hour] = 'collapsed';
+      }
     }
   }
 

@@ -50,9 +50,18 @@ export default function WeeklyTimeGrid({
     return slots;
   }, [gridRows]);
 
+  const sessionsLayoutKey = useMemo(
+    () =>
+      sessions
+        .map((s) => `${s.id}:${s.session_date}:${s.start_time}:${s.duration_planned ?? ''}`)
+        .sort()
+        .join('|'),
+    [sessions],
+  );
+
   useEffect(() => {
     setExpandedZones({});
-  }, [sessions]);
+  }, [sessionsLayoutKey]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
