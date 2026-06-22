@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate, Outle
 import Dashboard from './pages/Dashboard';
 import DashboardWellness from './pages/dashboard/DashboardWellness';
 import DashboardRPE from './pages/dashboard/DashboardRPE';
+import DashboardAttendance from './pages/dashboard/DashboardAttendance';
 import AssessmentDashboard from './pages/dashboard/AssessmentDashboard';
 import Log from './pages/Log';
 import Reports from './pages/Reports';
@@ -202,6 +203,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />}>
               <Route index element={<Navigate to="wellness" replace />} />
               <Route path="wellness" element={<DashboardWellness />} />
+              <Route path="attendance" element={<DashboardAttendance />} />
               <Route path="rpe" element={<DashboardRPE />} />
               <Route path="assessment" element={<AssessmentDashboard />} />
             </Route>

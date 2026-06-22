@@ -5,6 +5,7 @@ import { DASHBOARD_SUB_ITEMS } from './dashboardNavItems';
 export const NAV_ROUTE_RESOURCE = {
   '/dashboard': null,
   '/dashboard/wellness': 'wellness',
+  '/dashboard/attendance': 'attendance',
   '/dashboard/rpe': 'rpe_logging',
   '/dashboard/assessment': 'assessments',
   '/athletes': 'athleteRoster',
@@ -17,7 +18,7 @@ export const NAV_ROUTE_RESOURCE = {
   '/superuser': null,
 };
 
-const DASHBOARD_NAV_RESOURCES = ['wellness', 'rpe_logging', 'injury_surveillance', 'assessments'];
+const DASHBOARD_NAV_RESOURCES = ['wellness', 'attendance', 'rpe_logging', 'injury_surveillance', 'assessments'];
 const LOG_NAV_RESOURCES = ['wellness', 'rpe_logging', 'assessments', 'staff_notes', 'attendance'];
 
 const STAFF_HOME_ROUTE_ORDER = [
