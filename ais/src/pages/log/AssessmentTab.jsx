@@ -59,7 +59,7 @@ function cellClassName(status) {
   return `${base} border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)]`;
 }
 
-function FilterDropdown({ label, children, open, onToggle }) {
+function FilterDropdown({ label, children, open, onToggle, onClose }) {
   return (
     <div className="relative">
       <button
@@ -73,9 +73,17 @@ function FilterDropdown({ label, children, open, onToggle }) {
         </span>
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 max-h-64 min-w-[12rem] overflow-y-auto rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-2 shadow-lg">
-          {children}
-        </div>
+        <>
+          <button
+            type="button"
+            aria-label="Close filter"
+            className="fixed inset-0 z-40"
+            onClick={onClose}
+          />
+          <div className="absolute left-0 top-full z-50 mt-1 max-h-64 min-w-[12rem] overflow-y-auto rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-2 shadow-lg">
+            {children}
+          </div>
+        </>
       )}
     </div>
   );
@@ -100,6 +108,10 @@ export default function AssessmentTab() {
   }, [toast]);
 
   const grid = useAssessmentGrid({ onToast: showToast });
+
+  const allTestIds = grid.activeTests.map((t) => t.id);
+  const allTestsSelected =
+    allTestIds.length > 0 && allTestIds.every((id) => grid.selectedTestIds.includes(id));
 
   if (!canCreate) {
     return (
@@ -153,53 +165,80 @@ export default function AssessmentTab() {
         <FilterDropdown
           label={athleteLabel}
           open={athletesOpen}
-          onToggle={() => setAthletesOpen((o) => !o)}
+          onToggle={() => {
+            setTestsOpen(false);
+            setAthletesOpen((o) => !o);
+          }}
+          onClose={() => setAthletesOpen(false)}
         >
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-bold hover:bg-[var(--color-surface-container-high)]">
-            <input
-              type="checkbox"
-              checked={grid.wholeTeam}
-              onChange={(e) => grid.setAthleteWholeTeam(e.target.checked)}
-            />
-            Whole team
-          </label>
-          {grid.roster.map((a) => (
-            <label
-              key={a.id}
-              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-[var(--color-surface-container-high)]"
+          <div className="space-y-1">
+            <button
+              type="button"
+              className="mb-1 w-full rounded-lg border-b border-[var(--color-outline-variant)] px-2 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-[var(--color-primary-container)] hover:bg-[var(--color-surface-container-high)]"
+              onClick={() => grid.setAthleteWholeTeam(!grid.wholeTeam)}
             >
+              {grid.wholeTeam ? 'Deselect all' : 'Select all'}
+            </button>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-bold hover:bg-[var(--color-surface-container-high)]">
               <input
                 type="checkbox"
-                checked={grid.wholeTeam || grid.selectedAthleteIds.includes(a.id)}
-                disabled={grid.wholeTeam}
-                onChange={() => grid.toggleAthlete(a.id)}
+                checked={grid.wholeTeam}
+                onChange={(e) => grid.setAthleteWholeTeam(e.target.checked)}
               />
-              {a.full_name}
+              Whole team
             </label>
-          ))}
+            {grid.roster.map((a) => (
+              <label
+                key={a.id}
+                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-[var(--color-surface-container-high)]"
+              >
+                <input
+                  type="checkbox"
+                  checked={grid.wholeTeam || grid.selectedAthleteIds.includes(a.id)}
+                  onChange={() => grid.toggleAthlete(a.id, grid.wholeTeam)}
+                />
+                {a.full_name}
+              </label>
+            ))}
+          </div>
         </FilterDropdown>
 
         <FilterDropdown
           label={testLabel}
           open={testsOpen}
-          onToggle={() => setTestsOpen((o) => !o)}
+          onToggle={() => {
+            setAthletesOpen(false);
+            setTestsOpen((o) => !o);
+          }}
+          onClose={() => setTestsOpen(false)}
         >
-          {grid.activeTests.map((test) => (
-            <label
-              key={test.id}
-              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-[var(--color-surface-container-high)]"
-            >
-              <input
-                type="checkbox"
-                checked={grid.selectedTestIds.includes(test.id)}
-                onChange={() => grid.toggleTest(test.id)}
-              />
-              {test.name}
-              {test.unit && (
-                <span className="text-[10px] text-[var(--color-on-surface-variant)]">({test.unit})</span>
-              )}
-            </label>
-          ))}
+          <div className="space-y-1">
+            {allTestIds.length > 0 && (
+              <button
+                type="button"
+                className="mb-1 w-full rounded-lg border-b border-[var(--color-outline-variant)] px-2 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-[var(--color-primary-container)] hover:bg-[var(--color-surface-container-high)]"
+                onClick={() => grid.setTestSelection(allTestsSelected ? [allTestIds[0]] : allTestIds)}
+              >
+                {allTestsSelected ? 'Deselect all' : 'Select all'}
+              </button>
+            )}
+            {grid.activeTests.map((test) => (
+              <label
+                key={test.id}
+                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-[var(--color-surface-container-high)]"
+              >
+                <input
+                  type="checkbox"
+                  checked={grid.selectedTestIds.includes(test.id)}
+                  onChange={() => grid.toggleTest(test.id)}
+                />
+                {test.name}
+                {test.unit && (
+                  <span className="text-[10px] text-[var(--color-on-surface-variant)]">({test.unit})</span>
+                )}
+              </label>
+            ))}
+          </div>
         </FilterDropdown>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">

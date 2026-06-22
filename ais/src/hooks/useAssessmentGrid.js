@@ -596,21 +596,31 @@ export function useAssessmentGrid({ onToast } = {}) {
     setWholeTeam(isWhole);
     if (isWhole) {
       setSelectedAthleteIds(roster.map((a) => a.id));
+    } else {
+      setSelectedAthleteIds([]);
     }
   }, [roster]);
 
-  const toggleAthlete = useCallback((athleteId) => {
+  const toggleAthlete = useCallback((athleteId, fromWholeTeam = false) => {
     setWholeTeam(false);
     setSelectedAthleteIds((prev) => {
+      if (fromWholeTeam) {
+        return roster.map((a) => a.id).filter((id) => id !== athleteId);
+      }
       const set = new Set(prev);
       if (set.has(athleteId)) {
         set.delete(athleteId);
-        return [...set];
+      } else {
+        set.add(athleteId);
       }
-      set.add(athleteId);
       return [...set];
     });
-  }, []);
+  }, [roster]);
+
+  const setTestSelection = useCallback((ids) => {
+    const valid = ids.filter((id) => activeTests.some((t) => t.id === id));
+    setSelectedTestIds(valid.length ? valid : activeTests.length ? [activeTests[0].id] : []);
+  }, [activeTests]);
 
   const exportCsv = useCallback(() => {
     try {
@@ -716,6 +726,7 @@ export function useAssessmentGrid({ onToast } = {}) {
     setGroupDate,
     selectedTestIds,
     toggleTest,
+    setTestSelection,
     activeTests,
     visibleTests,
     wholeTeam,
