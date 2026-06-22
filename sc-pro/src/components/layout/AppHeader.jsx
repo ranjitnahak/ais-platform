@@ -1,3 +1,4 @@
+import OrgSwitcher from './OrgSwitcher.jsx';
 import TeamSwitcher from './TeamSwitcher.jsx';
 
 export default function AppHeader() {
@@ -10,6 +11,7 @@ export default function AppHeader() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
+        gap: 12,
         minHeight: 56,
         padding: '0 var(--space-container)',
         borderBottom: '1px solid var(--color-border)',
@@ -17,6 +19,7 @@ export default function AppHeader() {
         backdropFilter: 'blur(12px)',
       }}
     >
+      <OrgSwitcher />
       <TeamSwitcher />
     </header>
   );

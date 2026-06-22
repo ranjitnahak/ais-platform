@@ -9,15 +9,21 @@ import {
 } from '../lib/teamScope.js';
 
 const UserContext = createContext(null);
+const ACTIVE_ORG_STORAGE_KEY = 'ais_active_org_id';
 
-async function loadAvailableTeams(user) {
-  if (!user?.orgId) return [];
+function getInitialActiveOrgId() {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
+}
+
+async function loadAvailableTeams(user, orgId) {
+  if (!orgId) return [];
   let query = supabase
     .from('teams')
     .select('id, name, logo_url, org_id')
-    .eq('org_id', user.orgId)
+    .eq('org_id', orgId)
     .order('name');
-  if (user.teamIds?.length) {
+  if (!user?.isSuperuser && user?.teamIds?.length) {
     query = query.in('id', user.teamIds);
   }
   const { data, error } = await query;
@@ -31,6 +37,7 @@ async function loadAvailableTeams(user) {
 export function UserProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeOrgId, setActiveOrgIdState] = useState(() => getInitialActiveOrgId());
   const [availableTeams, setAvailableTeams] = useState([]);
   const [activeTeamId, setActiveTeamIdState] = useState(null);
   const userRef = useRef(null);
@@ -47,15 +54,16 @@ export function UserProvider({ children }) {
     if (orgId && resolved) writeStoredTeamId(orgId, resolved);
   }, []);
 
-  const refreshTeams = useCallback(async (currentUser) => {
-    if (!currentUser?.orgId) {
+  const refreshTeams = useCallback(async (currentUser, orgId) => {
+    if (!currentUser || !orgId) {
       setAvailableTeams([]);
       setActiveTeamIdState(null);
       return;
     }
-    const teams = await loadAvailableTeams(currentUser);
+    const scopedUser = { ...currentUser, orgId };
+    const teams = await loadAvailableTeams(scopedUser, orgId);
     setAvailableTeams(teams);
-    syncActiveTeam(currentUser.orgId, teams);
+    syncActiveTeam(orgId, teams);
   }, [syncActiveTeam]);
 
   const loadUser = useCallback(async (opts = {}) => {
@@ -70,10 +78,22 @@ export function UserProvider({ children }) {
         return;
       }
       setUser(currentUser);
-      await refreshTeams(currentUser);
+      let resolvedOrgId;
+      if (currentUser.isSuperuser) {
+        const localActiveOrgId = window.localStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
+        resolvedOrgId = currentUser.allOrgs?.some((org) => org.id === localActiveOrgId)
+          ? localActiveOrgId
+          : currentUser.orgId;
+        setActiveOrgIdState(resolvedOrgId);
+      } else {
+        resolvedOrgId = currentUser.orgId ?? null;
+        setActiveOrgIdState(resolvedOrgId);
+      }
+      await refreshTeams(currentUser, resolvedOrgId);
     } catch (err) {
       console.error('[UserContext] loadUser failed:', err);
       setUser(null);
+      setActiveOrgIdState(null);
       setAvailableTeams([]);
       setActiveTeamIdState(null);
     } finally {
@@ -81,11 +101,34 @@ export function UserProvider({ children }) {
     }
   }, [refreshTeams]);
 
+  const setActiveOrgId = useCallback((nextOrgId) => {
+    if (nextOrgId) window.localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, nextOrgId);
+    else window.localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
+    setActiveOrgIdState(nextOrgId);
+    setUser((prev) => {
+      if (!prev?.isSuperuser || !nextOrgId) return prev;
+      return { ...prev, orgId: nextOrgId };
+    });
+    void loadUser();
+  }, [loadUser]);
+
   const setActiveTeamId = useCallback((nextTeamId) => {
-    const orgId = user?.orgId;
+    const orgId = activeOrgId ?? user?.orgId;
     setActiveTeamIdState(nextTeamId);
     if (orgId) writeStoredTeamId(orgId, nextTeamId);
-  }, [user?.orgId]);
+  }, [activeOrgId, user?.orgId]);
+
+  useEffect(() => {
+    if (user?.orgId && !activeOrgId) {
+      setActiveOrgIdState(user.orgId);
+      window.localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, user.orgId);
+    }
+  }, [user, activeOrgId]);
+
+  useEffect(() => {
+    if (!user || !activeOrgId) return;
+    void refreshTeams(user, activeOrgId);
+  }, [user, activeOrgId, refreshTeams]);
 
   useEffect(() => {
     void loadUser();
@@ -93,8 +136,10 @@ export function UserProvider({ children }) {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
+        setActiveOrgIdState(null);
         setAvailableTeams([]);
         setActiveTeamIdState(null);
+        window.localStorage.removeItem(ACTIVE_ORG_STORAGE_KEY);
         clearStoredTeamIds();
         return;
       }
@@ -111,6 +156,8 @@ export function UserProvider({ children }) {
         user,
         loading,
         refreshUser: loadUser,
+        activeOrgId,
+        setActiveOrgId,
         activeTeamId,
         setActiveTeamId,
         availableTeams,
