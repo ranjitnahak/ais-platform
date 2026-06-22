@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getCurrentUser, canSync } from '../../lib/auth';
-import { useSessions } from '../../hooks/useSessions';
+import { useSessions, toSessionUpsertRow } from '../../hooks/useSessions';
 import { addDays, formatRange, rowMetricKey, weekStartsBetween, computeAcwrSeries, acwrStyle } from '../../lib/periodisationUtils';
+import { dayIsoFromPointer, gridOffsetYFromPointer, normalizeDbTime } from '../../lib/weeklyTimeGrid';
 import WeekNotesEditor from '../ui/WeekNotesEditor';
 import SessionCreateModal from '../sessions/SessionCreateModal';
 import WeeklyTimeGrid from './WeeklyTimeGrid';
@@ -59,6 +60,7 @@ export default function PeriodisationWeekly({
   );
   const [sessionModal, setSessionModal] = useState(null);
   const [clipboard, setClipboard] = useState(null);
+  const [copyNotice, setCopyNotice] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [dragSession, setDragSession] = useState(null);
   const [dragOverDay, setDragOverDay] = useState(null);
@@ -66,6 +68,7 @@ export default function PeriodisationWeekly({
   const [dragPos, setDragPos] = useState(null);
   const [dragOrigin, setDragOrigin] = useState(null);
   const dragOriginRef = useRef(null);
+  const dragCaptureRef = useRef(null);
   const dragMovedRef = useRef(false);
   const suppressClickRef = useRef(false);
   const timeGridRef = useRef(null);
@@ -181,8 +184,9 @@ export default function PeriodisationWeekly({
       return;
     }
     // Only skip if BOTH day and time are unchanged
-    const timeUnchanged = !targetTime || targetTime === sess.start_time;
-    if (sess.session_date === targetDayIso && timeUnchanged) {
+    const nextTime = normalizeDbTime(targetTime ?? sess.start_time);
+    const curTime = normalizeDbTime(sess.start_time);
+    if (sess.session_date === targetDayIso && nextTime === curTime) {
       setDragSession(null);
       setDragOverDay(null);
       setDragOverTime(null);
@@ -192,7 +196,7 @@ export default function PeriodisationWeekly({
       await upsertSession({
         ...sess,
         session_date: targetDayIso,
-        start_time: targetTime ?? sess.start_time,
+        start_time: nextTime ?? sess.start_time,
       });
     } catch (e) {
       console.error(e);
@@ -203,10 +207,11 @@ export default function PeriodisationWeekly({
   }
 
   function handleCopy(session) {
-    const rest = { ...session };
+    const rest = toSessionUpsertRow(session);
     delete rest.id;
     delete rest.session_date;
     setClipboard(rest);
+    setCopyNotice(sessionTypeLabel(session.session_type) || 'Session');
     setCtxMenu(null);
   }
 
@@ -219,6 +224,8 @@ export default function PeriodisationWeekly({
         start_time: targetTime ?? clipboard.start_time ?? DEFAULT_AM_TIME,
         id: undefined,
       });
+      setCopyNotice(null);
+      setClipboard(null);
     } catch (e) {
       console.error(e);
     }
@@ -226,6 +233,17 @@ export default function PeriodisationWeekly({
 
   useEffect(() => {
     if (!dragSession) return undefined;
+    function resolveDropDay(clientX, clientY) {
+      const fromColumns = dayIsoFromPointer(clientX, timeGridRef.current, days);
+      if (fromColumns) return fromColumns;
+      const el = document.elementFromPoint(clientX, clientY);
+      return el?.closest('[data-day-iso]')?.dataset?.dayIso ?? null;
+    }
+    function resolveDropTime(clientY) {
+      if (!timeGridRef.current) return null;
+      const offsetPx = gridOffsetYFromPointer(clientY, timeGridRef.current);
+      return offsetToTimeRef.current(offsetPx);
+    }
     function onPointerMove(e) {
       setDragPos({ x: e.clientX, y: e.clientY });
       const ox = dragOriginRef.current?.x ?? e.clientX;
@@ -233,30 +251,25 @@ export default function PeriodisationWeekly({
       if (Math.hypot(e.clientX - ox, e.clientY - oy) > 12) {
         dragMovedRef.current = true;
       }
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const col = el?.closest('[data-day-iso]');
-      if (col?.dataset?.dayIso) setDragOverDay(col.dataset.dayIso);
-
-      // Compute snapped time from Y position relative to time grid
-      if (timeGridRef.current) {
-        const gridRect = timeGridRef.current.getBoundingClientRect();
-        const offsetPx = e.clientY - gridRect.top + (timeGridRef.current.parentElement?.scrollTop ?? 0);
-        setDragOverTime(offsetToTimeRef.current(offsetPx));
-      }
+      const dayIso = resolveDropDay(e.clientX, e.clientY);
+      if (dayIso) setDragOverDay(dayIso);
+      setDragOverTime(resolveDropTime(e.clientY));
     }
     function onPointerUp(e) {
       const moved = dragMovedRef.current;
       if (moved) {
         suppressClickRef.current = true;
       }
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const col = el?.closest('[data-day-iso]');
+      const dropDay = resolveDropDay(e.clientX, e.clientY);
       const sess = dragSession;
-      let dropTime = dragOverTime;
-      if (timeGridRef.current) {
-        const gridRect = timeGridRef.current.getBoundingClientRect();
-        const offsetPx = e.clientY - gridRect.top + (timeGridRef.current.parentElement?.scrollTop ?? 0);
-        dropTime = offsetToTimeRef.current(offsetPx);
+      const dropTime = resolveDropTime(e.clientY);
+      if (dragCaptureRef.current) {
+        try {
+          dragCaptureRef.current.releasePointerCapture(e.pointerId);
+        } catch {
+          /* already released */
+        }
+        dragCaptureRef.current = null;
       }
       setDragPos(null);
       setDragOrigin(null);
@@ -269,8 +282,8 @@ export default function PeriodisationWeekly({
       // Only move if pointer actually travelled more than 12px
       if (!moved) return;
 
-      if (col && col.dataset.dayIso && sess) {
-        void handleDropOnDay(col.dataset.dayIso, dropTime, sess);
+      if (dropDay && sess) {
+        void handleDropOnDay(dropDay, dropTime, sess);
       }
     }
     window.addEventListener('pointermove', onPointerMove);
@@ -279,7 +292,7 @@ export default function PeriodisationWeekly({
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-  }, [dragSession]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dragSession, days]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-col text-[#e4e2e4]" onClick={() => setCtxMenu(null)}>
@@ -361,16 +374,25 @@ export default function PeriodisationWeekly({
             days={days}
             sessions={sessions}
             canEdit={canEdit}
+            clipboardSessionName={copyNotice}
             dragOverDay={dragOverDay}
             dragSession={dragSession}
             suppressClickRef={suppressClickRef}
             onCreateSlot={(slot) =>
               setSessionModal({ mode: 'create', date: slot.date, startTime: slot.startTime })
             }
+            onPasteSlot={(slot) => {
+              if (!clipboard) return false;
+              void handlePaste(slot.date, slot.startTime ? `${slot.startTime}:00` : null);
+              return true;
+            }}
             onOpenSession={(_dayIso, sessionId) => setSessionModal({ mode: 'edit', sessionId })}
             onStartDrag={(e, session) => {
+              if (!canEdit) return;
               e.stopPropagation();
               e.preventDefault();
+              dragCaptureRef.current = e.currentTarget;
+              e.currentTarget.setPointerCapture(e.pointerId);
               dragOriginRef.current = { x: e.clientX, y: e.clientY };
               setDragOrigin({ x: e.clientX, y: e.clientY });
               setDragPos({ x: e.clientX, y: e.clientY });
@@ -383,9 +405,7 @@ export default function PeriodisationWeekly({
               if (!clipboard) return;
               let slotTime = DEFAULT_AM_TIME;
               if (timeGridRef.current) {
-                const gridRect = timeGridRef.current.getBoundingClientRect();
-                const scrollTop = timeGridRef.current.parentElement?.scrollTop ?? 0;
-                slotTime = offsetToTimeRef.current(e.clientY - gridRect.top + scrollTop);
+                slotTime = offsetToTimeRef.current(gridOffsetYFromPointer(e.clientY, timeGridRef.current));
               }
               setCtxMenu({
                 x: e.clientX,
@@ -403,6 +423,24 @@ export default function PeriodisationWeekly({
             onOffsetToTime={handleOffsetToTime}
             gridRef={timeGridRef}
           />
+        </div>
+      )}
+
+      {copyNotice && (
+        <div className="mt-2 rounded-lg border border-[#F97316]/40 bg-[#F97316]/10 px-3 py-2 text-[11px] text-[#F97316] flex items-center justify-between gap-2">
+          <span>
+            <span className="font-bold">{copyNotice}</span> copied — click any empty slot to paste, or right-click a day
+          </span>
+          <button
+            type="button"
+            className="text-[10px] font-bold uppercase text-gray-400 hover:text-white"
+            onClick={() => {
+              setClipboard(null);
+              setCopyNotice(null);
+            }}
+          >
+            Cancel
+          </button>
         </div>
       )}
 

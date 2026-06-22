@@ -16,10 +16,12 @@ export default function WeeklyTimeGrid({
   days,
   sessions,
   canEdit,
+  clipboardSessionName = null,
   dragOverDay,
   dragSession,
   suppressClickRef,
   onCreateSlot,
+  onPasteSlot,
   onOpenSession,
   onStartDrag,
   onContextMenuDay,
@@ -134,7 +136,13 @@ export default function WeeklyTimeGrid({
                   timeLabel={slot.timeLabel}
                   dayIso={day.iso}
                   canEdit={canEdit}
+                  pasteMode={Boolean(clipboardSessionName) && !dragSession}
+                  pasteLabel={clipboardSessionName ? `Paste: ${clipboardSessionName}` : null}
                   onCreate={onCreateSlot}
+                  onPaste={onPasteSlot}
+                  onContextMenu={(e) => {
+                    if (clipboardSessionName) onContextMenuDay(e, day.iso);
+                  }}
                 />
               ))}
               {sessions

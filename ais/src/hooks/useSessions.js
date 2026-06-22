@@ -4,6 +4,43 @@ import { getCurrentUser } from '../lib/auth';
 import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
 
+/** Columns on public.sessions — strips joined relations (e.g. session_athlete_logs). */
+const SESSION_UPSERT_KEYS = [
+  'id',
+  'org_id',
+  'team_id',
+  'session_date',
+  'start_time',
+  'end_time',
+  'session_type',
+  'venue',
+  'rpe_planned',
+  'rpe_actual',
+  'duration_planned',
+  'duration_actual',
+  'notes',
+  'plan_id',
+  'content_items',
+  'created_by',
+  'is_published',
+  'programme_week_id',
+  'plan_cell_id',
+  'name',
+  'coach_instructions',
+  'publish_at',
+  'screening_notes',
+  'recovery_modality',
+  'category',
+];
+
+export function toSessionUpsertRow(sessionData) {
+  const row = {};
+  for (const key of SESSION_UPSERT_KEYS) {
+    if (sessionData[key] !== undefined) row[key] = sessionData[key];
+  }
+  return row;
+}
+
 export const useSessions = (teamId, planId, weekStart, weekEnd) => {
   const [sessions, setSessions] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -54,15 +91,13 @@ export const useSessions = (teamId, planId, weekStart, weekEnd) => {
   const upsertSession = async (sessionData) => {
     const user = contextUser ?? (await getCurrentUser());
     const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
-    const { data, error } = await supabase
-      .from('sessions')
-      .upsert({
-        ...sessionData,
-        org_id: effectiveOrgId,
-        team_id: teamId,
-        plan_id: planId ?? sessionData.plan_id,
-      })
-      .select();
+    const row = toSessionUpsertRow({
+      ...sessionData,
+      org_id: effectiveOrgId,
+      team_id: teamId,
+      plan_id: planId ?? sessionData.plan_id,
+    });
+    const { data, error } = await supabase.from('sessions').upsert(row).select();
     if (error) throw error;
     if (!data?.[0]) return null;
     setSessions((prev) => {

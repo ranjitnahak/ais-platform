@@ -23,7 +23,7 @@ export default function SessionCalBlock({
   return (
     <div
       className={`pointer-events-auto absolute left-1 right-1 rounded cursor-grab active:cursor-grabbing hover:brightness-110 hover:z-10 transition-all select-none touch-none ${
-        isDragging ? 'opacity-40' : ''
+        isDragging ? 'opacity-40 pointer-events-none' : ''
       }`}
       style={{
         top,

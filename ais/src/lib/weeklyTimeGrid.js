@@ -228,3 +228,30 @@ export function defaultScrollOffset(sessions, rows) {
 export function totalGridHeight(rows) {
   return rows.reduce((sum, row) => sum + row.heightPx, 0);
 }
+
+const GRID_GUTTER_PX = 38;
+
+/** Map pointer X to a day column — reliable during drag (elementFromPoint misses pointer-events-none columns). */
+export function dayIsoFromPointer(clientX, gridEl, days, gutterWidth = GRID_GUTTER_PX) {
+  if (!gridEl || !days?.length) return null;
+  const rect = gridEl.getBoundingClientRect();
+  const x = clientX - rect.left - gutterWidth;
+  if (x < 0) return null;
+  const colWidth = (rect.width - gutterWidth) / days.length;
+  if (colWidth <= 0) return null;
+  const index = Math.min(days.length - 1, Math.max(0, Math.floor(x / colWidth)));
+  return days[index]?.iso ?? null;
+}
+
+/** Y offset into the grid content from a viewport pointer position. */
+export function gridOffsetYFromPointer(clientY, gridEl) {
+  if (!gridEl) return 0;
+  return Math.max(0, clientY - gridEl.getBoundingClientRect().top);
+}
+
+export function normalizeDbTime(timeStr) {
+  if (!timeStr) return null;
+  const match = String(timeStr).match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return timeStr;
+  return `${String(match[1]).padStart(2, '0')}:${match[2]}:00`;
+}
