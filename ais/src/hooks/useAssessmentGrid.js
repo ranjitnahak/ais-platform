@@ -101,7 +101,7 @@ export function useAssessmentGrid({ onToast } = {}) {
     onError: (msg) => toast(msg, 'error'),
   });
 
-  const { ensureSession, loadSessionsForDates, clearCache } = useAssessmentSessions({
+  const { ensureSession, loadSessionsForDates, clearCache, getSessionId } = useAssessmentSessions({
     orgId: effectiveOrgId,
     teamId: activeTeamId,
     userId: user?.id,
@@ -239,12 +239,8 @@ export function useAssessmentGrid({ onToast } = {}) {
 
       const sessionByDate = new Map();
       for (const d of dates) {
-        try {
-          const sid = await ensureSession(d);
-          sessionByDate.set(d, sid);
-        } catch {
-          // ensureSession logs internally
-        }
+        const sid = getSessionId(d);
+        if (sid) sessionByDate.set(d, sid);
       }
 
       const sessionIds = [...sessionByDate.values()].filter(Boolean);
@@ -293,7 +289,7 @@ export function useAssessmentGrid({ onToast } = {}) {
       selectedTestIds,
       activeTeamId,
       loadSessionsForDates,
-      ensureSession,
+      getSessionId,
       activeTests,
       tiers,
       toast,
@@ -356,7 +352,9 @@ export function useAssessmentGrid({ onToast } = {}) {
 
       try {
         await loadSessionsForDates([nextDate]);
-        const sessionId = await ensureSession(nextDate);
+        const sessionId = getSessionId(nextDate);
+        if (!sessionId) return;
+
         const { data, error } = await supabase
           .from('assessment_results')
           .select('test_id, value')
@@ -382,7 +380,7 @@ export function useAssessmentGrid({ onToast } = {}) {
         toast(err.message ?? 'Could not load results for date.', 'error');
       }
     },
-    [selectedTestIds, loadSessionsForDates, ensureSession, activeTests, tiers, toast],
+    [selectedTestIds, loadSessionsForDates, getSessionId, activeTests, tiers, toast],
   );
 
   const updateCellValue = useCallback(

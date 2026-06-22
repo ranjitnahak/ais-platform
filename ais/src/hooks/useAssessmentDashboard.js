@@ -207,9 +207,17 @@ export function useAssessmentDashboard() {
           resultRows = data ?? [];
         }
 
+        const sessionsWithNumericResults = new Set();
+        for (const row of resultRows) {
+          if (row.value != null && !Number.isNaN(Number(row.value))) {
+            sessionsWithNumericResults.add(row.session_id);
+          }
+        }
+        const sessionsWithData = sessionRows.filter((s) => sessionsWithNumericResults.has(s.id));
+
         let orgResultRows = [];
-        if (filters.scoringMethod === 'org_percentile' && sessionIdsToFetch.length) {
-          const allDates = [...new Set(sessionRows.map((s) => s.assessed_on))];
+        if (filters.scoringMethod === 'org_percentile' && sessionsWithData.length) {
+          const allDates = [...new Set(sessionsWithData.map((s) => s.assessed_on))];
           const { data: orgSessions, error: orgSessionsErr } = await supabase
             .from('assessment_sessions')
             .select('id')
@@ -228,7 +236,7 @@ export function useAssessmentDashboard() {
         }
 
         if (!cancelled) {
-          setTestingDates(sessionRows);
+          setTestingDates(sessionsWithData);
           setTests(testRows);
           setResults(resultRows);
           setOrgResults(orgResultRows);
@@ -239,7 +247,7 @@ export function useAssessmentDashboard() {
           setFiltersState((prev) => {
             const next = { ...prev };
             const validTestIds = new Set(testRows.map((t) => t.id));
-            const validSessionIds = new Set(sessionRows.map((s) => s.id));
+            const validSessionIds = new Set(sessionsWithData.map((s) => s.id));
             const allTestIds = testRows.map((t) => t.id);
 
             if (!next.testIds.length && testRows.length) {
@@ -251,9 +259,9 @@ export function useAssessmentDashboard() {
               }
             }
 
-            if (!next.sessionIds.length && sessionRows.length) {
-              next.sessionIds = sessionRows
-                .slice(0, Math.min(3, sessionRows.length))
+            if (!next.sessionIds.length && sessionsWithData.length) {
+              next.sessionIds = sessionsWithData
+                .slice(0, Math.min(3, sessionsWithData.length))
                 .map((s) => s.id);
             } else {
               next.sessionIds = next.sessionIds.filter((id) => validSessionIds.has(id));
