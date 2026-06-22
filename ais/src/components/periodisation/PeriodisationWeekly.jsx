@@ -5,6 +5,7 @@ import { useSessions, toSessionUpsertRow } from '../../hooks/useSessions';
 import { addDays, formatRange, rowMetricKey, weekStartsBetween, computeAcwrSeries, acwrStyle } from '../../lib/periodisationUtils';
 import { getEffectiveOrgId } from '../../lib/orgScope';
 import { copyWeekSessionsToNext } from '../../lib/periodisationWeekCopy';
+import { copySessionAthleteLogs } from '../../lib/sessionAthleteLogSync';
 import { supabase } from '../../lib/supabaseClient';
 import { dayIsoFromPointer, gridOffsetYFromPointer, normalizeDbTime } from '../../lib/weeklyTimeGrid';
 import WeekNotesEditor from '../ui/WeekNotesEditor';
@@ -262,20 +263,31 @@ export default function PeriodisationWeekly({
     const rest = toSessionUpsertRow(session);
     delete rest.id;
     delete rest.session_date;
-    setClipboard(rest);
+    setClipboard({ ...rest, _sourceSessionId: session.id });
     setCopyNotice(sessionTypeLabel(session.session_type) || 'Session');
     setCtxMenu(null);
   }
 
   async function handlePaste(targetDayIso, targetTime = null) {
     if (!clipboard) return;
+    const orgId = getEffectiveOrgId(user, activeOrgId);
+    const sourceSessionId = clipboard._sourceSessionId ?? null;
+    const { _sourceSessionId, ...sessionData } = clipboard;
     try {
-      await upsertSession({
-        ...clipboard,
+      const created = await upsertSession({
+        ...sessionData,
         session_date: targetDayIso,
-        start_time: targetTime ?? clipboard.start_time ?? DEFAULT_AM_TIME,
+        start_time: targetTime ?? sessionData.start_time ?? DEFAULT_AM_TIME,
         id: undefined,
       });
+      if (created?.id && orgId && teamId) {
+        await copySessionAthleteLogs(supabase, {
+          fromSessionId: sourceSessionId,
+          toSessionId: created.id,
+          orgId,
+          teamId,
+        });
+      }
       setCopyNotice(null);
       setClipboard(null);
     } catch (e) {

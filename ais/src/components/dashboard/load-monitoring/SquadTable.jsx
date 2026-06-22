@@ -73,9 +73,18 @@ export default function SquadTable({ rows, methodLabel, rangeLabel }) {
               <tr key={row.athlete.id}>
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface)] text-xs font-black text-[var(--color-on-surface)]">
-                      {athleteInitialsFromAthlete(row.athlete)}
-                    </div>
+                    {row.athlete.photo_url ? (
+                      <img
+                        src={row.athlete.photo_url}
+                        alt=""
+                        crossOrigin="anonymous"
+                        className="h-9 w-9 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface)] text-xs font-black text-[var(--color-on-surface)]">
+                        {athleteInitialsFromAthlete(row.athlete)}
+                      </div>
+                    )}
                     <div>
                       <p className="font-black text-[var(--color-on-surface)]">{row.athlete.full_name}</p>
                       <p className="text-[10px] text-[var(--color-outline)]">{row.athlete.position || '—'}</p>

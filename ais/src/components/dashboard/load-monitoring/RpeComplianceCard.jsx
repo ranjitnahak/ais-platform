@@ -81,7 +81,7 @@ export default function RpeComplianceCard({ compliance }) {
           </li>
         </ul>
       </div>
-      <p className="mt-4 text-xs italic text-[var(--color-on-surface-variant)]">{subtitle}</p>
+      <p data-pdf-rpe-compliance-subtitle className="mt-4 text-xs italic text-[var(--color-on-surface-variant)]">{subtitle}</p>
     </div>
   );
 }

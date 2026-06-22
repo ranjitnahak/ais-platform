@@ -95,9 +95,6 @@ export default function ResetPassword() {
     const treatAsVoluntary =
       !emailRecoveryVisit &&
       (voluntaryForgotPassword || isVoluntaryForgotPasswordVisit());
-    // #region agent log
-    fetch('http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7b82e9'},body:JSON.stringify({sessionId:'7b82e9',runId:'post-fix-2',hypothesisId:'H11-H12',location:'ResetPassword.jsx:mount',message:'ResetPassword mount',data:{expectPasswordReset:expectPasswordResetRef.current,emailRecoveryVisit,treatAsVoluntary,voluntaryForgotPassword,hashLen:resolved.hash.length,searchLen:resolved.search.length,referrer:typeof document!=='undefined'?document.referrer.slice(0,100):''},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     function enterSetPasswordMode(nextTokenType) {
       clearPendingPasswordReset();
@@ -112,9 +109,6 @@ export default function ResetPassword() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
-      // #region agent log
-      fetch('http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7b82e9'},body:JSON.stringify({sessionId:'7b82e9',runId:'post-fix-2',hypothesisId:'H12',location:'ResetPassword.jsx:onAuthStateChange',message:'Auth state change',data:{event,hasSession:Boolean(session),expectPasswordReset:expectPasswordResetRef.current},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (event === 'PASSWORD_RECOVERY') {
         recoveryDetectedRef.current = true;
         enterSetPasswordMode('recovery');
@@ -144,9 +138,6 @@ export default function ResetPassword() {
 
     async function initSession() {
       setLoading(true);
-      // #region agent log
-      fetch('http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7b82e9'},body:JSON.stringify({sessionId:'7b82e9',runId:'post-fix-2',hypothesisId:'H12',location:'ResetPassword.jsx:initSession:start',message:'initSession start',data:{hasQueryCode:Boolean(queryCode),hasAccessToken:Boolean(accessToken),hashType:type??null,queryType:queryType??null,searchLen:resolved.search.length,hashLen:resolved.hash.length,treatAsVoluntary},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       try {
         const hashTokenHash = params.get('token_hash');
         const queryTokenHash = queryParams.get('token_hash');

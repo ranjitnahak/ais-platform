@@ -114,9 +114,6 @@ export function redirectAuthCallbackToResetPassword() {
 
   if (hasCallback) {
     markPendingPasswordReset(search, hash);
-    // #region agent log
-    fetch('http://127.0.0.1:7450/ingest/09400f1d-2f1d-444b-9de1-5295367ffdb1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7b82e9'},body:JSON.stringify({sessionId:'7b82e9',runId:'post-fix-2',hypothesisId:'H12',location:'authRedirect.js:redirect',message:'Pre-client auth callback captured',data:{pathname,searchLen:search.length,hashLen:hash.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   }
 
   if (pathname === '/reset-password') {

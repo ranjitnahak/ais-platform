@@ -273,13 +273,20 @@ export default function SessionCreateModal({ open, slot, session, planId, defaul
               <div
                 className="rounded-lg px-3 py-2 text-xs"
                 style={{
-                  background: 'color-mix(in srgb, var(--color-tertiary-container) 15%, var(--color-surface))',
-                  color: 'var(--color-tertiary-fixed-dim)',
-                  border: '1px solid color-mix(in srgb, var(--color-tertiary-container) 40%, transparent)',
+                  background: create.rosterPersisted
+                    ? 'color-mix(in srgb, var(--color-tertiary-container) 15%, var(--color-surface))'
+                    : 'color-mix(in srgb, var(--color-primary-container) 15%, var(--color-surface))',
+                  color: create.rosterPersisted
+                    ? 'var(--color-tertiary-fixed-dim)'
+                    : 'var(--color-on-primary-container)',
+                  border: create.rosterPersisted
+                    ? '1px solid color-mix(in srgb, var(--color-tertiary-container) 40%, transparent)'
+                    : '1px solid color-mix(in srgb, var(--color-primary-container) 40%, transparent)',
                 }}
               >
-                {create.includedCount} athlete{create.includedCount === 1 ? '' : 's'} will be prompted to log RPE on
-                their dashboard after this session.
+                {create.rosterPersisted
+                  ? `${create.includedCount} athlete${create.includedCount === 1 ? '' : 's'} will be prompted to log RPE on their dashboard after this session.`
+                  : `Save changes to assign ${create.includedCount} athlete${create.includedCount === 1 ? '' : 's'} — they will not see this session on their dashboard until you save.`}
               </div>
             )}
 

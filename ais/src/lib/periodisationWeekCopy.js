@@ -1,5 +1,6 @@
 import { toSessionUpsertRow } from '../hooks/useSessions';
 import { addDays } from './periodisationUtils';
+import { copySessionAthleteLogs } from './sessionAthleteLogSync';
 
 /**
  * Duplicate all sessions in the current week to the following week (+7 days).
@@ -36,5 +37,17 @@ export async function copyWeekSessionsToNext({ supabase, orgId, teamId, planId, 
   const { data, error } = await supabase.from('sessions').insert(rows).select('id');
   if (error) throw error;
 
-  return { count: data?.length ?? rows.length };
+  const created = data ?? [];
+  await Promise.all(
+    created.map((row, index) =>
+      copySessionAthleteLogs(supabase, {
+        fromSessionId: sessions[index]?.id ?? null,
+        toSessionId: row.id,
+        orgId,
+        teamId,
+      }),
+    ),
+  );
+
+  return { count: created.length };
 }

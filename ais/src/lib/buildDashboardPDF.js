@@ -28,6 +28,20 @@ const RESOLVED_COLOR_PROPS = [
   'stroke',
 ];
 
+const SIZE_PRESERVE_TAGS = new Set(['CANVAS', 'IMG', 'SVG', 'VIDEO']);
+const TEXT_FLOW_TAGS = new Set(['P', 'SPAN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'TD', 'TH', 'LABEL', 'A']);
+const SHORTHAND_PROPS_SKIP = new Set([
+  'font', 'background', 'border', 'margin', 'padding', 'outline', 'flex-flow',
+]);
+
+function shouldSkipMirroredWidth(sourceNode, cs) {
+  const tag = sourceNode.tagName;
+  if (SIZE_PRESERVE_TAGS.has(tag)) return false;
+  if (TEXT_FLOW_TAGS.has(tag)) return true;
+  const flexGrow = cs.getPropertyValue('flex-grow');
+  return flexGrow !== '' && flexGrow !== '0';
+}
+
 function hasUnsupportedColorFn(value) {
   return Boolean(value && UNSUPPORTED_COLOR_RE.test(value));
 }
@@ -48,7 +62,11 @@ function inlineComputedStylesSafe(sourceNode, cloneNode) {
   stripColorMixClasses(cloneNode);
   cloneNode.removeAttribute('style');
 
+  const skipWidth = shouldSkipMirroredWidth(sourceNode, cs);
+
   for (const prop of cs) {
+    if (skipWidth && (prop === 'width' || prop === 'max-width')) continue;
+    if (SHORTHAND_PROPS_SKIP.has(prop)) continue;
     const val = cs.getPropertyValue(prop);
     if (!val || hasUnsupportedColorFn(val)) continue;
     cloneNode.style.setProperty(prop, val, cs.getPropertyPriority(prop));
@@ -103,6 +121,81 @@ function scrubUnsupportedColorFunctions(root) {
   }
 }
 
+const SPIKE_BANNER_SPLIT = '. High spike risk';
+
+function fixSpikeWarningBannerForCapture(clone) {
+  const el = clone.querySelector('[data-pdf-spike-banner-text]');
+  if (!el) return;
+
+  const container = el.closest('[data-pdf-spike-banner]') ?? el.parentElement;
+  const text = el.textContent ?? '';
+  const splitAt = text.indexOf(SPIKE_BANNER_SPLIT);
+
+  el.style.removeProperty('font');
+  el.style.removeProperty('width');
+  el.style.removeProperty('max-width');
+  el.style.removeProperty('height');
+  el.style.removeProperty('min-height');
+  el.style.setProperty('min-width', '0');
+  el.style.setProperty('flex', '1 1 0%');
+  el.style.setProperty('display', 'block');
+  el.style.setProperty('height', 'auto');
+  el.style.setProperty('line-height', '1.5');
+  el.style.setProperty('white-space', 'normal');
+  el.style.setProperty('overflow', 'visible');
+
+  el.textContent = '';
+  if (splitAt > 0) {
+    el.appendChild(document.createTextNode(text.slice(0, splitAt + 1)));
+    el.appendChild(document.createElement('br'));
+    el.appendChild(document.createTextNode(text.slice(splitAt + 2)));
+  } else {
+    el.textContent = text;
+  }
+
+  if (container) {
+    container.style.removeProperty('height');
+    container.style.setProperty('height', 'auto');
+    container.style.setProperty('overflow', 'visible');
+    container.style.setProperty('align-items', 'flex-start');
+    const containerScrollH = container.scrollHeight;
+    if (containerScrollH > container.offsetHeight) {
+      container.style.setProperty('min-height', `${containerScrollH}px`);
+    }
+  }
+
+  const textScrollH = el.scrollHeight;
+  if (textScrollH > el.offsetHeight) {
+    el.style.setProperty('min-height', `${textScrollH}px`);
+  }
+}
+
+function fixRpeComplianceSubtitleForCapture(clone) {
+  const el = clone.querySelector('[data-pdf-rpe-compliance-subtitle]');
+  if (!el) return;
+
+  const text = el.textContent ?? '';
+  const parts = text.split(' · ');
+
+  el.style.removeProperty('font');
+  el.style.removeProperty('width');
+  el.style.removeProperty('height');
+  el.style.setProperty('font-style', 'normal');
+  el.style.setProperty('white-space', 'normal');
+  el.style.setProperty('letter-spacing', 'normal');
+  el.style.setProperty('height', 'auto');
+  el.style.setProperty('overflow', 'visible');
+
+  el.textContent = '';
+  if (parts.length === 2) {
+    el.appendChild(document.createTextNode(parts[0].trim()));
+    el.appendChild(document.createTextNode(' · '));
+    el.appendChild(document.createTextNode(parts[1].trim()));
+  } else {
+    el.textContent = text;
+  }
+}
+
 function prepareClone(contentEl) {
   const container = document.createElement('div');
   container.setAttribute('aria-hidden', 'true');
@@ -133,6 +226,9 @@ function prepareClone(contentEl) {
 
   container.appendChild(clone);
   document.body.appendChild(container);
+
+  fixSpikeWarningBannerForCapture(clone);
+  fixRpeComplianceSubtitleForCapture(clone);
 
   return { container, clone };
 }

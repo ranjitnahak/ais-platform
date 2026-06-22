@@ -16,6 +16,7 @@ export function useSessionSelection({
   setToast,
   dismissSingleClipboard,
 }) {
+  const orgId = user?.orgId
   const [selectedSessionIds, setSelectedSessionIds] = useState(() => new Set())
   const [barDeleteConfirm, setBarDeleteConfirm] = useState(false)
   const [barBusy, setBarBusy] = useState(false)
@@ -69,13 +70,13 @@ export function useSessionSelection({
   )
 
   const publishAllSelected = useCallback(() => {
-    if (!can('programme', 'edit')) return
+    if (!can('programme', 'edit') || !orgId) return
     const ids = Array.from(selectedSessionIds)
     if (!ids.length) return
     setBarBusy(true)
     void (async () => {
       try {
-        await bulkPublishSessions(supabase, user.orgId, ids)
+        await bulkPublishSessions(supabase, orgId, ids)
         setToast(`${ids.length} sessions published`)
         clearSelection()
         await refreshWeek()
@@ -86,17 +87,17 @@ export function useSessionSelection({
         setBarBusy(false)
       }
     })()
-  }, [user.orgId, selectedSessionIds, setToast, clearSelection, refreshWeek])
+  }, [orgId, selectedSessionIds, setToast, clearSelection, refreshWeek])
 
   const copyAllSelected = useCallback(() => {
-    if (!can('programme', 'edit')) return
+    if (!can('programme', 'edit') || !orgId) return
     const ids = Array.from(selectedSessionIds)
     if (!ids.length) return
     setBarBusy(true)
     void (async () => {
       try {
         dismissSingleClipboard?.()
-        const payloads = await fetchSessionsForBulkCopy(supabase, user.orgId, ids)
+        const payloads = await fetchSessionsForBulkCopy(supabase, orgId, ids)
         copiedSessionsRef.current = payloads
         setCopiedSessions(payloads)
         setToast(`${ids.length} sessions copied — click empty slots to paste`)
@@ -108,16 +109,16 @@ export function useSessionSelection({
         setBarBusy(false)
       }
     })()
-  }, [user.orgId, selectedSessionIds, setToast, clearSelection, dismissSingleClipboard])
+  }, [orgId, selectedSessionIds, setToast, clearSelection, dismissSingleClipboard])
 
   const confirmDeleteSelected = useCallback(() => {
-    if (!can('programme', 'edit')) return
+    if (!can('programme', 'edit') || !orgId) return
     const ids = Array.from(selectedSessionIds)
     if (!ids.length) return
     setBarBusy(true)
     void (async () => {
       try {
-        await bulkDeleteSessionsOrdered(supabase, user.orgId, ids)
+        await bulkDeleteSessionsOrdered(supabase, orgId, ids)
         setToast(`${ids.length} sessions deleted`)
         clearSelection()
         await refreshWeek()
@@ -129,17 +130,17 @@ export function useSessionSelection({
         setBarDeleteConfirm(false)
       }
     })()
-  }, [user.orgId, selectedSessionIds, setToast, clearSelection, refreshWeek])
+  }, [orgId, selectedSessionIds, setToast, clearSelection, refreshWeek])
 
   const tryPasteBulkSlot = useCallback(
     (targetDateIso) => {
       const q = copiedSessionsRef.current
-      if (!q.length || !weekId) return false
+      if (!q.length || !weekId || !orgId) return false
       const clip = q[0]
       void (async () => {
         try {
           await pasteClipboardToWeekDay(supabase, {
-            orgId: user.orgId,
+            orgId,
             clipboard: clip,
             targetDateIso,
             programmeWeekId: weekId,
@@ -157,7 +158,7 @@ export function useSessionSelection({
       })()
       return true
     },
-    [user.orgId, weekId, refreshWeek, setToast],
+    [orgId, weekId, refreshWeek, setToast],
   )
 
   return {

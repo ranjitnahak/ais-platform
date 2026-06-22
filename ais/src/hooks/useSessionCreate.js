@@ -62,6 +62,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
   const [includedAthleteIds, setIncludedAthleteIds] = useState(new Set());
   const [teamsLoading, setTeamsLoading] = useState(false);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterPersisted, setRosterPersisted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
@@ -206,6 +207,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     setContentItems([]);
     setError(null);
     setToast(null);
+    setRosterPersisted(false);
     if (defaultTeamId) setSelectedTeamId(defaultTeamId);
   }, [defaultTeamId, defaultSessionType, defaultVenue]);
 
@@ -232,6 +234,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
       setToast(null);
 
       let includedIds = null;
+      let hasPersistedRoster = false;
       if (effectiveOrgId) {
         const { data: logs, error: logsError } = await supabase
           .from('session_athlete_logs')
@@ -240,8 +243,10 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
           .eq('org_id', effectiveOrgId);
         if (!logsError && logs?.length) {
           includedIds = logs.map((row) => row.athlete_id);
+          hasPersistedRoster = true;
         }
       }
+      setRosterPersisted(hasPersistedRoster);
       pendingRosterIncludedRef.current = includedIds;
       setSelectedTeamId(session.team_id || defaultTeamId || '');
     },
@@ -323,7 +328,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
         end_time: toDbTime(endTime),
         session_type: sessionType,
         venue,
-        rpe_planned: rpePlanned,
+        rpe_planned: rpePlanned == null ? null : Number(rpePlanned),
         rpe_actual: rpeActualVal,
         duration_planned: Number(durationPlanned) || durationFromTimes(startTime, endTime),
         duration_actual: durationActualVal,
@@ -415,6 +420,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
         }
       }
 
+      setRosterPersisted(includedIds.length > 0);
       return session;
     } catch (err) {
       console.error('[useSessionCreate] saveSession failed:', err);
@@ -471,6 +477,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     totalAthletes,
     teamsLoading,
     rosterLoading,
+    rosterPersisted,
     saving,
     error,
     toast,

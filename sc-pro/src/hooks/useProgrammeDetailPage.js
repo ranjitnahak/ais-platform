@@ -90,7 +90,6 @@ export function useProgrammeDetailPage(programmeId) {
         .select('*')
         .eq('id', programmeId)
         .eq('org_id', user.orgId)
-        .in('team_id', userTeamIds)
         .maybeSingle()
       if (e1) throw e1
       if (!p) throw new Error('Programme not found')
@@ -100,7 +99,6 @@ export function useProgrammeDetailPage(programmeId) {
         .select('*')
         .eq('programme_id', programmeId)
         .eq('org_id', user.orgId)
-        .in('team_id', userTeamIds)
         .order('week_number')
       if (e2) throw e2
       setWeeks(w ?? [])
@@ -326,7 +324,7 @@ export function useProgrammeDetailPage(programmeId) {
 
   async function saveTemplate() {
     try {
-      const { error } = await supabase.from('programmes').update({ is_template: true }).eq('id', programmeId).eq('org_id', user.orgId).in('team_id', userTeamIds)
+      const { error } = await supabase.from('programmes').update({ is_template: true }).eq('id', programmeId).eq('org_id', user.orgId)
       if (error) throw error
       setToast('Saved as template')
       void load()
@@ -380,7 +378,7 @@ export function useProgrammeDetailPage(programmeId) {
           deltaDays: delta,
         })
       }
-      const { error } = await supabase.from('programmes').update(patch).eq('id', programmeId).eq('org_id', user.orgId).in('team_id', userTeamIds)
+      const { error } = await supabase.from('programmes').update(patch).eq('id', programmeId).eq('org_id', user.orgId)
       if (error) {
         if (delta !== 0) {
           await shiftProgrammeSessionsByDelta({
@@ -415,7 +413,6 @@ export function useProgrammeDetailPage(programmeId) {
         .update({ name: trimmed })
         .eq('id', programmeId)
         .eq('org_id', user.orgId)
-        .in('team_id', userTeamIds)
       if (error) throw error
       setProgramme((prev) => (prev ? { ...prev, name: trimmed } : prev))
       setToast('Programme name updated')
@@ -431,7 +428,7 @@ export function useProgrammeDetailPage(programmeId) {
       if (d1) throw d1
       const { error: d2 } = await supabase.from('programme_athletes').delete().eq('programme_id', programmeId).eq('org_id', user.orgId)
       if (d2) throw d2
-      const { error: e2 } = await supabase.from('programmes').update({ athlete_id: null }).eq('id', programmeId).eq('org_id', user.orgId).in('team_id', userTeamIds)
+      const { error: e2 } = await supabase.from('programmes').update({ athlete_id: null }).eq('id', programmeId).eq('org_id', user.orgId)
       if (e2) throw e2
       setToast('Assignments cleared')
       await load()
