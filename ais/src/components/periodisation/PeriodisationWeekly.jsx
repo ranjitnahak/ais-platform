@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getCurrentUser, canSync } from '../../lib/auth';
+import { useUser } from '../../context/UserContext';
 import { useSessions, toSessionUpsertRow } from '../../hooks/useSessions';
 import { addDays, formatRange, rowMetricKey, weekStartsBetween, computeAcwrSeries, acwrStyle } from '../../lib/periodisationUtils';
+import { getEffectiveOrgId } from '../../lib/orgScope';
+import { copyWeekSessionsToNext } from '../../lib/periodisationWeekCopy';
+import { supabase } from '../../lib/supabaseClient';
 import { dayIsoFromPointer, gridOffsetYFromPointer, normalizeDbTime } from '../../lib/weeklyTimeGrid';
 import WeekNotesEditor from '../ui/WeekNotesEditor';
 import SessionCreateModal from '../sessions/SessionCreateModal';
@@ -51,6 +55,7 @@ export default function PeriodisationWeekly({
   onNext,
 }) {
   const { sessionTypeLabel } = useSessionConfig();
+  const { activeOrgId } = useUser();
   const [user, setUser] = useState(null);
   const { sessions, loading: initialLoading, fetchSessions, upsertSession, deleteSession } = useSessions(
     teamId,
@@ -61,6 +66,8 @@ export default function PeriodisationWeekly({
   const [sessionModal, setSessionModal] = useState(null);
   const [clipboard, setClipboard] = useState(null);
   const [copyNotice, setCopyNotice] = useState(null);
+  const [copyWeekBusy, setCopyWeekBusy] = useState(false);
+  const [copyWeekNotice, setCopyWeekNotice] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [dragSession, setDragSession] = useState(null);
   const [dragOverDay, setDragOverDay] = useState(null);
@@ -174,6 +181,51 @@ export default function PeriodisationWeekly({
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const canEdit = canSync(user, 'periodisation', 'edit');
+  const canCopyWeek = canEdit && sessions.length > 0 && weekIndex + 1 < allWeeks.length;
+  const copyWeekDisabledTitle = !canEdit
+    ? ''
+    : sessions.length === 0
+      ? 'No sessions to copy'
+      : weekIndex + 1 >= allWeeks.length
+        ? 'Already on last week of plan'
+        : '';
+
+  useEffect(() => {
+    if (!copyWeekNotice) return undefined;
+    const t = setTimeout(() => setCopyWeekNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [copyWeekNotice]);
+
+  async function handleCopyWeekToNext() {
+    if (!canCopyWeek || copyWeekBusy) return;
+    const orgId = getEffectiveOrgId(user, activeOrgId);
+    if (!orgId || !teamId || !plan?.id) return;
+
+    setCopyWeekBusy(true);
+    try {
+      const { count } = await copyWeekSessionsToNext({
+        supabase,
+        orgId,
+        teamId,
+        planId: plan.id,
+        sessions,
+      });
+      if (count === 0) {
+        setCopyWeekNotice({ type: 'error', text: 'Nothing to copy.' });
+        return;
+      }
+      onNext();
+      setCopyWeekNotice({
+        type: 'success',
+        text: `${count} session${count === 1 ? '' : 's'} copied to next week`,
+      });
+    } catch (e) {
+      console.error(e);
+      setCopyWeekNotice({ type: 'error', text: e.message ?? 'Could not copy week.' });
+    } finally {
+      setCopyWeekBusy(false);
+    }
+  }
 
   async function handleDropOnDay(targetDayIso, targetTime = null, sessionToMove = null) {
     const sess = sessionToMove ?? dragSession;
@@ -315,6 +367,17 @@ export default function PeriodisationWeekly({
           <button type="button" onClick={onNext} className="text-[10px] font-bold uppercase text-gray-400 hover:text-white">
             Next →
           </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => void handleCopyWeekToNext()}
+              disabled={!canCopyWeek || copyWeekBusy}
+              title={copyWeekDisabledTitle || undefined}
+              className="px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-bold uppercase text-gray-300 hover:text-white hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-300"
+            >
+              {copyWeekBusy ? 'Copying…' : 'Copy to next week'}
+            </button>
+          )}
           <button
             type="button"
             onClick={onBack}
@@ -423,6 +486,25 @@ export default function PeriodisationWeekly({
             onOffsetToTime={handleOffsetToTime}
             gridRef={timeGridRef}
           />
+        </div>
+      )}
+
+      {copyWeekNotice && (
+        <div
+          className={`mt-2 rounded-lg border px-3 py-2 text-[11px] flex items-center justify-between gap-2 ${
+            copyWeekNotice.type === 'success'
+              ? 'border-emerald-700/40 bg-emerald-900/30 text-emerald-300'
+              : 'border-red-700/40 bg-red-900/30 text-red-300'
+          }`}
+        >
+          <span>{copyWeekNotice.text}</span>
+          <button
+            type="button"
+            className="text-[10px] font-bold uppercase text-gray-400 hover:text-white"
+            onClick={() => setCopyWeekNotice(null)}
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
