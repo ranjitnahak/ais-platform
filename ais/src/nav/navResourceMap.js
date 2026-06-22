@@ -18,7 +18,7 @@ export const NAV_ROUTE_RESOURCE = {
 };
 
 const DASHBOARD_NAV_RESOURCES = ['wellness', 'rpe_logging', 'injury_surveillance', 'assessments'];
-const LOG_NAV_RESOURCES = ['wellness', 'rpe_logging', 'assessments', 'staff_notes'];
+const LOG_NAV_RESOURCES = ['wellness', 'rpe_logging', 'assessments', 'staff_notes', 'attendance'];
 
 const STAFF_HOME_ROUTE_ORDER = [
   '/dashboard',

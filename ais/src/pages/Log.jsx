@@ -10,12 +10,14 @@ import StaffNotes from './StaffNotes';
 import DexaUploadTab from '../components/dexa/DexaUploadTab';
 import LogSkeleton from '../components/shared/skeletons/LogSkeleton';
 import AssessmentTab from './log/AssessmentTab';
+import AttendanceTab from './log/AttendanceTab';
 
 const ALL_TABS = [
   { id: 'rpe-entry', label: 'RPE Entry', resource: 'rpe_logging' },
   { id: 'wellness-entry', label: 'Wellness Entry', resource: 'wellness' },
   { id: 'assessment', label: 'Assessment', resource: 'assessments' },
   { id: 'staff-notes', label: 'Staff Notes', resource: 'staff_notes' },
+  { id: 'attendance', label: 'Attendance', resource: 'attendance' },
   { id: 'dexa', label: 'DEXA Upload' },
 ];
 
@@ -35,6 +37,7 @@ export default function Log() {
       'wellness-entry': () => <WellnessEntryForm />,
       assessment: () => <AssessmentTab />,
       'staff-notes': () => <StaffNotes embedded />,
+      attendance: () => <AttendanceTab />,
       dexa: () => <DexaUploadTab />,
     }),
     [],

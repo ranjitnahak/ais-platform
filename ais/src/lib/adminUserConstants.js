@@ -41,7 +41,7 @@ export const STAFF_ROLE_DB_NAME = {
 
 export const PERMISSION_CATEGORIES = [
   { label: 'Dashboard', resources: ['wellness', 'rpe_logging', 'injury_surveillance'] },
-  { label: 'Log', resources: ['assessments', 'staff_notes'] },
+  { label: 'Log', resources: ['assessments', 'staff_notes', 'attendance'] },
   { label: 'Reports', resources: ['reports', 'unified_reports'] },
   { label: 'Planning', resources: ['periodisation', 'sessionLibrary', 'sc_pro'] },
   { label: 'Roster', resources: ['athleteRoster', 'athlete_portal'] },

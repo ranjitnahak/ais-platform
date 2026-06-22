@@ -61,6 +61,14 @@
   --color-surface-hover: var(--color-surface-container-high);
   --color-border: var(--color-outline-variant);
 
+  /* ── Attendance status aliases ── */
+  --color-text-success: var(--color-tertiary);
+  --color-background-success: color-mix(in srgb, var(--color-tertiary-container) 18%, var(--color-surface));
+  --color-text-warning: var(--color-primary-container);
+  --color-background-warning: color-mix(in srgb, var(--color-primary-container) 18%, var(--color-surface));
+  --color-text-danger: var(--color-error);
+  --color-background-danger: color-mix(in srgb, var(--color-error-container) 22%, var(--color-surface));
+
   /* ── Typography ── */
   --font-headline: "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
