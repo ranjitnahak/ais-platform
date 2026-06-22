@@ -303,6 +303,12 @@ export async function canEditPlan(plan) { try { const allowed = await can('perio
 
 export async function canEditSessionLibrary() { try { return await can('sessionLibrary', 'admin'); } catch (err) { console.error('[auth.js] session library check failed:', err); return false; } }
 
+export const canEditAttendance = (session, user) => {
+  const hoursSince = (Date.now() - new Date(session.session_date)) / 36e5;
+  if (hoursSince <= 48) return canSync(user, 'attendance', 'edit');
+  return user.role === 'admin' || user.role === 'superuser';
+};
+
 // const FALLBACK_USER = {
 //   id: 'u1000000-0000-0000-0000-000000000001',
 //   orgId: 'a1000000-0000-0000-0000-000000000001',
