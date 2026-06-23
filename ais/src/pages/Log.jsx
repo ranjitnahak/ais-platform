@@ -1,71 +1,36 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
-import { isVisibleSync } from '../lib/auth';
+import { filterLogSubItems, getDefaultLogRoute } from '../nav/navResourceMap';
 import StaffPageLayout from '../components/layout/StaffPageLayout';
-import TabShell from '../components/layout/TabShell';
-import RPEEntryForm from '../components/log/RPEEntryForm';
-import WellnessEntryForm from '../components/log/WellnessEntryForm';
-import StaffNotes from './StaffNotes';
-import DexaUploadTab from '../components/dexa/DexaUploadTab';
 import LogSkeleton from '../components/shared/skeletons/LogSkeleton';
-import AssessmentTab from './log/AssessmentTab';
-import AttendanceTab from './log/AttendanceTab';
-
-const ALL_TABS = [
-  { id: 'rpe-entry', label: 'RPE Entry', resource: 'rpe_logging' },
-  { id: 'wellness-entry', label: 'Wellness Entry', resource: 'wellness' },
-  { id: 'assessment', label: 'Assessment', resource: 'assessments' },
-  { id: 'staff-notes', label: 'Staff Notes', resource: 'staff_notes' },
-  { id: 'attendance', label: 'Attendance', resource: 'attendance' },
-  { id: 'dexa', label: 'DEXA Upload' },
-];
 
 export default function Log() {
-  const [activeTab, setActiveTab] = useState('rpe-entry');
-  const { user, activeOrgId, activeTeamId, loading: userLoading } = useUser();
+  const { user, activeOrgId, loading: userLoading } = useUser();
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
+  const { pathname } = useLocation();
+  const visibleSubItems = filterLogSubItems(user);
+  const isIndex = pathname === '/log' || pathname === '/log/';
 
-  const visibleTabs = useMemo(
-    () => ALL_TABS.filter((tab) => isVisibleSync(user, tab.resource)),
-    [user],
-  );
-
-  const panels = useMemo(
-    () => ({
-      'rpe-entry': () => <RPEEntryForm />,
-      'wellness-entry': () => <WellnessEntryForm />,
-      assessment: () => <AssessmentTab />,
-      'staff-notes': () => <StaffNotes embedded />,
-      attendance: () => <AttendanceTab />,
-      dexa: () => <DexaUploadTab />,
-    }),
-    [],
-  );
-
-  useEffect(() => {
-    if (!visibleTabs.length) return;
-    if (!visibleTabs.some((tab) => tab.id === activeTab)) {
-      setActiveTab(visibleTabs[0].id);
-    }
-  }, [visibleTabs, activeTab]);
+  if (isIndex && !userLoading && user) {
+    return <Navigate to={getDefaultLogRoute(user)} replace />;
+  }
 
   return (
     <StaffPageLayout title="Log" showSearch={false}>
       {userLoading ? (
         <LogSkeleton />
-      ) : visibleTabs.length === 0 ? (
+      ) : visibleSubItems.length === 0 ? (
         <p className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-8 text-center text-sm text-[var(--color-on-surface-variant)]">
           You do not have access to any log views.
         </p>
       ) : (
-        <TabShell
-          tabs={visibleTabs}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          panels={panels}
-          scopeKey={`${effectiveOrgId ?? 'log'}-${activeTeamId ?? 'none'}`}
-        />
+        <div key={effectiveOrgId ?? 'log'}>
+          <Suspense fallback={<LogSkeleton contentOnly />}>
+            <Outlet />
+          </Suspense>
+        </div>
       )}
     </StaffPageLayout>
   );

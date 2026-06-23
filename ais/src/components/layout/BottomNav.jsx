@@ -7,10 +7,11 @@ import {
   STAFF_MORE_NAV,
   STAFF_PLAN_NAV,
   STAFF_DASHBOARD_NAV,
+  STAFF_LOG_NAV,
   ATHLETE_BOTTOM_NAV,
   ATHLETE_MORE_NAV,
 } from '../../nav/mobileNavItems';
-import { filterStaffNavItems, isDashboardSubRouteVisible, isNavRouteVisible } from '../../nav/navResourceMap';
+import { filterStaffNavItems, isDashboardSubRouteVisible, isLogSubRouteVisible, isNavRouteVisible } from '../../nav/navResourceMap';
 
 const ADMIN_ROLES = ['admin', 'superuser'];
 
@@ -28,6 +29,9 @@ function filterStaffItems(items, user) {
 function isRouteActive(pathname, to) {
   if (to === '/dashboard/wellness' || to === '/athlete-home') {
     return pathname === to || pathname.startsWith('/dashboard/');
+  }
+  if (to === '/log') {
+    return pathname === '/log' || pathname.startsWith('/log/');
   }
   return pathname === to || pathname.startsWith(`${to}/`);
 }
@@ -47,7 +51,7 @@ function NavIcon({ icon, active }) {
   );
 }
 
-function MoreSheet({ open, items, planItems, dashboardItems, showPlanSection, showDashboardSection, onClose, pathname, user }) {
+function MoreSheet({ open, items, planItems, dashboardItems, logItems, showPlanSection, showDashboardSection, showLogSection, onClose, pathname, user }) {
   const navigate = useNavigate();
   const { displayName, roleLabel } = getUserAccountLabels(user);
 
@@ -146,9 +150,27 @@ function MoreSheet({ open, items, planItems, dashboardItems, showPlanSection, sh
               ))}
             </>
           )}
+          {showLogSection && logItems.length > 0 && (
+            <>
+              <li>
+                <p className="px-6 pt-4 pb-1 text-[10px] font-bold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
+                  Log
+                </p>
+              </li>
+              {logItems.map((item) => (
+                <li key={item.to}>
+                  <div className="mx-4 border-t border-[var(--color-outline-variant)]" />
+                  {renderNavRow(item, true)}
+                </li>
+              ))}
+            </>
+          )}
           {items.map((item, index) => (
             <li key={item.to}>
-              {(index > 0 || (showPlanSection && planItems.length > 0) || (showDashboardSection && dashboardItems.length > 0)) && (
+              {(index > 0 ||
+                (showPlanSection && planItems.length > 0) ||
+                (showDashboardSection && dashboardItems.length > 0) ||
+                (showLogSection && logItems.length > 0)) && (
                 <div className="mx-4 border-t border-[var(--color-outline-variant)]" />
               )}
               {renderNavRow(item)}
@@ -174,7 +196,7 @@ function MoreSheet({ open, items, planItems, dashboardItems, showPlanSection, sh
   );
 }
 
-function BottomBarItem({ item, active, onMoreClick }) {
+function BottomBarItem({ item, active, pathname, onMoreClick }) {
   if (item.isMore) {
     return (
       <button
@@ -203,19 +225,22 @@ function BottomBarItem({ item, active, onMoreClick }) {
       end={item.to === '/dashboard/wellness' || item.to === '/athlete-home'}
       className="flex flex-1 flex-col items-center justify-center gap-1 py-2 min-w-0"
     >
-      {({ isActive }) => (
-        <>
-          <NavIcon icon={item.icon} active={isActive} />
-          <span
-            className="text-[10px] font-bold uppercase tracking-wide truncate max-w-full px-1"
-            style={{
-              color: isActive ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
-            }}
-          >
-            {item.label}
-          </span>
-        </>
-      )}
+      {({ isActive }) => {
+        const routeActive = item.to === '/log' ? isRouteActive(pathname, '/log') : isActive;
+        return (
+          <>
+            <NavIcon icon={item.icon} active={routeActive} />
+            <span
+              className="text-[10px] font-bold uppercase tracking-wide truncate max-w-full px-1"
+              style={{
+                color: routeActive ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+              }}
+            >
+              {item.label}
+            </span>
+          </>
+        );
+      }}
     </NavLink>
   );
 }
@@ -245,14 +270,20 @@ export default function BottomNav({ variant = 'staff' }) {
         : [],
     [isStaff, user],
   );
+  const logItems = useMemo(
+    () => (isStaff ? STAFF_LOG_NAV.filter((item) => isLogSubRouteVisible(user, item.to)) : []),
+    [isStaff, user],
+  );
   const showPlanSection = isStaff && isNavRouteVisible(user, '/periodisation');
   const showDashboardSection = isStaff && isNavRouteVisible(user, '/dashboard');
+  const showLogSection = isStaff && isNavRouteVisible(user, '/log');
 
   const moreActive =
     moreOpen ||
     moreItems.some((item) => isRouteActive(pathname, item.to)) ||
     planItems.some((item) => isRouteActive(pathname, item.to)) ||
-    dashboardItems.some((item) => isRouteActive(pathname, item.to));
+    dashboardItems.some((item) => isRouteActive(pathname, item.to)) ||
+    logItems.some((item) => isRouteActive(pathname, item.to));
 
   const barWithMore = [
     ...barItems,
@@ -270,8 +301,10 @@ export default function BottomNav({ variant = 'staff' }) {
         items={moreItems}
         planItems={planItems}
         dashboardItems={dashboardItems}
+        logItems={logItems}
         showPlanSection={showPlanSection}
         showDashboardSection={showDashboardSection}
+        showLogSection={showLogSection}
         onClose={() => setMoreOpen(false)}
         pathname={pathname}
         user={user}
@@ -285,6 +318,7 @@ export default function BottomNav({ variant = 'staff' }) {
             <BottomBarItem
               key={item.label}
               item={item}
+              pathname={pathname}
               active={item.isMore ? moreActive : false}
               onMoreClick={() => setMoreOpen(true)}
             />

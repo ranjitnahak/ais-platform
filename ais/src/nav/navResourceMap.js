@@ -1,5 +1,6 @@
 import { isVisibleSync } from '../lib/auth';
 import { DASHBOARD_SUB_ITEMS } from './dashboardNavItems';
+import { DEFAULT_LOG_ROUTE, LOG_SUB_ITEMS } from './logNavItems';
 
 /** Maps staff nav routes to permission resources (visibility + CRUD). */
 export const NAV_ROUTE_RESOURCE = {
@@ -12,6 +13,12 @@ export const NAV_ROUTE_RESOURCE = {
   '/periodisation': 'periodisation',
   '/plan/calendar': 'periodisation',
   '/log': null,
+  '/log/rpe': 'rpe_logging',
+  '/log/wellness': 'wellness',
+  '/log/assessment': 'assessments',
+  '/log/staff-notes': 'staff_notes',
+  '/log/attendance': 'attendance',
+  '/log/dexa': null,
   '/reports': 'reports',
   '/admin': 'adminConfig',
   '/settings': null,
@@ -60,6 +67,25 @@ export function getDefaultDashboardRoute(user) {
 export function isLogNavVisible(user) {
   if (!user || user.isSuperuser) return true;
   return LOG_NAV_RESOURCES.some((resource) => isVisibleSync(user, resource));
+}
+
+/** Whether a log sub-route should appear in sidebar / mobile nav. */
+export function isLogSubRouteVisible(user, to) {
+  if (!user) return false;
+  if (user.isSuperuser) return true;
+  const item = LOG_SUB_ITEMS.find((sub) => sub.to === to);
+  if (!item?.resource) return true;
+  return isVisibleSync(user, item.resource);
+}
+
+export function filterLogSubItems(user) {
+  return LOG_SUB_ITEMS.filter((item) => isLogSubRouteVisible(user, item.to));
+}
+
+/** First log sub-route the user can access. */
+export function getDefaultLogRoute(user) {
+  const visible = filterLogSubItems(user);
+  return visible[0]?.to ?? DEFAULT_LOG_ROUTE;
 }
 
 /** Reports nav/page also covers unified AI reports. */

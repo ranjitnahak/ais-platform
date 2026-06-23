@@ -12,6 +12,15 @@ export const STAFF_DASHBOARD_NAV = [
   { icon: 'trending_up', label: 'Assessment', to: '/dashboard/assessment', resource: 'assessments' },
 ];
 
+export const STAFF_LOG_NAV = [
+  { icon: 'fitness_center', label: 'RPE Entry', to: '/log/rpe', resource: 'rpe_logging' },
+  { icon: 'monitor_heart', label: 'Wellness Entry', to: '/log/wellness', resource: 'wellness' },
+  { icon: 'trending_up', label: 'Assessment', to: '/log/assessment', resource: 'assessments' },
+  { icon: 'sticky_note_2', label: 'Staff Notes', to: '/log/staff-notes', resource: 'staff_notes' },
+  { icon: 'event_available', label: 'Attendance', to: '/log/attendance', resource: 'attendance' },
+  { icon: 'upload_file', label: 'DEXA Upload', to: '/log/dexa' },
+];
+
 export const STAFF_PLAN_NAV = [
   { icon: 'view_week', label: 'Periodisation', to: '/periodisation' },
   { icon: 'calendar_month', label: 'Calendar', to: '/plan/calendar' },

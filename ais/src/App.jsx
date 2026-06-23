@@ -6,6 +6,12 @@ const DashboardWellness = lazy(() => import('./pages/dashboard/DashboardWellness
 const DashboardAttendance = lazy(() => import('./pages/dashboard/DashboardAttendance'));
 const DashboardRPE = lazy(() => import('./pages/dashboard/DashboardRPE'));
 const AssessmentDashboard = lazy(() => import('./pages/dashboard/AssessmentDashboard'));
+const LogRPE = lazy(() => import('./pages/log/LogRPE'));
+const LogWellness = lazy(() => import('./pages/log/LogWellness'));
+const LogAssessment = lazy(() => import('./pages/log/LogAssessment'));
+const LogStaffNotes = lazy(() => import('./pages/log/LogStaffNotes'));
+const LogAttendance = lazy(() => import('./pages/log/LogAttendance'));
+const LogDexa = lazy(() => import('./pages/log/LogDexa'));
 import Log from './pages/Log';
 import Reports from './pages/Reports';
 import AthleteReportView from './pages/AthleteReportView';
@@ -208,7 +214,15 @@ export default function App() {
               <Route path="rpe" element={<DashboardRPE />} />
               <Route path="assessment" element={<AssessmentDashboard />} />
             </Route>
-            <Route path="/log" element={<Log />} />
+            <Route path="/log" element={<Log />}>
+              <Route index element={<Navigate to="rpe" replace />} />
+              <Route path="rpe" element={<LogRPE />} />
+              <Route path="wellness" element={<LogWellness />} />
+              <Route path="assessment" element={<LogAssessment />} />
+              <Route path="staff-notes" element={<LogStaffNotes />} />
+              <Route path="attendance" element={<LogAttendance />} />
+              <Route path="dexa" element={<LogDexa />} />
+            </Route>
             <Route path="/reports" element={<Reports />} />
             <Route path="/reports/athlete/:reportId" element={<AthleteReportView />} />
             <Route path="/reports/team/:reportId" element={<TeamReportView />} />
@@ -216,14 +230,14 @@ export default function App() {
             <Route path="/athletes" element={<Athletes />} />
             <Route path="/athletes/:id" element={<AthleteProfile />} />
             <Route path="/wellness" element={<Navigate to="/dashboard/wellness" replace />} />
-            <Route path="/staff-notes" element={<Navigate to="/log" replace />} />
+            <Route path="/staff-notes" element={<Navigate to="/log/staff-notes" replace />} />
             <Route path="/squad" element={<Navigate to="/dashboard/wellness" replace />} />
             <Route path="/periodisation" element={<Periodisation />} />
             <Route
               path="/plan/calendar"
               element={<Periodisation defaultView="weekly" defaultWeek="current" />}
             />
-            <Route path="/assess" element={<Navigate to="/log" replace />} />
+            <Route path="/assess" element={<Navigate to="/log/assessment" replace />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/users/:userId" element={<UserDetailPage />} />

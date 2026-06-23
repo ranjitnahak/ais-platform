@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { MAIN_NAV_ITEMS, SUPERUSER_NAV_ITEM } from '../nav/mainNavItems';
 import { DASHBOARD_SUB_ITEMS } from '../nav/dashboardNavItems';
+import { LOG_SUB_ITEMS } from '../nav/logNavItems';
 import { useUser } from '../context/UserContext';
-import { filterStaffNavItems, isDashboardSubRouteVisible, isNavRouteVisible } from '../nav/navResourceMap';
+import { filterStaffNavItems, isDashboardSubRouteVisible, isLogSubRouteVisible, isNavRouteVisible } from '../nav/navResourceMap';
 import AISLogo from './shared/AISLogo';
 
 const ADMIN_ROLES = ['admin', 'superuser'];
@@ -40,6 +41,14 @@ function isDashboardGroupActive(pathname) {
   return pathname === '/dashboard' || pathname.startsWith('/dashboard/');
 }
 
+function isLogGroupActive(pathname) {
+  return pathname === '/log' || pathname.startsWith('/log/');
+}
+
+function isLogSubActive(pathname, to) {
+  return pathname === to;
+}
+
 /**
  * Desktop primary navigation — matches AIS shell used across pages.
  */
@@ -48,6 +57,7 @@ export default function Sidebar() {
   const { pathname } = useLocation();
   const [planOpen, setPlanOpen] = useState(true);
   const [dashboardOpen, setDashboardOpen] = useState(true);
+  const [logOpen, setLogOpen] = useState(true);
 
   const items = filterStaffNavItems(
     MAIN_NAV_ITEMS.filter((item) => !item.adminOnly || ADMIN_ROLES.includes(user?.role)),
@@ -56,9 +66,11 @@ export default function Sidebar() {
   const visibleItems = user?.role === 'superuser' ? [...items, SUPERUSER_NAV_ITEM] : items;
   const showPlanGroup = isNavRouteVisible(user, '/periodisation');
   const showDashboardGroup = isNavRouteVisible(user, '/dashboard');
+  const showLogGroup = isNavRouteVisible(user, '/log');
   const visibleDashboardItems = DASHBOARD_SUB_ITEMS.filter((sub) =>
     isDashboardSubRouteVisible(user, sub.to),
   );
+  const visibleLogItems = LOG_SUB_ITEMS.filter((sub) => isLogSubRouteVisible(user, sub.to));
 
   useEffect(() => {
     if (pathname === '/periodisation' || pathname.startsWith('/plan/')) {
@@ -69,6 +81,12 @@ export default function Sidebar() {
   useEffect(() => {
     if (isDashboardGroupActive(pathname)) {
       setDashboardOpen(true);
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (isLogGroupActive(pathname)) {
+      setLogOpen(true);
     }
   }, [pathname]);
 
@@ -139,6 +157,45 @@ export default function Sidebar() {
                 {planOpen &&
                   PLAN_SUB_ITEMS.map((sub) => {
                     const active = isPlanSubActive(pathname, sub.to);
+                    return (
+                      <NavLink
+                        key={sub.to}
+                        to={sub.to}
+                        className={subNavLinkClass(active)}
+                        style={{ paddingLeft: 'calc(1rem + 20px + 1rem)' }}
+                      >
+                        <i className={`ti ${sub.icon} text-[16px] leading-none shrink-0`} aria-hidden />
+                        <span className="font-['Inter'] tracking-tight font-bold uppercase text-[12px]">
+                          {sub.label}
+                        </span>
+                      </NavLink>
+                    );
+                  })}
+              </div>
+            );
+          }
+
+          if (to === '/log') {
+            if (!showLogGroup || visibleLogItems.length === 0) return null;
+            return (
+              <div key="log-group">
+                <button
+                  type="button"
+                  onClick={() => setLogOpen((v) => !v)}
+                  className="w-full mx-2 my-1 px-4 py-3 flex items-center gap-3 rounded-lg text-left text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container)]"
+                >
+                  <span className="material-symbols-outlined text-[20px] leading-none shrink-0">edit_note</span>
+                  <span className="font-['Inter'] tracking-tight font-bold uppercase text-[10px] flex-1">
+                    LOG
+                  </span>
+                  <i
+                    className={`ti ${logOpen ? 'ti-chevron-down' : 'ti-chevron-right'} text-[16px] leading-none shrink-0`}
+                    aria-hidden
+                  />
+                </button>
+                {logOpen &&
+                  visibleLogItems.map((sub) => {
+                    const active = isLogSubActive(pathname, sub.to);
                     return (
                       <NavLink
                         key={sub.to}
