@@ -111,8 +111,7 @@ export function useProgrammeAssignment(programmeId, orgId) {
         const { error: e1 } = await supabase.from('programmes').update({ athlete_id: null }).eq('id', programmeId).eq('org_id', orgId)
         if (e1) throw e1
         if (ids.length === 1) {
-          const currentUser = await getCurrentUser()
-          const { data: atRows, error: e0 } = await supabase.from('athlete_teams').select('team_id').eq('org_id', currentUser.orgId).eq('athlete_id', ids[0]).limit(20)
+          const { data: atRows, error: e0 } = await supabase.from('athlete_teams').select('team_id').eq('athlete_id', ids[0]).limit(20)
           if (e0) throw e0
           let teamId = null
           for (const r of atRows ?? []) {

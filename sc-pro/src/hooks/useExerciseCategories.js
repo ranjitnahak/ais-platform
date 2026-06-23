@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
-import { getCurrentUser } from '../lib/auth.js'
+import { useCurrentUser } from '../lib/auth.js'
 import { fetchPatterns, fetchRegions, fetchTags } from '../lib/exerciseCategoryUtils.js'
 
 export function useExerciseCategories() {
-  const user = getCurrentUser()
+  const { user, loading: userLoading } = useCurrentUser()
   const [regions, setRegions] = useState([])
   const [patterns, setPatterns] = useState([])
   const [tags, setTags] = useState([])
@@ -12,6 +12,10 @@ export function useExerciseCategories() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (!user?.orgId) {
+      if (!userLoading) setLoading(false)
+      return
+    }
     let cancelled = false
     ;(async () => {
       setLoading(true)
@@ -43,7 +47,7 @@ export function useExerciseCategories() {
     return () => {
       cancelled = true
     }
-  }, [user.orgId])
+  }, [user?.orgId, userLoading])
 
-  return { regions, patterns, tags, loading, error }
+  return { regions, patterns, tags, loading: loading || userLoading, error }
 }

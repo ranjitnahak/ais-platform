@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient.js'
-import { getCurrentUser } from '../../lib/auth.js'
+import { useCurrentUser } from '../../lib/auth.js'
 
 const LATERALITY_OPTS = [
   { value: 'bilateral', label: 'Bilateral' },
@@ -77,7 +77,7 @@ const btnGhost = {
 }
 
 export default function AddExerciseModal({ open, onClose, regions, patterns, onExerciseAdded }) {
-  const user = getCurrentUser()
+  const { user } = useCurrentUser()
   const [name, setName] = useState('')
   const [regionId, setRegionId] = useState('')
   const [patternId, setPatternId] = useState('')
@@ -127,6 +127,10 @@ export default function AddExerciseModal({ open, onClose, regions, patterns, onE
     const n = name.trim()
     if (!n || !regionId || !patternId) {
       setSubmitError('Name, region, and pattern are required.')
+      return
+    }
+    if (!user?.orgId) {
+      setSubmitError('Could not resolve your organisation. Try signing in again.')
       return
     }
     setSubmitting(true)

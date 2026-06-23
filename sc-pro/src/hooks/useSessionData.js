@@ -125,9 +125,10 @@ export function useSessionData(sessionId) {
         // Roster for loads: programme-canonical team when session is on a programme (see resolveProgrammeRosterTeamId).
         const { data: at, error: e3 } = await supabase
           .from('athlete_teams')
-          .select('athlete_id, athletes(id, org_id, full_name, first_name, last_name)')
-          .eq('org_id', orgId)
+          .select('athlete_id, athletes!inner(id, org_id, full_name, first_name, last_name)')
           .eq('team_id', resolvedRosterTeamId)
+          .eq('athletes.org_id', orgId)
+          .is('left_at', null)
         if (e3) throw e3
         for (const r of at ?? []) {
           const a = r.athletes

@@ -93,12 +93,12 @@ export default function AssignProgrammeModal({ programmeId, orgId, onClose, onSu
     ;(async () => {
       setRosterLoading(true)
       try {
-        const user = await getCurrentUser()
         const { data, error } = await supabase
           .from('athlete_teams')
-          .select('athlete_id, athletes(id, org_id, full_name, first_name, last_name)')
-          .eq('org_id', user.orgId)
+          .select('athlete_id, athletes!inner(id, org_id, full_name, first_name, last_name)')
           .eq('team_id', filterTeamId)
+          .eq('athletes.org_id', orgId)
+          .is('left_at', null)
         if (error) throw error
         const rows = []
         for (const r of data ?? []) {

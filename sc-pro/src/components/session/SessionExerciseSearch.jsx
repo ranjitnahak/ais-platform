@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient.js'
-import { getCurrentUser } from '../../lib/auth.js'
+import { useCurrentUser } from '../../lib/auth.js'
 import { useExerciseCategories } from '../../hooks/useExerciseCategories.js'
 import AddExerciseModal from './AddExerciseModal.jsx'
 
@@ -47,7 +47,7 @@ function libraryVisibilityOr(orgId, userId) {
 }
 
 export default function SessionExerciseSearch({ onPick, onClose, onNewExercise: _onNewExercise }) {
-  const user = getCurrentUser()
+  const { user, loading: userLoading } = useCurrentUser()
   const { regions, patterns, loading: catLoading, error: catError } = useExerciseCategories()
   const [q, setQ] = useState('')
   const [regionFilter, setRegionFilter] = useState('')
@@ -58,6 +58,10 @@ export default function SessionExerciseSearch({ onPick, onClose, onNewExercise: 
   const [addOpen, setAddOpen] = useState(false)
 
   useEffect(() => {
+    if (!user?.orgId) {
+      if (!userLoading) setLoading(false)
+      return
+    }
     let cancel = false
     ;(async () => {
       setLoading(true)
@@ -79,7 +83,7 @@ export default function SessionExerciseSearch({ onPick, onClose, onNewExercise: 
     return () => {
       cancel = true
     }
-  }, [user.orgId, user.id])
+  }, [user?.orgId, user?.id, userLoading])
 
   const patternsForRegionFilter = useMemo(() => {
     if (!regionFilter) return patterns
@@ -117,7 +121,7 @@ export default function SessionExerciseSearch({ onPick, onClose, onNewExercise: 
     })
   }
 
-  const busy = loading || catLoading
+  const busy = loading || catLoading || userLoading
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
