@@ -53,6 +53,7 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB — temp unblock; code-split the oversized chunk separately
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
           runtimeCaching: [
             {
