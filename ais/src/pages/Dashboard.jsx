@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
@@ -31,7 +32,9 @@ export default function Dashboard() {
         </p>
       ) : (
         <div key={effectiveOrgId ?? 'dashboard'}>
-          <Outlet />
+          <Suspense fallback={<DashboardSkeleton contentOnly />}>
+            <Outlet />
+          </Suspense>
         </div>
       )}
     </StaffPageLayout>

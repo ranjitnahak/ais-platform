@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { lazy, useEffect, useLayoutEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate, Outlet } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
-import DashboardWellness from './pages/dashboard/DashboardWellness';
-import DashboardRPE from './pages/dashboard/DashboardRPE';
-import DashboardAttendance from './pages/dashboard/DashboardAttendance';
-import AssessmentDashboard from './pages/dashboard/AssessmentDashboard';
+
+const DashboardWellness = lazy(() => import('./pages/dashboard/DashboardWellness'));
+const DashboardAttendance = lazy(() => import('./pages/dashboard/DashboardAttendance'));
+const DashboardRPE = lazy(() => import('./pages/dashboard/DashboardRPE'));
+const AssessmentDashboard = lazy(() => import('./pages/dashboard/AssessmentDashboard'));
 import Log from './pages/Log';
 import Reports from './pages/Reports';
 import AthleteReportView from './pages/AthleteReportView';
