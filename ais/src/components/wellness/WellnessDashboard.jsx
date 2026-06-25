@@ -1,32 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getCurrentUser, canSync } from '../../lib/auth'
 import { resolveOrgTeamScope, narrowTeamIds } from '../../lib/orgScope'
-import { dashboardPdfFilename } from '../../lib/buildDashboardPDF'
+import { exportWellnessDashboardPDF } from '../../lib/exportWellnessPDF'
+import { WELLNESS_METRIC_COLUMNS, WELLNESS_SORE_AREA_LABEL } from '../../lib/wellnessDashboardConstants'
 import { useUser } from '../../context/UserContext'
 import WellnessTrend from './WellnessTrend'
-import DashboardExportButton from '../shared/DashboardExportButton'
+import ExportPdfButton from '../shared/ExportPdfButton'
 import DashboardPanelHeader from '../shared/DashboardPanelHeader'
 import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton'
 import ZoneMetricBadge from '../shared/ZoneMetricBadge'
 import { getWellnessZone } from '../../lib/zoneBadge'
 
-const METRIC_COLUMNS = [
-  { key: 'fatigue', label: 'Fatigue', inverse: true },
-  { key: 'sleep_quality', label: 'Sleep Quality', inverse: false },
-  { key: 'sleep_hours', label: 'Sleep Hours', inverse: false },
-  { key: 'motivation', label: 'Training Motivation', inverse: false },
-  { key: 'performance_satisfaction', label: 'Performance Satisfaction', inverse: false },
-  { key: 'soreness', label: 'Soreness', inverse: true },
-]
-
 export default function WellnessDashboard({ embedded = false }) {
   const { user, activeOrgId, activeTeamId } = useUser()
-  const exportRef = useRef(null)
   const [athletes, setAthletes] = useState([])
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState(null)
   const [wellnessView, setWellnessView] = useState('grid')
   const canView = canSync(user, 'wellness', 'view')
 
@@ -88,6 +81,26 @@ export default function WellnessDashboard({ embedded = false }) {
     return { submitted: logs.length, total: athletes.length, average, flagged }
   }, [athletes.length, logs])
 
+  const handleExportPDF = useCallback(async () => {
+    if (exporting || loading || error) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      await exportWellnessDashboardPDF({
+        user,
+        orgLogoUrl: user?.orgLogoUrl ?? null,
+        athletes,
+        logs,
+        summary,
+      })
+    } catch (err) {
+      console.error('[WellnessDashboard] PDF export failed:', err)
+      setExportError(err?.message ?? 'Export failed')
+    } finally {
+      setExporting(false)
+    }
+  }, [exporting, loading, error, user, athletes, logs, summary])
+
   if (!canView) {
     return (
       <p className="rounded-2xl bg-[var(--color-surface-container)] p-6 text-sm font-bold text-[var(--color-on-surface-variant)]">
@@ -96,25 +109,21 @@ export default function WellnessDashboard({ embedded = false }) {
     );
   }
 
-  const todayLabel = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-  const viewSnapshot = `${wellnessView === 'grid' ? 'Grid view' : 'Table view'} · ${todayLabel}`
-  const exportFilename = dashboardPdfFilename({
-    orgName: user?.orgName,
-    dashboardSlug: 'wellness',
-  })
-
   const content = (
-      <div ref={embedded ? exportRef : undefined} className={`mx-auto max-w-6xl space-y-6 ${embedded ? '' : ''}`}>
+      <div className="mx-auto max-w-6xl space-y-6">
         {embedded ? (
           <DashboardPanelHeader
             title="Wellness Dashboard"
             subtitle={user?.orgName || '—'}
             exportSlot={(
-              <DashboardExportButton
-                exportRef={exportRef}
-                filename={exportFilename}
-                disabled={loading || !!error}
-              />
+              <div data-pdf-exclude>
+                <ExportPdfButton
+                  onClick={handleExportPDF}
+                  disabled={loading || !!error || !athletes.length}
+                  exporting={exporting}
+                  error={exportError}
+                />
+              </div>
             )}
           />
         ) : (
@@ -123,15 +132,6 @@ export default function WellnessDashboard({ embedded = false }) {
           <h1 className="mt-2 text-3xl font-black tracking-tight">Wellness Dashboard</h1>
           <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Today&apos;s wellness submissions for your assigned teams.</p>
         </header>
-        )}
-
-        {embedded && (
-          <p
-            data-pdf-export-only
-            className="hidden text-xs font-bold text-[var(--color-on-surface-variant)]"
-          >
-            {viewSnapshot}
-          </p>
         )}
 
         {!loading && (
@@ -310,7 +310,7 @@ function WellnessTable({ athletes, logs }) {
             <th className="sticky left-0 z-20 min-w-[11rem] bg-[var(--color-surface-container)] px-3 py-2 text-left text-[12px] font-bold uppercase tracking-wide text-[var(--color-text-muted)]">
               Athlete
             </th>
-            {METRIC_COLUMNS.map((col) => (
+            {WELLNESS_METRIC_COLUMNS.map((col) => (
               <th
                 key={col.key}
                 className="whitespace-nowrap px-3 py-2 text-center text-[12px] font-bold uppercase tracking-wide text-[var(--color-text-muted)]"
@@ -319,7 +319,7 @@ function WellnessTable({ athletes, logs }) {
               </th>
             ))}
             <th className="whitespace-nowrap px-3 py-2 text-center text-[12px] font-bold uppercase tracking-wide text-[var(--color-text-muted)]">
-              Sore Area
+              {WELLNESS_SORE_AREA_LABEL}
             </th>
           </tr>
         </thead>
@@ -343,7 +343,7 @@ function WellnessTable({ athletes, logs }) {
                     </div>
                   </td>
                   <td
-                    colSpan={METRIC_COLUMNS.length + 1}
+                    colSpan={WELLNESS_METRIC_COLUMNS.length + 1}
                     className="px-3 py-2.5 text-center text-xs font-bold text-[var(--color-text-muted)]"
                   >
                     Not submitted
@@ -365,7 +365,7 @@ function WellnessTable({ athletes, logs }) {
                     <span className="truncate font-bold text-[var(--color-on-surface)]">{athlete.full_name}</span>
                   </div>
                 </td>
-                {METRIC_COLUMNS.map((col) => (
+                {WELLNESS_METRIC_COLUMNS.map((col) => (
                   <td key={col.key} className="px-3 py-2.5 text-center">
                     <MetricPill value={responses[col.key]} inverse={col.inverse} />
                   </td>
