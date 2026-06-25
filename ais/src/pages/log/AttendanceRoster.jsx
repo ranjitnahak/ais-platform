@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../../lib/athleteName';
+import {
+  ATTENDANCE_REASONS,
+  formatExceptionSummary,
+  isExceptionComplete,
+} from '../../lib/attendanceRosterUi';
 import { formatRelativeTime, useAttendanceRoster } from '../../hooks/useAttendanceRoster';
 import LogSkeleton from '../../components/shared/skeletons/LogSkeleton';
-
-const REASONS = [
-  { value: 'sickness', label: 'Sickness' },
-  { value: 'injury', label: 'Injury' },
-  { value: 'other', label: 'Other' },
-];
 
 const STATUS_STYLES = {
   present: {
@@ -37,6 +36,71 @@ function formatTimeRange(start, end) {
   return `${startStr} – ${endStr}`;
 }
 
+function rowSnapshot(row) {
+  return {
+    status: row.status,
+    reason: row.reason,
+    informed: row.informed,
+    note: row.note,
+    recordId: row.recordId,
+    markedAt: row.markedAt,
+  };
+}
+
+function rowChanged(before, after) {
+  if (!before || !after) return false;
+  return (
+    before.status !== after.status ||
+    before.reason !== after.reason ||
+    before.informed !== after.informed ||
+    before.note !== after.note ||
+    before.recordId !== after.recordId ||
+    before.markedAt !== after.markedAt
+  );
+}
+
+function SaveStatusIndicator({ saving, row }) {
+  const [showSaved, setShowSaved] = useState(false);
+  const snapshotRef = useRef(null);
+  const prevSavingRef = useRef(false);
+
+  useEffect(() => {
+    if (saving && !prevSavingRef.current) {
+      snapshotRef.current = rowSnapshot(row);
+    }
+
+    if (!saving && prevSavingRef.current) {
+      const snap = snapshotRef.current;
+      if (snap && rowChanged(snap, rowSnapshot(row))) {
+        setShowSaved(true);
+        const timer = window.setTimeout(() => setShowSaved(false), 1500);
+        prevSavingRef.current = saving;
+        return () => window.clearTimeout(timer);
+      }
+    }
+
+    prevSavingRef.current = saving;
+    return undefined;
+  }, [saving, row]);
+
+  if (saving) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-bold text-[var(--color-on-surface-variant)]">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--color-primary)]" />
+        Saving…
+      </span>
+    );
+  }
+
+  if (showSaved) {
+    return (
+      <span className="text-[10px] font-bold text-[var(--color-tertiary)]">Saved ✓</span>
+    );
+  }
+
+  return null;
+}
+
 function StatusChip({ label, active, statusKey, disabled, onClick }) {
   const styles = STATUS_STYLES[statusKey];
   return (
@@ -63,6 +127,27 @@ function StatusChip({ label, active, statusKey, disabled, onClick }) {
   );
 }
 
+function ExceptionSummary({ row, onExpand }) {
+  const styles = STATUS_STYLES[row.status];
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      className="mt-3 flex w-full items-center gap-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--color-surface-container-highest)]"
+    >
+      <span
+        className="min-w-0 flex-1 truncate text-xs font-bold"
+        style={{ color: styles?.text }}
+      >
+        {formatExceptionSummary(row)}
+      </span>
+      <span className="material-symbols-outlined shrink-0 text-base text-[var(--color-on-surface-variant)]">
+        chevron_right
+      </span>
+    </button>
+  );
+}
+
 function ReasonRow({ row, disabled, saving, onChange }) {
   const [noteOpen, setNoteOpen] = useState(Boolean(row.note));
   const [noteDraft, setNoteDraft] = useState(row.note ?? '');
@@ -80,8 +165,6 @@ function ReasonRow({ row, disabled, saving, onChange }) {
     }
   };
 
-  if (row.status !== 'late' && row.status !== 'absent') return null;
-
   return (
     <div className="mt-3 space-y-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] p-3">
       <div>
@@ -89,7 +172,7 @@ function ReasonRow({ row, disabled, saving, onChange }) {
           Reason
         </p>
         <div className="flex flex-wrap gap-2">
-          {REASONS.map((reason) => (
+          {ATTENDANCE_REASONS.map((reason) => (
             <button
               key={reason.value}
               type="button"
@@ -172,10 +255,14 @@ function AthleteRow({
   canEdit,
   saving,
   viewOpenedAt,
+  isDetailsExpanded,
+  onExpandDetails,
   onStatusChange,
   onPatch,
 }) {
   const [tooltipOpen, setTooltipOpen] = useState(false);
+  const complete = isExceptionComplete(row);
+
   const athlete = {
     first_name: row.first_name,
     last_name: row.last_name,
@@ -188,6 +275,9 @@ function AthleteRow({
 
   const statusLabel =
     row.status === 'late' ? 'Late' : row.status === 'absent' ? 'Absent' : 'Present';
+
+  const showExceptionDetails =
+    !readOnly && (row.status === 'late' || row.status === 'absent');
 
   return (
     <li className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4">
@@ -213,6 +303,7 @@ function AthleteRow({
           </span>
         ) : (
           <div className="flex items-center gap-1.5">
+            <SaveStatusIndicator saving={saving} row={row} />
             {showEdited ? (
               <div className="relative">
                 <button
@@ -256,13 +347,17 @@ function AthleteRow({
         )}
       </div>
 
-      {!readOnly ? (
-        <ReasonRow
-          row={row}
-          disabled={!canEdit}
-          saving={saving}
-          onChange={onPatch}
-        />
+      {showExceptionDetails ? (
+        isDetailsExpanded ? (
+          <ReasonRow
+            row={row}
+            disabled={!canEdit}
+            saving={saving}
+            onChange={onPatch}
+          />
+        ) : complete ? (
+          <ExceptionSummary row={row} onExpand={onExpandDetails} />
+        ) : null
       ) : null}
     </li>
   );
@@ -270,6 +365,8 @@ function AthleteRow({
 
 export default function AttendanceRoster({ session, teamName, onBack, onToast }) {
   const viewOpenedAtRef = useRef(Date.now());
+  const prevSavingAthleteIdRef = useRef(null);
+  const [activeExpandedAthleteId, setActiveExpandedAthleteId] = useState(null);
   const {
     rows,
     loading,
@@ -283,8 +380,20 @@ export default function AttendanceRoster({ session, teamName, onBack, onToast })
     resetAll,
   } = useAttendanceRoster(session, { onToast });
 
+  useEffect(() => {
+    const wasSaving = prevSavingAthleteIdRef.current;
+    prevSavingAthleteIdRef.current = savingAthleteId;
+    if (wasSaving && !savingAthleteId && activeExpandedAthleteId === wasSaving) {
+      const row = rows.find((r) => r.athleteId === wasSaving);
+      if (row && isExceptionComplete(row)) {
+        setActiveExpandedAthleteId(null);
+      }
+    }
+  }, [savingAthleteId, rows, activeExpandedAthleteId]);
+
   const handleStatusChange = (athleteId, status) => {
     if (status === 'present') {
+      setActiveExpandedAthleteId((id) => (id === athleteId ? null : id));
       void saveAthleteStatus(athleteId, {
         status: 'present',
         reason: null,
@@ -293,6 +402,7 @@ export default function AttendanceRoster({ session, teamName, onBack, onToast })
       });
       return;
     }
+    setActiveExpandedAthleteId(athleteId);
     void saveAthleteStatus(athleteId, { status });
   };
 
@@ -368,6 +478,8 @@ export default function AttendanceRoster({ session, teamName, onBack, onToast })
               canEdit={canEdit}
               saving={savingAthleteId === row.athleteId}
               viewOpenedAt={viewOpenedAtRef.current}
+              isDetailsExpanded={activeExpandedAthleteId === row.athleteId}
+              onExpandDetails={() => setActiveExpandedAthleteId(row.athleteId)}
               onStatusChange={(status) => handleStatusChange(row.athleteId, status)}
               onPatch={(patch) => void saveAthleteStatus(row.athleteId, patch)}
             />
