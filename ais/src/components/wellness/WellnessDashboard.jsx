@@ -8,6 +8,8 @@ import WellnessTrend from './WellnessTrend'
 import DashboardExportButton from '../shared/DashboardExportButton'
 import DashboardPanelHeader from '../shared/DashboardPanelHeader'
 import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton'
+import ZoneMetricBadge from '../shared/ZoneMetricBadge'
+import { getWellnessZone } from '../../lib/zoneBadge'
 
 const METRIC_COLUMNS = [
   { key: 'fatigue', label: 'Fatigue', inverse: true },
@@ -237,12 +239,8 @@ function AthleteCard({ athlete, log }) {
 }
 
 function ScoreBadge({ score }) {
-  const tone = score >= 4
-    ? 'bg-[var(--color-tertiary-container)] text-[var(--color-on-tertiary)]'
-    : score >= 3
-      ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
-      : 'bg-[var(--color-error-container)] text-[var(--color-error)]'
-  return <span className={`rounded-full px-3 py-2 text-sm font-black ${tone}`}>{score.toFixed(1)}</span>
+  const zone = getWellnessZone(score)
+  return <ZoneMetricBadge zone={zone}>{score.toFixed(1)}</ZoneMetricBadge>
 }
 
 function athleteInitials(fullName) {
@@ -251,19 +249,6 @@ function athleteInitials(fullName) {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
   }
   return (parts[0] ?? '?').slice(0, 2).toUpperCase()
-}
-
-function scorePillBackground(value, { inverse = false } = {}) {
-  const n = Number(value)
-  if (!Number.isFinite(n)) return null
-  if (inverse) {
-    if (n <= 2) return 'var(--color-excellent)'
-    if (n === 3) return 'var(--color-avg)'
-    return 'var(--color-below-avg)'
-  }
-  if (n <= 2) return 'var(--color-below-avg)'
-  if (n === 3) return 'var(--color-avg)'
-  return 'var(--color-excellent)'
 }
 
 function WellnessViewToggle({ wellnessView, onChange }) {
@@ -300,18 +285,8 @@ function WellnessViewToggle({ wellnessView, onChange }) {
 }
 
 function MetricPill({ value, inverse }) {
-  const bg = scorePillBackground(value, { inverse })
-  if (bg == null) {
-    return <span className="text-[var(--color-text-muted)]">—</span>
-  }
-  return (
-    <span
-      className="inline-flex min-w-[1.75rem] justify-center rounded-full px-2 py-0.5 text-xs font-bold text-white"
-      style={{ backgroundColor: bg }}
-    >
-      {value}
-    </span>
-  )
+  const zone = getWellnessZone(value, { inverse })
+  return <ZoneMetricBadge zone={zone}>{value}</ZoneMetricBadge>
 }
 
 function SoreAreaCell({ areas }) {

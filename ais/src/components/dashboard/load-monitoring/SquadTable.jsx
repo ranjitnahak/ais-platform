@@ -1,11 +1,6 @@
 import { athleteInitialsFromAthlete } from '../../../lib/athleteName';
 import { getAcwrZone, getLoadSignal, getMonotonyZone } from '../../../lib/loadCalculations';
-
-const ZONE_BADGE = {
-  safe: 'bg-[color-mix(in_srgb,var(--color-excellent)_20%,transparent)] text-[var(--color-excellent)]',
-  caution: 'bg-[color-mix(in_srgb,var(--color-primary-container)_20%,transparent)] text-[var(--color-primary-container)]',
-  danger: 'bg-[color-mix(in_srgb,var(--color-error-container)_25%,transparent)] text-[var(--color-error)]',
-};
+import ZoneMetricBadge from '../../shared/ZoneMetricBadge';
 
 const SIGNAL_STYLE = {
   spike: 'text-[var(--color-error)]',
@@ -95,9 +90,9 @@ export default function SquadTable({ rows, methodLabel, rangeLabel }) {
                   {row.insufficientData ? (
                     <span className="cursor-help text-[var(--color-outline)]" title="Insufficient data">—</span>
                   ) : (
-                    <span className={`inline-block rounded-lg px-2.5 py-1 text-sm font-black ${ZONE_BADGE[zone] ?? ''}`}>
+                    <ZoneMetricBadge zone={zone}>
                       {row.acwr?.toFixed(2) ?? '—'}
-                    </span>
+                    </ZoneMetricBadge>
                   )}
                 </td>
                 <td className="px-3 py-3 text-center">

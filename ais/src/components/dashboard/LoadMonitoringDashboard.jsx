@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useUser } from '../../context/UserContext';
 import { useLoadMonitoring } from '../../hooks/useLoadMonitoring';
 import { getAcwrZone } from '../../lib/loadCalculations';
+import { ZONE_BADGE } from '../../lib/zoneBadge';
 import { dashboardPdfFilename } from '../../lib/buildDashboardPDF';
 import { useSessionConfig } from '../../context/SessionConfigContext';
 import DashboardExportButton from '../shared/DashboardExportButton';
@@ -21,12 +22,6 @@ const ZONE_CARD_TINT = {
   safe: 'border-[color-mix(in_srgb,var(--color-excellent)_30%,var(--color-outline-variant))] bg-[color-mix(in_srgb,var(--color-excellent)_8%,var(--color-surface-container))]',
   caution: 'border-[color-mix(in_srgb,var(--color-primary-container)_30%,var(--color-outline-variant))] bg-[color-mix(in_srgb,var(--color-primary-container)_8%,var(--color-surface-container))]',
   danger: 'border-[color-mix(in_srgb,var(--color-error-container)_30%,var(--color-outline-variant))] bg-[color-mix(in_srgb,var(--color-error-container)_8%,var(--color-surface-container))]',
-};
-
-const ZONE_BADGE = {
-  safe: 'bg-[color-mix(in_srgb,var(--color-excellent)_25%,transparent)] text-[var(--color-excellent)]',
-  caution: 'bg-[color-mix(in_srgb,var(--color-primary-container)_25%,transparent)] text-[var(--color-primary-container)]',
-  danger: 'bg-[color-mix(in_srgb,var(--color-error-container)_25%,transparent)] text-[var(--color-error)]',
 };
 
 const ZONE_LABEL = { safe: 'Safe', caution: 'Caution', danger: 'Danger' };
