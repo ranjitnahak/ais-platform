@@ -52,6 +52,17 @@ export function getEffectiveTeamId(activeTeamId, availableTeamIds) {
   return ids[0] ?? null;
 }
 
+/** Athlete portal: use roster primary team, not staff localStorage team switcher. */
+export function resolveAthleteSessionTeamIds(user) {
+  const athleteTeamIds = user?.teamIds ?? [];
+  if (!athleteTeamIds.length) return [];
+  if (user?.primaryTeamId && athleteTeamIds.includes(user.primaryTeamId)) {
+    return [user.primaryTeamId];
+  }
+  if (athleteTeamIds.length === 1) return athleteTeamIds;
+  return [athleteTeamIds[0]];
+}
+
 /** Narrow scope to a single active team when set. */
 export function narrowTeamIds(effectiveTeamIds, activeTeamId) {
   const ids = effectiveTeamIds ?? [];

@@ -42,6 +42,7 @@ export function toDbTime(timeStr) {
 export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
   const { user: contextUser, activeOrgId } = useUser();
   const { sessionTypes, venues, sessionTypeRows, loading: configLoading } = useSessionConfig();
+  const teamLocked = Boolean(defaultTeamId);
 
   const [sessionDate, setSessionDate] = useState('');
   const [startTime, setStartTime] = useState('06:30');
@@ -86,7 +87,8 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
         return;
       }
       const { effectiveTeamIds } = await resolveOrgTeamScope(supabase, user, activeOrgId);
-      if (!effectiveTeamIds.length) {
+      const teamIdsToLoad = teamLocked && defaultTeamId ? [defaultTeamId] : effectiveTeamIds;
+      if (!teamIdsToLoad.length) {
         setTeams([]);
         return;
       }
@@ -94,14 +96,14 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
         .from('teams')
         .select('id, name')
         .eq('org_id', effectiveOrgId)
-        .in('id', effectiveTeamIds)
+        .in('id', teamIdsToLoad)
         .order('name');
       if (teamError) throw teamError;
 
       const { data: links, error: linksError } = await supabase
         .from('athlete_teams')
         .select('team_id, athletes!inner(id, is_active)')
-        .in('team_id', effectiveTeamIds)
+        .in('team_id', teamIdsToLoad)
         .eq('athletes.org_id', effectiveOrgId)
         .eq('athletes.is_active', true)
         .is('left_at', null);
@@ -124,7 +126,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     } finally {
       setTeamsLoading(false);
     }
-  }, [contextUser, effectiveOrgId, activeOrgId]);
+  }, [contextUser, effectiveOrgId, activeOrgId, teamLocked, defaultTeamId]);
 
   useEffect(() => {
     void loadTeams();
@@ -283,8 +285,9 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
   );
 
   const selectTeam = useCallback((teamId) => {
+    if (teamLocked) return;
     setSelectedTeamId(teamId);
-  }, []);
+  }, [teamLocked]);
 
   const toggleAthlete = useCallback((athleteId) => {
     setIncludedAthleteIds((prev) => {
@@ -309,8 +312,12 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
       const user = contextUser ?? (await getCurrentUser());
       if (!user?.id || !effectiveOrgId) throw new Error('Not authenticated');
       if (!sessionDate) throw new Error('Session date is required.');
-      if (!selectedTeamId) throw new Error('Select a team.');
-      if (!user.teamIds?.includes(selectedTeamId) && !user.isSuperuser) {
+      const teamIdToSave =
+        teamLocked && defaultTeamId && selectedTeamId !== defaultTeamId
+          ? defaultTeamId
+          : selectedTeamId;
+      if (!teamIdToSave) throw new Error('Select a team.');
+      if (!user.teamIds?.includes(teamIdToSave) && !user.isSuperuser) {
         throw new Error('You do not have access to the selected team.');
       }
 
@@ -322,7 +329,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
 
       const sessionPayload = {
         org_id: effectiveOrgId,
-        team_id: selectedTeamId,
+        team_id: teamIdToSave,
         session_date: sessionDate,
         start_time: toDbTime(startTime),
         end_time: toDbTime(endTime),
@@ -377,7 +384,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
             session_id: sessionId,
             athlete_id: athleteId,
             org_id: effectiveOrgId,
-            team_id: selectedTeamId,
+            team_id: teamIdToSave,
           }));
           const { error: addError } = await supabase.from('session_athlete_logs').insert(rows);
           if (addError) throw addError;
@@ -400,7 +407,7 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
             session_id: session.id,
             athlete_id: athleteId,
             org_id: effectiveOrgId,
-            team_id: selectedTeamId,
+            team_id: teamIdToSave,
           }));
 
           const { error: logsError } = await supabase.from('session_athlete_logs').insert(rows);
@@ -449,7 +456,14 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     planId,
     sessionId,
     includedAthleteIds,
+    teamLocked,
+    defaultTeamId,
   ]);
+
+  const selectedTeamName = useMemo(() => {
+    const team = teams.find((t) => t.id === selectedTeamId);
+    return team?.name ?? null;
+  }, [teams, selectedTeamId]);
 
   const dismissToast = useCallback(() => setToast(null), []);
 
@@ -470,6 +484,8 @@ export function useSessionCreate({ planId = null, defaultTeamId = null } = {}) {
     isEditMode: Boolean(sessionId),
     sessionId,
     selectedTeamId,
+    selectedTeamName,
+    teamLocked,
     teams,
     athletes,
     includedAthleteIds,

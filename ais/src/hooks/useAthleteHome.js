@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
-import { getEffectiveOrgId } from '../lib/orgScope';
+import { getEffectiveOrgId, resolveAthleteSessionTeamIds } from '../lib/orgScope';
 import { resolveAthleteId } from '../lib/resolveAthleteId';
 import { fetchAthleteTodaySessions, localTodayIso } from '../lib/athleteTodaySessions';
 
@@ -74,6 +74,7 @@ export function useAthleteHome() {
         const lastSeven = buildLastSevenDays();
 
         const athleteId = await resolveAthleteId(user, effectiveOrgId);
+        const teamIds = resolveAthleteSessionTeamIds(user);
         if (!athleteId) {
           if (mounted) {
             setWellnessDoneToday(false);
@@ -118,6 +119,7 @@ export function useAthleteHome() {
           athleteId,
           orgId: effectiveOrgId,
           today,
+          teamIds,
         });
         const submittedDates = new Set((streakRows.data ?? []).map((row) => row.log_date));
 
@@ -141,7 +143,7 @@ export function useAthleteHome() {
 
     void loadHomeData();
     return () => { mounted = false; };
-  }, [user?.id, effectiveOrgId, activeOrgId]);
+  }, [user?.id, user?.teamIds, user?.primaryTeamId, effectiveOrgId, activeOrgId]);
 
   const refreshTodaySessions = async () => {
     if (!user?.id || !effectiveOrgId) return;
@@ -150,10 +152,12 @@ export function useAthleteHome() {
       if (!athleteId) return;
 
       const today = localTodayIso();
+      const teamIds = resolveAthleteSessionTeamIds(user);
       const sessions = await fetchAthleteTodaySessions(supabase, {
         athleteId,
         orgId: effectiveOrgId,
         today,
+        teamIds,
       });
 
       setTodaySessions(sessions);

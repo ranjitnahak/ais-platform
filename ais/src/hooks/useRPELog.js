@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { resolveAthleteId } from '../lib/resolveAthleteId';
 import { useUser } from '../context/UserContext';
-import { getEffectiveOrgId } from '../lib/orgScope';
+import { getEffectiveOrgId, resolveAthleteSessionTeamIds } from '../lib/orgScope';
 import { fetchAthleteTodaySessions, localTodayIso } from '../lib/athleteTodaySessions';
 
 export function useRPELog() {
@@ -18,7 +18,7 @@ export function useRPELog() {
 
   useEffect(() => {
     void loadTodaySessions();
-  }, [effectiveOrgId, user?.id, activeOrgId]);
+  }, [effectiveOrgId, user?.id, user?.teamIds, user?.primaryTeamId, activeOrgId]);
 
   async function loadTodaySessions() {
     try {
@@ -36,10 +36,12 @@ export function useRPELog() {
       }
 
       const today = localTodayIso();
+      const teamIds = resolveAthleteSessionTeamIds(currentUser);
       const mapped = await fetchAthleteTodaySessions(supabase, {
         athleteId,
         orgId: effectiveOrgId,
         today,
+        teamIds,
       });
 
       setSessions(mapped);

@@ -207,6 +207,26 @@ export default function SessionCreateModal({ open, slot, session, planId, defaul
               <p className={labelClass}>Team</p>
               {create.teamsLoading ? (
                 <p className="text-xs text-[var(--color-outline)]">Loading teams…</p>
+              ) : create.teamLocked ? (
+                <div className="space-y-1.5">
+                  <div
+                    className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm"
+                    style={{
+                      borderColor: 'var(--color-primary-container)',
+                      background:
+                        'color-mix(in srgb, var(--color-primary-container) 12%, var(--color-surface))',
+                      color: 'var(--color-on-surface)',
+                    }}
+                  >
+                    <span>{create.selectedTeamName ?? 'Current team'}</span>
+                    <span className="text-[10px] text-[var(--color-outline)]">
+                      {create.teams[0]?.athleteCount ?? create.totalAthletes} athletes
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--color-on-surface-variant)]">
+                    Switch team from the header to plan for a different squad.
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-1.5">
                   {create.teams.map((team) => (

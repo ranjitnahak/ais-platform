@@ -56,7 +56,7 @@ async function loadOrgProfile(orgId) {
 }
 
 async function loadAthleteProfile(orgId, athleteId) {
-  if (!orgId || !athleteId) return { position: null, teamName: null };
+  if (!orgId || !athleteId) return { position: null, teamName: null, primaryTeamId: null };
   try {
     const [athleteResult, teamResult] = await Promise.all([
       supabase
@@ -67,22 +67,24 @@ async function loadAthleteProfile(orgId, athleteId) {
         .maybeSingle(),
       supabase
         .from('athlete_teams')
-        .select('teams(name)')
+        .select('team_id, teams(id, name)')
         .eq('athlete_id', athleteId)
-        .limit(1)
-        .maybeSingle(),
+        .is('left_at', null)
+        .order('joined_at', { ascending: true }),
     ]);
     if (athleteResult.error) throw athleteResult.error;
     if (teamResult.error) throw teamResult.error;
-    const teams = teamResult.data?.teams;
+    const primaryLink = (teamResult.data ?? [])[0];
+    const teams = primaryLink?.teams;
     const teamName = Array.isArray(teams) ? teams[0]?.name : teams?.name;
     return {
       position: athleteResult.data?.position ?? null,
       teamName: teamName ?? null,
+      primaryTeamId: primaryLink?.team_id ?? null,
     };
   } catch (err) {
     console.error('[auth.js] loadAthleteProfile failed:', err);
-    return { position: null, teamName: null };
+    return { position: null, teamName: null, primaryTeamId: null };
   }
 }
 
@@ -181,7 +183,12 @@ export async function getCurrentUser() {
 
     const normalizedRole = roleName?.toLowerCase();
     const athleteTeamsPromise = normalizedRole === 'athlete' && user.athlete_id
-      ? supabase.from('athlete_teams').select('team_id').eq('athlete_id', user.athlete_id)
+      ? supabase
+          .from('athlete_teams')
+          .select('team_id')
+          .eq('athlete_id', user.athlete_id)
+          .is('left_at', null)
+          .order('joined_at', { ascending: true })
       : Promise.resolve({ data: [], error: null });
     const athleteActivePromise = normalizedRole === 'athlete' && user.athlete_id
       ? supabase.from('athletes').select('is_active').eq('id', user.athlete_id).maybeSingle()
@@ -254,6 +261,7 @@ export async function getCurrentUser() {
       roleLabel: formatRoleOrPosition(normalizedRole),
       position: athleteProfile.position,
       teamName: athleteProfile.teamName,
+      primaryTeamId: athleteProfile.primaryTeamId,
     };
   } catch (err) {
     console.error('[auth.js] failed to resolve current user:', err);
