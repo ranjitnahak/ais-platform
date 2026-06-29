@@ -1,62 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { getEffectiveOrgId, narrowTeamIds, resolveOrgTeamScope } from '../lib/orgScope';
 import { useUser } from '../context/UserContext';
 import {
-  buildFourWeekRange,
   computeAthleteSummary,
   computeReasonBreakdown,
   computeSquadMetrics,
   computeWeeklyTrend,
 } from '../lib/attendanceEngine';
-import { formatRange, toISODate } from '../lib/periodisationUtils';
+import { formatRange } from '../lib/periodisationUtils';
+import {
+  buildTodayRange,
+  rangePresetLabel,
+  resolveDashboardDateRange,
+} from '../lib/dashboardDateRange';
 
 const SESSION_SELECT = 'id, org_id, team_id, athlete_id, session_date, start_time, name';
 const RECORD_SELECT = 'id, session_id, athlete_id, status, reason, informed, note, marked_by, marked_at';
 
-const DEFAULT_FILTERS = { range: '4W' };
-
-function todayIso() {
-  return toISODate(new Date());
-}
-
-async function resolveSeasonRange(orgId, teamId) {
-  const { data: plan, error: planError } = await supabase
-    .from('periodisation_plans')
-    .select('start_date, end_date')
-    .eq('org_id', orgId)
-    .eq('team_id', teamId)
-    .is('athlete_id', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (planError) throw planError;
-
-  if (plan?.start_date && plan?.end_date) {
-    return {
-      dateFrom: plan.start_date,
-      dateTo: plan.end_date > todayIso() ? todayIso() : plan.end_date,
-    };
-  }
-
-  const { data: earliestSession, error: sessionError } = await supabase
-    .from('sessions')
-    .select('session_date')
-    .eq('org_id', orgId)
-    .eq('team_id', teamId)
-    .order('session_date', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (sessionError) throw sessionError;
-
-  return {
-    dateFrom: earliestSession?.session_date ?? todayIso(),
-    dateTo: todayIso(),
-  };
-}
+const DEFAULT_FILTERS = { range: 'today', dateFrom: null, dateTo: null };
 
 export function useAttendanceDashboard() {
   const { user, activeOrgId, activeTeamId } = useUser();
@@ -64,12 +27,38 @@ export function useAttendanceDashboard() {
   const [sessions, setSessions] = useState([]);
   const [athleteTeams, setAthleteTeams] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
-  const [dateRange, setDateRange] = useState(buildFourWeekRange());
+  const [dateRange, setDateRange] = useState(buildTodayRange());
+  const dateRangeRef = useRef(dateRange);
+  dateRangeRef.current = dateRange;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const setFilter = useCallback((key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const setRangeFilter = useCallback((nextRange) => {
+    setFilters((prev) => {
+      if (nextRange === 'custom') {
+        const seed = dateRangeRef.current;
+        return {
+          ...prev,
+          range: 'custom',
+          dateFrom: prev.dateFrom ?? seed.dateFrom,
+          dateTo: prev.dateTo ?? seed.dateTo,
+        };
+      }
+      return { ...prev, range: nextRange };
+    });
+  }, []);
+
+  const setCustomDateRange = useCallback(({ dateFrom, dateTo }) => {
+    setFilters((prev) => ({
+      ...prev,
+      range: 'custom',
+      dateFrom,
+      dateTo,
+    }));
   }, []);
 
   useEffect(() => {
@@ -87,7 +76,7 @@ export function useAttendanceDashboard() {
             setSessions([]);
             setAthleteTeams([]);
             setAttendanceRecords([]);
-            setDateRange(buildFourWeekRange());
+            setDateRange(buildTodayRange());
           }
           return;
         }
@@ -103,9 +92,10 @@ export function useAttendanceDashboard() {
           return;
         }
 
-        const resolvedRange = filters.range === 'season'
-          ? await resolveSeasonRange(orgId, activeTeamId)
-          : buildFourWeekRange();
+        const resolvedRange = await resolveDashboardDateRange(filters, {
+          orgId,
+          teamId: activeTeamId,
+        });
 
         const { dateFrom, dateTo } = resolvedRange;
 
@@ -168,7 +158,7 @@ export function useAttendanceDashboard() {
     return () => {
       mounted = false;
     };
-  }, [user, activeOrgId, activeTeamId, filters.range]);
+  }, [user, activeOrgId, activeTeamId, filters.range, filters.dateFrom, filters.dateTo]);
 
   const squadMetrics = useMemo(
     () => computeSquadMetrics({
@@ -213,13 +203,15 @@ export function useAttendanceDashboard() {
     [dateRange],
   );
 
-  const rangeLabel = filters.range === 'season' ? 'Full season' : 'Last 4 weeks';
+  const rangeLabel = rangePresetLabel(filters.range);
 
   return {
     loading,
     error,
     filters,
     setFilter,
+    setRangeFilter,
+    setCustomDateRange,
     squadMetrics,
     weeklyTrend,
     reasonBreakdown,

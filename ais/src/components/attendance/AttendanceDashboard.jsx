@@ -4,17 +4,13 @@ import { dashboardPdfFilename } from '../../lib/buildDashboardPDF';
 import { useUser } from '../../context/UserContext';
 import { useAttendanceDashboard } from '../../hooks/useAttendanceDashboard';
 import DashboardExportButton from '../shared/DashboardExportButton';
+import DashboardDateRangeFilter from '../shared/DashboardDateRangeFilter';
 import DashboardPanelHeader from '../shared/DashboardPanelHeader';
 import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton';
 import AttendanceAthleteTable from './AttendanceAthleteTable';
 import AttendanceMetricCards from './AttendanceMetricCards';
 import AttendanceTrendChart from './AttendanceTrendChart';
 import ReasonBreakdownChart from './ReasonBreakdownChart';
-
-const RANGE_OPTIONS = [
-  { value: '4W', label: 'Last 4 weeks' },
-  { value: 'season', label: 'Full season' },
-];
 
 export default function AttendanceDashboard({ embedded = false }) {
   const { user } = useUser();
@@ -25,7 +21,8 @@ export default function AttendanceDashboard({ embedded = false }) {
     loading,
     error,
     filters,
-    setFilter,
+    setRangeFilter,
+    setCustomDateRange,
     squadMetrics,
     weeklyTrend,
     reasonBreakdown,
@@ -85,26 +82,15 @@ export default function AttendanceDashboard({ embedded = false }) {
         </p>
       )}
 
-      <div data-pdf-exclude className="flex flex-wrap items-center gap-3 lg:ml-auto lg:justify-end">
-        <div className="flex rounded-full border border-[var(--color-outline-variant)] p-0.5">
-          {RANGE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setFilter('range', option.value)}
-              className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
-                filters.range === option.value
-                  ? 'bg-[var(--color-surface-container-high)] text-[var(--color-on-surface)]'
-                  : 'text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-        <span className="text-[10px] font-bold text-[var(--color-on-surface-variant)]">
-          {dateRangeLabel}
-        </span>
+      <div data-pdf-exclude className="lg:ml-auto lg:flex lg:justify-end">
+        <DashboardDateRangeFilter
+          range={filters.range}
+          dateFrom={filters.dateFrom}
+          dateTo={filters.dateTo}
+          dateRangeLabel={dateRangeLabel}
+          onRangeChange={setRangeFilter}
+          onCustomDatesChange={setCustomDateRange}
+        />
       </div>
 
       {!activeTeamId ? (

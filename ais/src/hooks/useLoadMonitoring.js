@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/auth';
 import { getEffectiveOrgId, narrowTeamIds, resolveOrgTeamScope } from '../lib/orgScope';
 import { useUser } from '../context/UserContext';
-import { addDays, weekStartsBetween } from '../lib/periodisationUtils';
+import { addDays, formatRange, weekStartsBetween } from '../lib/periodisationUtils';
+import {
+  buildFourWeekRange,
+  rangePresetLabel,
+  resolveDashboardDateRange,
+} from '../lib/dashboardDateRange';
 import {
   calculateACWR,
   calculateEWMA,
@@ -13,18 +18,6 @@ import {
   bucketRpe,
   resolveSessionLoad,
 } from '../lib/loadCalculations';
-
-const RANGE_DAYS = { '1W': 7, '2W': 14, '4W': 28, '8W': 56 };
-
-function buildDateRange(selectedRange) {
-  const today = new Date();
-  const rangeStart = new Date(today);
-  rangeStart.setDate(today.getDate() - (RANGE_DAYS[selectedRange] ?? 28));
-  return {
-    dateFrom: rangeStart.toISOString().split('T')[0],
-    dateTo: today.toISOString().split('T')[0],
-  };
-}
 
 function buildDailyDates(dateFrom, dateTo) {
   const dates = [];
@@ -114,6 +107,8 @@ function countLoggedSessions(logs, sessionsById, athleteId) {
 
 const DEFAULT_FILTERS = {
   range: '4W',
+  dateFrom: null,
+  dateTo: null,
   athleteId: '',
   sessionType: 'all',
   method: 'ewma',
@@ -125,11 +120,38 @@ export function useLoadMonitoring() {
   const [sessions, setSessions] = useState([]);
   const [logs, setLogs] = useState([]);
   const [athletes, setAthletes] = useState([]);
+  const [dateRange, setDateRange] = useState(buildFourWeekRange());
+  const dateRangeRef = useRef(dateRange);
+  dateRangeRef.current = dateRange;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const setFilter = useCallback((key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const setRangeFilter = useCallback((nextRange) => {
+    setFilters((prev) => {
+      if (nextRange === 'custom') {
+        const seed = dateRangeRef.current;
+        return {
+          ...prev,
+          range: 'custom',
+          dateFrom: prev.dateFrom ?? seed.dateFrom,
+          dateTo: prev.dateTo ?? seed.dateTo,
+        };
+      }
+      return { ...prev, range: nextRange };
+    });
+  }, []);
+
+  const setCustomDateRange = useCallback(({ dateFrom, dateTo }) => {
+    setFilters((prev) => ({
+      ...prev,
+      range: 'custom',
+      dateFrom,
+      dateTo,
+    }));
   }, []);
 
   useEffect(() => {
@@ -161,7 +183,12 @@ export function useLoadMonitoring() {
           return;
         }
 
-        const { dateFrom, dateTo } = buildDateRange(filters.range);
+        const seasonTeamId = activeTeamId ?? teamIds[0];
+        const resolvedRange = await resolveDashboardDateRange(filters, {
+          orgId,
+          teamId: seasonTeamId,
+        });
+        const { dateFrom, dateTo } = resolvedRange;
 
         let sessionsQuery = supabase
           .from('sessions')
@@ -268,6 +295,7 @@ export function useLoadMonitoring() {
         setSessions(sessionRows);
         setLogs(logRows);
         setAthletes(athleteRows);
+        setDateRange(resolvedRange);
       } catch (err) {
         console.error('[useLoadMonitoring]', err);
         if (mounted) setError(err.message ?? 'Failed to load monitoring data');
@@ -278,10 +306,15 @@ export function useLoadMonitoring() {
 
     void load();
     return () => { mounted = false; };
-  }, [user, activeOrgId, activeTeamId, filters.range, filters.sessionType]);
+  }, [user, activeOrgId, activeTeamId, filters.range, filters.dateFrom, filters.dateTo, filters.sessionType]);
+
+  const dateRangeLabel = useMemo(
+    () => formatRange(dateRange.dateFrom, dateRange.dateTo),
+    [dateRange],
+  );
 
   const viewModel = useMemo(() => {
-    const { dateFrom, dateTo } = buildDateRange(filters.range);
+    const { dateFrom, dateTo } = dateRange;
     const dates = buildDailyDates(dateFrom, dateTo);
     const sessionsById = Object.fromEntries(sessions.map((s) => [s.id, s]));
     const athleteIds = athletes.map((a) => a.id);
@@ -411,7 +444,7 @@ export function useLoadMonitoring() {
       dataWarnings.push('EWMA requires at least 5 days of data to stabilise.');
     }
 
-    const rangeLabel = filters.range;
+    const rangeLabel = rangePresetLabel(filters.range);
     const methodLabel = filters.method === 'ewma' ? 'EWMA' : 'Rolling average';
 
     return {
@@ -432,13 +465,16 @@ export function useLoadMonitoring() {
       dateFrom,
       dateTo,
     };
-  }, [sessions, logs, athletes, filters]);
+  }, [sessions, logs, athletes, filters, dateRange]);
 
   return {
     loading,
     error,
     filters,
     setFilter,
+    setRangeFilter,
+    setCustomDateRange,
+    dateRangeLabel,
     athletes,
     ...viewModel,
   };

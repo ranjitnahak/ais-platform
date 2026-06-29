@@ -6,6 +6,7 @@ import { ZONE_BADGE } from '../../lib/zoneBadge';
 import { dashboardPdfFilename } from '../../lib/buildDashboardPDF';
 import { useSessionConfig } from '../../context/SessionConfigContext';
 import DashboardExportButton from '../shared/DashboardExportButton';
+import DashboardDateRangeFilter from '../shared/DashboardDateRangeFilter';
 import DashboardPanelHeader from '../shared/DashboardPanelHeader';
 import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton';
 import AcwrChart from './load-monitoring/AcwrChart';
@@ -15,8 +16,6 @@ import RpeComplianceCard from './load-monitoring/RpeComplianceCard';
 import RpeDistributionCard from './load-monitoring/RpeDistributionCard';
 import SquadTable from './load-monitoring/SquadTable';
 import SpikeWarningBanner from './load-monitoring/SpikeWarningBanner';
-
-const RANGE_OPTIONS = ['1W', '2W', '4W', '8W'];
 
 const ZONE_CARD_TINT = {
   safe: 'border-[color-mix(in_srgb,var(--color-excellent)_30%,var(--color-outline-variant))] bg-[color-mix(in_srgb,var(--color-excellent)_8%,var(--color-surface-container))]',
@@ -57,6 +56,9 @@ export default function LoadMonitoringDashboard() {
     error,
     filters,
     setFilter,
+    setRangeFilter,
+    setCustomDateRange,
+    dateRangeLabel,
     athletes,
     statCards,
     dateLabels,
@@ -88,8 +90,8 @@ export default function LoadMonitoringDashboard() {
     const methodText = filters.method === 'ewma'
       ? 'EWMA λ = 2/(N+1)'
       : 'Rolling average 7d ÷ 28d mean';
-    return `${filters.range} · ${athleteLabel} · ${sessionLabel} · ${methodText}`;
-  }, [filters, athletes, sessionTypeLabel]);
+    return `${rangeLabel} · ${dateRangeLabel} · ${athleteLabel} · ${sessionLabel} · ${methodText}`;
+  }, [filters, athletes, sessionTypeLabel, rangeLabel, dateRangeLabel]);
 
   const exportFilename = dashboardPdfFilename({
     orgName: user?.orgName,
@@ -117,23 +119,16 @@ export default function LoadMonitoringDashboard() {
         {filterSnapshot}
       </p>
 
-      <div data-pdf-exclude className="flex flex-wrap items-center gap-3 lg:ml-auto lg:justify-end">
-        <div className="flex rounded-full border border-[var(--color-outline-variant)] p-0.5">
-          {RANGE_OPTIONS.map((range) => (
-            <button
-              key={range}
-              type="button"
-              onClick={() => setFilter('range', range)}
-              className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors ${
-                filters.range === range
-                  ? 'bg-[var(--color-surface-container-high)] text-[var(--color-on-surface)]'
-                  : 'text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]'
-              }`}
-            >
-              {range}
-            </button>
-          ))}
-        </div>
+      <div data-pdf-exclude className="flex flex-col items-end gap-3 lg:ml-auto">
+        <DashboardDateRangeFilter
+          range={filters.range}
+          dateFrom={filters.dateFrom}
+          dateTo={filters.dateTo}
+          dateRangeLabel={dateRangeLabel}
+          onRangeChange={setRangeFilter}
+          onCustomDatesChange={setCustomDateRange}
+        />
+        <div className="flex flex-wrap items-center justify-end gap-3">
         <select
           value={filters.athleteId}
           onChange={(e) => setFilter('athleteId', e.target.value)}
@@ -156,6 +151,7 @@ export default function LoadMonitoringDashboard() {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
+        </div>
       </div>
 
       <div data-pdf-exclude className="flex flex-col gap-3 border-t border-[var(--color-outline-variant)] pt-4 sm:flex-row sm:items-center sm:justify-between">
