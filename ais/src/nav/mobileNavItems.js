@@ -1,8 +1,8 @@
 /** Mobile bottom bar + More sheet items (staff). */
 export const STAFF_BOTTOM_NAV = [
-  { icon: 'space_dashboard', label: 'Dashboard', to: '/dashboard' },
-  { icon: 'view_week', label: 'Plan', to: '/plan' },
-  { icon: 'edit_note', label: 'Log', to: '/log' },
+  { icon: 'space_dashboard', label: 'Dashboard', to: '/dashboard', sheetId: 'dashboard' },
+  { icon: 'view_week', label: 'Plan', to: '/plan', sheetId: 'plan' },
+  { icon: 'edit_note', label: 'Log', to: '/log', sheetId: 'log' },
   { icon: 'group', label: 'Athletes', to: '/athletes' },
 ];
 

@@ -97,8 +97,12 @@ export function isReportsNavVisible(user) {
 
 /** First staff route the user can see (for home redirect). */
 export function getDefaultStaffHomeRoute(user) {
-  if (!user) return '/dashboard';
-  const route = STAFF_HOME_ROUTE_ORDER.find((to) => isNavRouteVisible(user, to));
+  if (!user) return '/dashboard/wellness';
+  if (isNavRouteVisible(user, '/dashboard')) {
+    return getDefaultDashboardRoute(user);
+  }
+  const route = STAFF_HOME_ROUTE_ORDER.find((to) => to !== '/dashboard' && isNavRouteVisible(user, to));
+  if (route === '/log') return getDefaultLogRoute(user);
   return route ?? '/settings';
 }
 
