@@ -11,6 +11,14 @@ export const DASHBOARD_RANGE_OPTIONS = [
   { value: 'custom', label: 'Custom' },
 ];
 
+export const WELLNESS_DASHBOARD_RANGE_OPTIONS = [
+  { value: 'today', label: 'Today' },
+  { value: 'calendar', label: 'Calendar' },
+  { value: '7D', label: '7 days' },
+  { value: '4W', label: '4 weeks' },
+  { value: 'custom', label: 'Custom' },
+];
+
 export function todayIso(referenceDate = new Date()) {
   return toISODate(referenceDate);
 }
@@ -18,6 +26,11 @@ export function todayIso(referenceDate = new Date()) {
 export function buildTodayRange(referenceDate = new Date()) {
   const dateTo = todayIso(referenceDate);
   return { dateFrom: dateTo, dateTo };
+}
+
+export function buildCalendarRange(date, referenceDate = new Date()) {
+  const day = date || todayIso(referenceDate);
+  return { dateFrom: day, dateTo: day };
 }
 
 export function buildSevenDayRange(referenceDate = new Date()) {
@@ -35,6 +48,8 @@ export function buildPresetDateRange(range, referenceDate = new Date()) {
   switch (range) {
     case 'today':
       return buildTodayRange(referenceDate);
+    case 'calendar':
+      return buildCalendarRange(null, referenceDate);
     case '7D':
       return buildSevenDayRange(referenceDate);
     case '4W':
@@ -96,6 +111,10 @@ export async function resolveDashboardDateRange(
     return resolveSeasonRange(orgId, teamId);
   }
 
+  if (range === 'calendar') {
+    return buildCalendarRange(dateFrom || dateTo, referenceDate);
+  }
+
   if (range === 'custom') {
     return normalizeCustomRange(dateFrom, dateTo, buildFourWeekRange(referenceDate));
   }
@@ -104,6 +123,8 @@ export async function resolveDashboardDateRange(
 }
 
 export function rangePresetLabel(range) {
-  const option = DASHBOARD_RANGE_OPTIONS.find((item) => item.value === range);
+  const option =
+    DASHBOARD_RANGE_OPTIONS.find((item) => item.value === range) ??
+    WELLNESS_DASHBOARD_RANGE_OPTIONS.find((item) => item.value === range);
   return option?.label ?? '4 weeks';
 }

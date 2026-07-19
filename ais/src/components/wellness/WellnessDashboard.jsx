@@ -1,85 +1,38 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { supabase } from '../../lib/supabase'
-import { getCurrentUser, canSync } from '../../lib/auth'
-import { resolveOrgTeamScope, narrowTeamIds } from '../../lib/orgScope'
+import { useCallback, useState } from 'react'
 import { exportWellnessDashboardPDF } from '../../lib/exportWellnessPDF'
 import { WELLNESS_METRIC_COLUMNS, WELLNESS_SORE_AREA_LABEL } from '../../lib/wellnessDashboardConstants'
+import { WELLNESS_DASHBOARD_RANGE_OPTIONS } from '../../lib/dashboardDateRange'
 import { useUser } from '../../context/UserContext'
+import { useWellnessDateRange } from '../../hooks/useWellnessDateRange'
 import WellnessTrend from './WellnessTrend'
 import ExportPdfButton from '../shared/ExportPdfButton'
 import DashboardPanelHeader from '../shared/DashboardPanelHeader'
 import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton'
+import DashboardDateRangeFilter from '../shared/DashboardDateRangeFilter'
 import ZoneMetricBadge from '../shared/ZoneMetricBadge'
 import { getWellnessZone } from '../../lib/zoneBadge'
 
 export default function WellnessDashboard({ embedded = false }) {
-  const { user, activeOrgId, activeTeamId } = useUser()
-  const [athletes, setAthletes] = useState([])
-  const [logs, setLogs] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { user } = useUser()
+  const {
+    canView,
+    loading,
+    error,
+    filters,
+    setRangeFilter,
+    setCustomDateRange,
+    athletes,
+    logs,
+    athleteViews,
+    summary,
+    isSingleDay,
+    dateFrom,
+    dateTo,
+    dateRangeLabel,
+  } = useWellnessDateRange()
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState(null)
   const [wellnessView, setWellnessView] = useState('grid')
-  const canView = canSync(user, 'wellness', 'view')
-
-  useEffect(() => {
-    if (!canView) return
-    async function loadDashboard() {
-      try {
-        setLoading(true)
-        setError(null)
-        const currentUser = await getCurrentUser()
-        const orgId = activeOrgId ?? currentUser?.orgId
-        if (!currentUser || !orgId) return
-        const { effectiveTeamIds } = await resolveOrgTeamScope(supabase, currentUser, activeOrgId)
-        const teamIds = narrowTeamIds(effectiveTeamIds, activeTeamId)
-        if (!teamIds.length) {
-          setAthletes([])
-          setLogs([])
-          return
-        }
-        const { data: athleteRows, error: athleteError } = await supabase
-          .from('athletes')
-          .select('id, full_name, photo_url, athlete_teams!inner(team_id)')
-          .eq('org_id', orgId)
-          .eq('is_active', true)
-          .in('athlete_teams.team_id', teamIds)
-          .order('full_name', { ascending: true })
-        if (athleteError) throw athleteError
-        const athleteIds = [...new Set((athleteRows ?? []).map((athlete) => athlete.id))]
-        if (!athleteIds.length) {
-          setAthletes([])
-          setLogs([])
-          return
-        }
-        const today = new Date().toISOString().split('T')[0]
-        const { data: logRows, error: logError } = await supabase
-          .from('wellness_logs')
-          .select('athlete_id, composite_score, flagged, responses, logged_at, athletes(full_name, photo_url)')
-          .eq('org_id', orgId)
-          .eq('log_date', today)
-          .in('athlete_id', athleteIds)
-          .order('composite_score', { ascending: true })
-        if (logError) throw logError
-        setAthletes(athleteRows ?? [])
-        setLogs(logRows ?? [])
-      } catch (err) {
-        console.error('[WellnessDashboard] loadDashboard failed:', err)
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadDashboard()
-  }, [canView, activeOrgId, activeTeamId])
-
-  const summary = useMemo(() => {
-    const scored = logs.filter((log) => log.composite_score != null)
-    const average = scored.length ? scored.reduce((sum, log) => sum + Number(log.composite_score), 0) / scored.length : null
-    const flagged = logs.filter((log) => log.flagged || (log.composite_score != null && Number(log.composite_score) < 2.5)).length
-    return { submitted: logs.length, total: athletes.length, average, flagged }
-  }, [athletes.length, logs])
 
   const handleExportPDF = useCallback(async () => {
     if (exporting || loading || error) return
@@ -91,7 +44,12 @@ export default function WellnessDashboard({ embedded = false }) {
         orgLogoUrl: user?.orgLogoUrl ?? null,
         athletes,
         logs,
-        summary,
+        summary: {
+          submitted: summary.submitted,
+          total: summary.total,
+          average: summary.average,
+          flagged: summary.flagged,
+        },
       })
     } catch (err) {
       console.error('[WellnessDashboard] PDF export failed:', err)
@@ -106,83 +64,109 @@ export default function WellnessDashboard({ embedded = false }) {
       <p className="rounded-2xl bg-[var(--color-surface-container)] p-6 text-sm font-bold text-[var(--color-on-surface-variant)]">
         You do not have permission to view wellness data.
       </p>
-    );
+    )
   }
 
   const content = (
-      <div className="mx-auto max-w-6xl space-y-6">
-        {embedded ? (
-          <DashboardPanelHeader
-            title="Wellness Dashboard"
-            subtitle={user?.orgName || '—'}
-            exportSlot={(
-              <div data-pdf-exclude>
-                <ExportPdfButton
-                  onClick={handleExportPDF}
-                  disabled={loading || !!error || !athletes.length}
-                  exporting={exporting}
-                  error={exportError}
-                />
-              </div>
-            )}
-          />
-        ) : (
+    <div className="mx-auto max-w-6xl space-y-6">
+      {embedded ? (
+        <DashboardPanelHeader
+          title="Wellness Dashboard"
+          subtitle={user?.orgName || '—'}
+          exportSlot={(
+            <div data-pdf-exclude>
+              <ExportPdfButton
+                onClick={handleExportPDF}
+                disabled={loading || !!error || !athletes.length}
+                exporting={exporting}
+                error={exportError}
+              />
+            </div>
+          )}
+        />
+      ) : (
         <header>
           <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">Team Readiness</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight">Wellness Dashboard</h1>
-          <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Today&apos;s wellness submissions for your assigned teams.</p>
+          <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
+            {isSingleDay
+              ? 'Wellness submissions for the selected day.'
+              : 'Wellness averages across the selected date range.'}
+          </p>
         </header>
-        )}
+      )}
 
-        {!loading && (
-          <section className="grid gap-3 rounded-3xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4 sm:grid-cols-3">
-            <SummaryTile label="Submitted Today" value={`${summary.submitted} of ${summary.total}`} />
-            <SummaryTile label="Average Score" value={summary.average == null ? '—' : summary.average.toFixed(1)} />
-            <SummaryTile label="Flagged" value={summary.flagged} />
-          </section>
-        )}
-
-        {loading && <div data-pdf-exclude><DashboardSkeleton contentOnly /></div>}
-
-        {error && (
-          <div data-pdf-exclude className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">
-            {error}
-          </div>
-        )}
-
-        {!loading && (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-bold text-[var(--color-text-muted)]">
-              {summary.submitted} of {summary.total} submitted
-            </p>
-            <div data-pdf-exclude>
-              <WellnessViewToggle wellnessView={wellnessView} onChange={setWellnessView} />
-            </div>
-          </div>
-        )}
-
-        {!loading && wellnessView === 'grid' && (
-          <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
-            {athletes.map((athlete) => {
-              const log = logs.find((entry) => entry.athlete_id === athlete.id)
-              return <AthleteCard key={athlete.id} athlete={athlete} log={log} />
-            })}
-          </section>
-        )}
-
-        {!loading && wellnessView === 'table' && (
-          <WellnessTable athletes={athletes} logs={logs} />
-        )}
+      <div data-pdf-exclude className="lg:ml-auto lg:flex lg:justify-end">
+        <DashboardDateRangeFilter
+          range={filters.range}
+          dateFrom={filters.dateFrom}
+          dateTo={filters.dateTo}
+          dateRangeLabel={dateRangeLabel}
+          onRangeChange={setRangeFilter}
+          onCustomDatesChange={setCustomDateRange}
+          options={WELLNESS_DASHBOARD_RANGE_OPTIONS}
+        />
       </div>
-  );
 
-  if (embedded) return content;
+      {!loading && (
+        <section className="grid gap-3 rounded-3xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-4 sm:grid-cols-3">
+          <SummaryTile label={summary.submittedLabel} value={summary.submittedDisplay} />
+          <SummaryTile
+            label="Average Score"
+            value={summary.average == null ? '—' : Number(summary.average).toFixed(1)}
+          />
+          <SummaryTile label={summary.flaggedLabel} value={summary.flaggedDisplay} />
+        </section>
+      )}
+
+      {loading && <div data-pdf-exclude><DashboardSkeleton contentOnly /></div>}
+
+      {error && (
+        <div data-pdf-exclude className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-surface-container)] p-4 text-sm text-[var(--color-error)]">
+          {error}
+        </div>
+      )}
+
+      {!loading && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-bold text-[var(--color-text-muted)]">
+            {isSingleDay
+              ? `${summary.submitted} of ${summary.total} submitted`
+              : `${summary.submittedDisplay} avg daily`}
+          </p>
+          <div data-pdf-exclude>
+            <WellnessViewToggle wellnessView={wellnessView} onChange={setWellnessView} />
+          </div>
+        </div>
+      )}
+
+      {!loading && wellnessView === 'grid' && (
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          {athleteViews.map((view) => (
+            <AthleteCard
+              key={view.athlete.id}
+              view={view}
+              isSingleDay={isSingleDay}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+            />
+          ))}
+        </section>
+      )}
+
+      {!loading && wellnessView === 'table' && (
+        <WellnessTable athleteViews={athleteViews} isSingleDay={isSingleDay} />
+      )}
+    </div>
+  )
+
+  if (embedded) return content
 
   return (
     <main className="min-h-screen bg-[var(--color-surface)] px-4 py-8 font-['Inter'] text-[var(--color-on-surface)] md:ml-64 md:px-8">
       {content}
     </main>
-  );
+  )
 }
 
 function SummaryTile({ label, value }) {
@@ -194,14 +178,11 @@ function SummaryTile({ label, value }) {
   )
 }
 
-function AthleteCard({ athlete, log }) {
-  const score = log?.composite_score == null ? null : Number(log.composite_score)
-  const flagged = Boolean(log?.flagged) || (score != null && score < 2.5)
-  const sorenessAreas = Array.isArray(log?.responses?.soreness_areas)
-    ? log.responses.soreness_areas
-    : []
+function AthleteCard({ view, isSingleDay, dateFrom, dateTo }) {
+  const { athlete, score, status, flagged, sorenessAreas } = view
+  const hasScore = score != null
   return (
-    <article className={`min-h-48 rounded-3xl border p-4 ${log ? 'border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]' : 'border-[var(--color-outline-variant)] bg-[var(--color-surface-variant)] opacity-70'}`}>
+    <article className={`min-h-48 rounded-3xl border p-4 ${hasScore || !isSingleDay ? 'border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]' : 'border-[var(--color-outline-variant)] bg-[var(--color-surface-variant)] opacity-70'}`}>
       <div className="flex items-center gap-3">
         {athlete.photo_url ? (
           <img src={athlete.photo_url} alt="" className="h-10 w-10 rounded-full object-cover" />
@@ -212,17 +193,19 @@ function AthleteCard({ athlete, log }) {
         )}
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-black">{athlete.full_name}</h2>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-outline)]">{log ? 'Submitted' : 'Not submitted'}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-outline)]">{status}</p>
         </div>
-        {flagged && <span className="material-symbols-outlined text-[var(--color-error)]">flag</span>}
+        {isSingleDay && flagged && <span className="material-symbols-outlined text-[var(--color-error)]">flag</span>}
       </div>
 
       <div className="mt-5 flex items-center justify-between gap-3">
-        {score == null ? <span className="rounded-full bg-[var(--color-surface)] px-3 py-2 text-xs font-black text-[var(--color-outline)]">Not submitted</span> : <ScoreBadge score={score} />}
-        {log && <WellnessTrend athleteId={athlete.id} />}
+        {score == null
+          ? <span className="rounded-full bg-[var(--color-surface)] px-3 py-2 text-xs font-black text-[var(--color-outline)]">{isSingleDay ? 'Not submitted' : '—'}</span>
+          : <ScoreBadge score={score} />}
+        <WellnessTrend athleteId={athlete.id} dateFrom={dateFrom} dateTo={dateTo} />
       </div>
 
-      {sorenessAreas.length > 0 && (
+      {isSingleDay && sorenessAreas.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {sorenessAreas.map((area) => (
             <span
@@ -285,6 +268,9 @@ function WellnessViewToggle({ wellnessView, onChange }) {
 }
 
 function MetricPill({ value, inverse }) {
+  if (value == null || !Number.isFinite(Number(value))) {
+    return <span className="text-[var(--color-text-muted)]">—</span>
+  }
   const zone = getWellnessZone(value, { inverse })
   return <ZoneMetricBadge zone={zone}>{value}</ZoneMetricBadge>
 }
@@ -301,7 +287,7 @@ function SoreAreaCell({ areas }) {
   )
 }
 
-function WellnessTable({ athletes, logs }) {
+function WellnessTable({ athleteViews, isSingleDay }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)]">
       <table className="w-full min-w-[48rem] border-collapse text-left text-sm">
@@ -324,10 +310,9 @@ function WellnessTable({ athletes, logs }) {
           </tr>
         </thead>
         <tbody>
-          {athletes.map((athlete) => {
-            const log = logs.find((entry) => entry.athlete_id === athlete.id)
-            const responses = log?.responses ?? {}
-            if (!log) {
+          {athleteViews.map((view) => {
+            const { athlete, responses } = view
+            if (isSingleDay && !view.log) {
               return (
                 <tr
                   key={athlete.id}
@@ -351,6 +336,31 @@ function WellnessTable({ athletes, logs }) {
                 </tr>
               )
             }
+            if (!isSingleDay && view.score == null && !responses) {
+              return (
+                <tr
+                  key={athlete.id}
+                  className="opacity-40"
+                  style={{ borderBottom: '0.5px solid var(--color-border)', cursor: 'default' }}
+                >
+                  <td className="sticky left-0 z-10 bg-[var(--color-surface-container)] px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-surface)] text-xs font-black text-[var(--color-on-surface)]">
+                        {athleteInitials(athlete.full_name)}
+                      </div>
+                      <span className="truncate font-bold text-[var(--color-on-surface)]">{athlete.full_name}</span>
+                    </div>
+                  </td>
+                  {WELLNESS_METRIC_COLUMNS.map((col) => (
+                    <td key={col.key} className="px-3 py-2.5 text-center text-[var(--color-text-muted)]">
+                      —
+                    </td>
+                  ))}
+                  <td className="px-3 py-2.5 text-center text-[var(--color-text-muted)]">—</td>
+                </tr>
+              )
+            }
+            const metricResponses = responses ?? {}
             return (
               <tr
                 key={athlete.id}
@@ -367,11 +377,13 @@ function WellnessTable({ athletes, logs }) {
                 </td>
                 {WELLNESS_METRIC_COLUMNS.map((col) => (
                   <td key={col.key} className="px-3 py-2.5 text-center">
-                    <MetricPill value={responses[col.key]} inverse={col.inverse} />
+                    <MetricPill value={metricResponses[col.key]} inverse={col.inverse} />
                   </td>
                 ))}
                 <td className="px-3 py-2.5 text-center">
-                  <SoreAreaCell areas={responses.soreness_areas} />
+                  {isSingleDay
+                    ? <SoreAreaCell areas={metricResponses.soreness_areas} />
+                    : <span className="text-[var(--color-text-muted)]">—</span>}
                 </td>
               </tr>
             )

@@ -10,14 +10,16 @@ export default function DashboardDateRangeFilter({
   dateRangeLabel,
   onRangeChange,
   onCustomDatesChange,
+  options = DASHBOARD_RANGE_OPTIONS,
 }) {
   const isCustom = range === 'custom';
+  const isCalendar = range === 'calendar';
 
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex flex-wrap items-center justify-end gap-3">
         <div className="flex rounded-full border border-[var(--color-outline-variant)] p-0.5">
-          {DASHBOARD_RANGE_OPTIONS.map((option) => (
+          {options.map((option) => (
             <button
               key={option.value}
               type="button"
@@ -32,12 +34,29 @@ export default function DashboardDateRangeFilter({
             </button>
           ))}
         </div>
-        {!isCustom && dateRangeLabel && (
+        {!isCustom && !isCalendar && dateRangeLabel && (
           <span className="text-[10px] font-bold text-[var(--color-on-surface-variant)]">
             {dateRangeLabel}
           </span>
         )}
       </div>
+
+      {isCalendar && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <input
+            type="date"
+            value={dateFrom ?? ''}
+            onChange={(e) => onCustomDatesChange({ dateFrom: e.target.value, dateTo: e.target.value })}
+            className={dateInputClass}
+            aria-label="Select date"
+          />
+          {dateRangeLabel && (
+            <span className="text-[10px] font-bold text-[var(--color-on-surface-variant)]">
+              {dateRangeLabel}
+            </span>
+          )}
+        </div>
+      )}
 
       {isCustom && (
         <div className="flex flex-wrap items-center justify-end gap-2">
