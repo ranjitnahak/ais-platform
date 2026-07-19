@@ -121,6 +121,7 @@ These must NOT be partially implemented in V1.5. Use stub pattern only.
 | TD-04 | `PeriodisationCanvas.jsx` still large | Low | Refactor reduced it significantly but may still be over 400 lines. Verify line count after refactor commits. |
 | TD-05 | Ghost layer only renders at `cell_date` column | Low | `ghostCellMap` keyed by `cell_date` only — ghost band appears as single-column pill, not spanning. Not visible to user but architecturally incomplete. |
 | TD-06 | Duplicate plan auto-create | Fixed | Root cause: `org_id` missing in row-copy INSERT. Fixed in `usePeriodisationPlan.js`. Recovery check added for zero-row plans. |
+| TD-07 | NavPicker status subtitles | Low | Mobile Dashboard/Plan/Log pickers support optional `subtitle` per row, but no shared hooks expose counts yet (e.g. Wellness “X of Y submitted” is local to `WellnessDashboard.jsx`). Wire later without new query sprawl. |
 
 ---
 

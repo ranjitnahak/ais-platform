@@ -13,13 +13,14 @@ import DexaReportsTab from '../components/reports/DexaReportsTab';
 import { athleteDisplayName, athleteInitialsFromAthlete } from '../lib/athleteName';
 import Sidebar from '../components/Sidebar';
 import TabShell from '../components/layout/TabShell';
+import PillTabs from '../components/layout/PillTabs';
 import { TopBarUserMenu } from '../components/layout/TopBar';
 
 const REPORT_TABS = [
-  { id: 'individual', label: 'Individual Reports' },
-  { id: 'team', label: 'Team Reports' },
-  { id: 'observations', label: 'Staff Logs' },
-  { id: 'dexa', label: 'DEXA Reports' },
+  { id: 'individual', label: 'Individual' },
+  { id: 'team', label: 'Team' },
+  { id: 'observations', label: 'Observations' },
+  { id: 'dexa', label: 'DEXA' },
 ];
 
 function AthleteInitials({ athlete }) {
@@ -27,29 +28,6 @@ function AthleteInitials({ athlete }) {
   return (
     <div className="w-12 h-12 rounded-full bg-[#353437] flex items-center justify-center text-sm font-black text-white shrink-0" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
       {initials}
-    </div>
-  );
-}
-
-function ReportsTabBar({ tabs, activeTab, onTabChange, onTabHover }) {
-  return (
-    <div className="mb-6 flex flex-wrap gap-2 rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] p-2">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onTabChange(tab.id)}
-          onPointerEnter={onTabHover ? () => onTabHover(tab.id) : undefined}
-          onFocus={onTabHover ? () => onTabHover(tab.id) : undefined}
-          className={`rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
-            activeTab === tab.id
-              ? 'bg-[var(--color-primary-container)] text-[var(--color-on-primary)]'
-              : 'text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]'
-          }`}
-        >
-          {tab.label}
-        </button>
-      ))}
     </div>
   );
 }
@@ -499,7 +477,7 @@ export default function Reports() {
             panels={panels}
             scopeKey={effectiveOrgId ?? 'reports'}
             className="space-y-0"
-            renderTabBar={(tabBarProps) => <ReportsTabBar {...tabBarProps} />}
+            renderTabBar={(tabBarProps) => <PillTabs {...tabBarProps} className="mb-6" />}
           />
         )}
 

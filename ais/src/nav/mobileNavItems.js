@@ -1,13 +1,14 @@
 /** Mobile bottom bar + More sheet items (staff). */
 export const STAFF_BOTTOM_NAV = [
-  { icon: 'space_dashboard', label: 'Dashboard', to: '/dashboard/wellness' },
+  { icon: 'space_dashboard', label: 'Dashboard', to: '/dashboard' },
+  { icon: 'view_week', label: 'Plan', to: '/plan' },
   { icon: 'edit_note', label: 'Log', to: '/log' },
   { icon: 'group', label: 'Athletes', to: '/athletes' },
-  { icon: 'description', label: 'Reports', to: '/reports' },
 ];
 
 export const STAFF_DASHBOARD_NAV = [
   { icon: 'monitor_heart', label: 'Wellness', to: '/dashboard/wellness', resource: 'wellness' },
+  { icon: 'event_available', label: 'Attendance', to: '/dashboard/attendance', resource: 'attendance' },
   { icon: 'fitness_center', label: 'RPE', to: '/dashboard/rpe', resource: 'rpe_logging' },
   { icon: 'trending_up', label: 'Assessment', to: '/dashboard/assessment', resource: 'assessments' },
 ];
@@ -27,6 +28,7 @@ export const STAFF_PLAN_NAV = [
 ];
 
 export const STAFF_MORE_NAV = [
+  { icon: 'description', label: 'Reports', to: '/reports' },
   { icon: 'admin_panel_settings', label: 'Admin', to: '/admin', adminOnly: true },
   { icon: 'settings', label: 'Settings', to: '/settings' },
   { icon: 'shield', label: 'Superuser', to: '/superuser', superuserOnly: true },

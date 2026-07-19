@@ -10,6 +10,7 @@ export const NAV_ROUTE_RESOURCE = {
   '/dashboard/rpe': 'rpe_logging',
   '/dashboard/assessment': 'assessments',
   '/athletes': 'athleteRoster',
+  '/plan': 'periodisation',
   '/periodisation': 'periodisation',
   '/plan/calendar': 'periodisation',
   '/log': null,

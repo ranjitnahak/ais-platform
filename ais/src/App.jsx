@@ -13,6 +13,7 @@ const LogStaffNotes = lazy(() => import('./pages/log/LogStaffNotes'));
 const LogAttendance = lazy(() => import('./pages/log/LogAttendance'));
 const LogDexa = lazy(() => import('./pages/log/LogDexa'));
 import Log from './pages/Log';
+import Plan from './pages/Plan';
 import Reports from './pages/Reports';
 import AthleteReportView from './pages/AthleteReportView';
 import TeamReportView from './pages/TeamReportView';
@@ -208,14 +209,12 @@ export default function App() {
 
           <Route element={<StaffRouteGuard user={checkingUser ? null : resolvedUser} />}>
             <Route path="/dashboard" element={<Dashboard />}>
-              <Route index element={<Navigate to="wellness" replace />} />
               <Route path="wellness" element={<DashboardWellness />} />
               <Route path="attendance" element={<DashboardAttendance />} />
               <Route path="rpe" element={<DashboardRPE />} />
               <Route path="assessment" element={<AssessmentDashboard />} />
             </Route>
             <Route path="/log" element={<Log />}>
-              <Route index element={<Navigate to="rpe" replace />} />
               <Route path="rpe" element={<LogRPE />} />
               <Route path="wellness" element={<LogWellness />} />
               <Route path="assessment" element={<LogAssessment />} />
@@ -223,6 +222,7 @@ export default function App() {
               <Route path="attendance" element={<LogAttendance />} />
               <Route path="dexa" element={<LogDexa />} />
             </Route>
+            <Route path="/plan" element={<Plan />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/reports/athlete/:reportId" element={<AthleteReportView />} />
             <Route path="/reports/team/:reportId" element={<TeamReportView />} />
