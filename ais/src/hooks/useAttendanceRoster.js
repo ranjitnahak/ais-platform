@@ -107,21 +107,39 @@ export function useAttendanceRoster(session, { onToast } = {}) {
         if (error) throw error;
         if (data) athletes = [data];
       } else {
-        const { data, error } = await supabase
-          .from('athlete_teams')
+        const { data: sessionLogs, error: logsError } = await supabase
+          .from('session_athlete_logs')
           .select(
-            'athlete_id, joined_at, left_at, athletes!inner(id, first_name, last_name, full_name, org_id, is_active)',
+            'athlete_id, athletes!inner(id, first_name, last_name, full_name, org_id, is_active)',
           )
-          .eq('team_id', session.team_id)
-          .eq('athletes.org_id', effectiveOrgId)
-          .eq('athletes.is_active', true)
-          .lte('joined_at', `${sessionDate}T23:59:59.999Z`)
-          .or(`left_at.is.null,left_at.gte.${sessionDate}`);
-        if (error) throw error;
+          .eq('session_id', session.id)
+          .eq('org_id', effectiveOrgId)
+          .eq('athletes.is_active', true);
+        if (logsError) throw logsError;
 
-        athletes = (data ?? [])
+        const logAthletes = (sessionLogs ?? [])
           .map((row) => (Array.isArray(row.athletes) ? row.athletes[0] : row.athletes))
           .filter(Boolean);
+
+        if (logAthletes.length) {
+          athletes = logAthletes;
+        } else {
+          const { data, error } = await supabase
+            .from('athlete_teams')
+            .select(
+              'athlete_id, joined_at, left_at, athletes!inner(id, first_name, last_name, full_name, org_id, is_active)',
+            )
+            .eq('team_id', session.team_id)
+            .eq('athletes.org_id', effectiveOrgId)
+            .eq('athletes.is_active', true)
+            .lte('joined_at', `${sessionDate}T23:59:59.999Z`)
+            .or(`left_at.is.null,left_at.gte.${sessionDate}`);
+          if (error) throw error;
+
+          athletes = (data ?? [])
+            .map((row) => (Array.isArray(row.athletes) ? row.athletes[0] : row.athletes))
+            .filter(Boolean);
+        }
       }
 
       if (isAthleteViewer && currentUser.athlete_id) {

@@ -130,4 +130,54 @@ const trend = computeWeeklyTrend({
 assert.ok(trend.length > 0);
 assert.ok(trend.every((week) => week.weekLabel.startsWith('W')));
 
+// Subset session: only a1 assigned on s1 → a2 not scheduled for s1
+const subsetMap = {
+  s1: new Set(['a1']),
+};
+assert.equal(
+  isAthleteScheduled(sessions[0], athleteTeams[0], dateRange, teamId, subsetMap),
+  true,
+);
+assert.equal(
+  isAthleteScheduled(sessions[0], athleteTeams[1], dateRange, teamId, subsetMap),
+  false,
+);
+// Sessions without map entries still use full-team behaviour
+assert.equal(
+  isAthleteScheduled(sessions[1], athleteTeams[1], dateRange, teamId, subsetMap),
+  true,
+);
+
+const blakeSubsetRate = computeAttendanceRate({
+  sessions,
+  athleteTeams,
+  attendanceRecords,
+  athleteId: 'a2',
+  dateRange,
+  teamId,
+  sessionAthleteIdsBySession: subsetMap,
+});
+assert.equal(blakeSubsetRate.sessionsScheduled, 2);
+
+const alexSubsetRate = computeAttendanceRate({
+  sessions,
+  athleteTeams,
+  attendanceRecords,
+  athleteId: 'a1',
+  dateRange,
+  teamId,
+  sessionAthleteIdsBySession: subsetMap,
+});
+assert.equal(alexSubsetRate.sessionsScheduled, 3);
+
+// Empty set / missing entry → full-team fallback
+assert.equal(
+  isAthleteScheduled(sessions[0], athleteTeams[1], dateRange, teamId, { s1: [] }),
+  true,
+);
+assert.equal(
+  isAthleteScheduled(sessions[0], athleteTeams[1], dateRange, teamId, {}),
+  true,
+);
+
 console.log('attendanceEngine.test.js: all assertions passed');

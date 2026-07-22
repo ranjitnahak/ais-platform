@@ -27,6 +27,7 @@ export function useAttendanceDashboard() {
   const [sessions, setSessions] = useState([]);
   const [athleteTeams, setAthleteTeams] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [sessionAthleteIdsBySession, setSessionAthleteIdsBySession] = useState({});
   const [dateRange, setDateRange] = useState(buildTodayRange());
   const dateRangeRef = useRef(dateRange);
   dateRangeRef.current = dateRange;
@@ -76,6 +77,7 @@ export function useAttendanceDashboard() {
             setSessions([]);
             setAthleteTeams([]);
             setAttendanceRecords([]);
+            setSessionAthleteIdsBySession({});
             setDateRange(buildTodayRange());
           }
           return;
@@ -88,6 +90,7 @@ export function useAttendanceDashboard() {
             setSessions([]);
             setAthleteTeams([]);
             setAttendanceRecords([]);
+            setSessionAthleteIdsBySession({});
           }
           return;
         }
@@ -125,14 +128,31 @@ export function useAttendanceDashboard() {
         const sessionIds = sessionRows.map((row) => row.id);
 
         let recordRows = [];
+        let athleteIdsBySession = {};
         if (sessionIds.length) {
-          const { data, error: recordsError } = await supabase
-            .from('attendance_records')
-            .select(RECORD_SELECT)
-            .eq('org_id', orgId)
-            .in('session_id', sessionIds);
-          if (recordsError) throw recordsError;
-          recordRows = data ?? [];
+          const [recordsRes, logsRes] = await Promise.all([
+            supabase
+              .from('attendance_records')
+              .select(RECORD_SELECT)
+              .eq('org_id', orgId)
+              .in('session_id', sessionIds),
+            supabase
+              .from('session_athlete_logs')
+              .select('session_id, athlete_id')
+              .eq('org_id', orgId)
+              .in('session_id', sessionIds),
+          ]);
+          if (recordsRes.error) throw recordsRes.error;
+          if (logsRes.error) throw logsRes.error;
+          recordRows = recordsRes.data ?? [];
+
+          for (const row of logsRes.data ?? []) {
+            if (!row.session_id || !row.athlete_id) continue;
+            if (!athleteIdsBySession[row.session_id]) {
+              athleteIdsBySession[row.session_id] = new Set();
+            }
+            athleteIdsBySession[row.session_id].add(row.athlete_id);
+          }
         }
 
         if (!mounted) return;
@@ -140,6 +160,7 @@ export function useAttendanceDashboard() {
         setSessions(sessionRows);
         setAthleteTeams(athleteTeamRows);
         setAttendanceRecords(recordRows);
+        setSessionAthleteIdsBySession(athleteIdsBySession);
         setDateRange(resolvedRange);
       } catch (err) {
         console.error('[useAttendanceDashboard] load failed:', err);
@@ -148,6 +169,7 @@ export function useAttendanceDashboard() {
           setSessions([]);
           setAthleteTeams([]);
           setAttendanceRecords([]);
+          setSessionAthleteIdsBySession({});
         }
       } finally {
         if (mounted) setLoading(false);
@@ -167,8 +189,9 @@ export function useAttendanceDashboard() {
       attendanceRecords,
       teamId: activeTeamId,
       dateRange,
+      sessionAthleteIdsBySession,
     }),
-    [sessions, athleteTeams, attendanceRecords, activeTeamId, dateRange],
+    [sessions, athleteTeams, attendanceRecords, activeTeamId, dateRange, sessionAthleteIdsBySession],
   );
 
   const weeklyTrend = useMemo(
@@ -178,8 +201,9 @@ export function useAttendanceDashboard() {
       attendanceRecords,
       teamId: activeTeamId,
       dateRange,
+      sessionAthleteIdsBySession,
     }),
-    [sessions, athleteTeams, attendanceRecords, activeTeamId, dateRange],
+    [sessions, athleteTeams, attendanceRecords, activeTeamId, dateRange, sessionAthleteIdsBySession],
   );
 
   const reasonBreakdown = useMemo(
@@ -194,8 +218,9 @@ export function useAttendanceDashboard() {
       attendanceRecords,
       teamId: activeTeamId,
       dateRange,
+      sessionAthleteIdsBySession,
     }),
-    [sessions, athleteTeams, attendanceRecords, activeTeamId, dateRange],
+    [sessions, athleteTeams, attendanceRecords, activeTeamId, dateRange, sessionAthleteIdsBySession],
   );
 
   const dateRangeLabel = useMemo(

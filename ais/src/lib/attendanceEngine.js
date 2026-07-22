@@ -20,14 +20,33 @@ function isAthleteOnTeamForSession(sessionDate, athleteTeam) {
   return true;
 }
 
-export function isAthleteScheduled(session, athleteTeam, dateRange, teamId) {
+function athleteIdsForSession(sessionAthleteIdsBySession, sessionId) {
+  if (!sessionAthleteIdsBySession || sessionId == null) return null;
+  const raw = sessionAthleteIdsBySession[sessionId];
+  if (raw == null) return null;
+  if (raw instanceof Set) return raw.size > 0 ? raw : null;
+  if (Array.isArray(raw)) return raw.length > 0 ? new Set(raw) : null;
+  return null;
+}
+
+export function isAthleteScheduled(
+  session,
+  athleteTeam,
+  dateRange,
+  teamId,
+  sessionAthleteIdsBySession,
+) {
   const sessionDate = sessionDateOnly(session.session_date);
   if (!sessionDate || !isDateInRange(sessionDate, dateRange)) return false;
   if (teamId && session.team_id !== teamId) return false;
   const athleteId = athleteTeam.athlete_id ?? athleteTeam.athleteId;
   if (session.athlete_id && session.athlete_id !== athleteId) return false;
   if (athleteTeam.athlete_id && athleteTeam.athlete_id !== athleteId) return false;
-  return isAthleteOnTeamForSession(sessionDate, athleteTeam);
+  if (!isAthleteOnTeamForSession(sessionDate, athleteTeam)) return false;
+
+  const assignedIds = athleteIdsForSession(sessionAthleteIdsBySession, session.id);
+  if (assignedIds) return assignedIds.has(athleteId);
+  return true;
 }
 
 export function findException(attendanceRecords, sessionId, athleteId) {
@@ -61,9 +80,15 @@ function filterTeamSessions(sessions, teamId, dateRange) {
   });
 }
 
-function scheduledSessionsForAthlete(sessions, athleteTeam, dateRange, teamId) {
+function scheduledSessionsForAthlete(
+  sessions,
+  athleteTeam,
+  dateRange,
+  teamId,
+  sessionAthleteIdsBySession,
+) {
   return filterTeamSessions(sessions, teamId, dateRange).filter((session) =>
-    isAthleteScheduled(session, athleteTeam, dateRange, teamId),
+    isAthleteScheduled(session, athleteTeam, dateRange, teamId, sessionAthleteIdsBySession),
   );
 }
 
@@ -94,6 +119,7 @@ export function computeAttendanceRate({
   athleteId,
   dateRange,
   teamId,
+  sessionAthleteIdsBySession,
 }) {
   const athleteTeam = normalizeAthleteTeams(athleteTeams, teamId).find(
     (row) => row.athlete_id === athleteId,
@@ -108,7 +134,13 @@ export function computeAttendanceRate({
     };
   }
 
-  const scheduled = scheduledSessionsForAthlete(sessions, athleteTeam, dateRange, teamId);
+  const scheduled = scheduledSessionsForAthlete(
+    sessions,
+    athleteTeam,
+    dateRange,
+    teamId,
+    sessionAthleteIdsBySession,
+  );
   const sessionsScheduled = scheduled.length;
   const { lateCount, absentCount } = countAthleteExceptions(
     scheduled,
@@ -150,6 +182,7 @@ export function computeWeeklyTrend({
   attendanceRecords,
   teamId,
   dateRange,
+  sessionAthleteIdsBySession,
 }) {
   const teams = normalizeAthleteTeams(athleteTeams, teamId);
   const weeks = weekStartsBetween(dateRange.dateFrom, dateRange.dateTo);
@@ -167,7 +200,7 @@ export function computeWeeklyTrend({
     for (const athleteTeam of teams) {
       const athleteId = athleteTeam.athlete_id;
       const athleteScheduled = weekSessions.filter((session) =>
-        isAthleteScheduled(session, athleteTeam, dateRange, teamId),
+        isAthleteScheduled(session, athleteTeam, dateRange, teamId, sessionAthleteIdsBySession),
       );
       scheduledTotal += athleteScheduled.length;
       const { absentCount } = countAthleteExceptions(
@@ -221,6 +254,7 @@ export function computeAthleteSummary({
   attendanceRecords,
   teamId,
   dateRange,
+  sessionAthleteIdsBySession,
 }) {
   const teams = normalizeAthleteTeams(athleteTeams, teamId).filter((row) =>
     wasOnTeamDuringRange(row, dateRange),
@@ -242,9 +276,16 @@ export function computeAthleteSummary({
       athleteId,
       dateRange,
       teamId,
+      sessionAthleteIdsBySession,
     });
     const { withoutNoticeCount } = countAthleteExceptions(
-      scheduledSessionsForAthlete(sessions, athleteTeam, dateRange, teamId),
+      scheduledSessionsForAthlete(
+        sessions,
+        athleteTeam,
+        dateRange,
+        teamId,
+        sessionAthleteIdsBySession,
+      ),
       athleteId,
       attendanceRecords,
     );
@@ -274,6 +315,7 @@ export function computeSquadMetrics({
   attendanceRecords,
   teamId,
   dateRange,
+  sessionAthleteIdsBySession,
 }) {
   const summary = computeAthleteSummary({
     sessions,
@@ -281,6 +323,7 @@ export function computeSquadMetrics({
     attendanceRecords,
     teamId,
     dateRange,
+    sessionAthleteIdsBySession,
   });
 
   let sessionsScheduled = 0;
