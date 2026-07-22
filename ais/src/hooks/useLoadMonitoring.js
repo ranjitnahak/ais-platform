@@ -373,35 +373,6 @@ export function useLoadMonitoring() {
       strain: latestWeek.strain,
     };
 
-    const sortedSessions = [...sessions].sort((a, b) => {
-      const dateCmp = b.session_date.localeCompare(a.session_date);
-      if (dateCmp !== 0) return dateCmp;
-      return (b.start_time ?? '').localeCompare(a.start_time ?? '');
-    });
-    const mostRecentSession = sortedSessions[0] ?? null;
-
-    let rpeCompliance = { logged: 0, pending: 0, absent: 0, percent: 0, sessionLabel: null, sessionDate: null };
-    if (mostRecentSession) {
-      const sessionLogs = logs.filter((l) => l.session_id === mostRecentSession.id);
-      const logged = sessionLogs.filter((l) => l.actual_rpe != null).length;
-      const pending = sessionLogs.filter((l) => l.actual_rpe == null).length;
-      const loggedAthleteIds = new Set(sessionLogs.map((l) => l.athlete_id));
-      const rosterOnTeam = athletes.filter((a) =>
-        (a.teamIds ?? []).includes(mostRecentSession.team_id),
-      );
-      const absent = rosterOnTeam.filter((a) => !loggedAthleteIds.has(a.id)).length;
-      const total = logged + pending + absent;
-      rpeCompliance = {
-        logged,
-        pending,
-        absent,
-        percent: total ? Math.round((logged / total) * 100) : 0,
-        sessionLabel: mostRecentSession.name || mostRecentSession.session_type,
-        sessionType: mostRecentSession.session_type,
-        sessionDate: mostRecentSession.session_date,
-      };
-    }
-
     const rpeBands = { '1-3': 0, '4-5': 0, '6-7': 0, '8-9': 0, '10': 0 };
     const filteredLogs = isSquadView
       ? logs
@@ -455,7 +426,6 @@ export function useLoadMonitoring() {
       weeklyMonotony: weeklyData,
       statCards,
       squadRows,
-      rpeCompliance,
       rpeDistribution: { bands: rpeBands, total: totalResponses },
       spikeWarning,
       dataWarnings,

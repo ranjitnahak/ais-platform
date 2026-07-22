@@ -12,7 +12,7 @@ import DashboardSkeleton from '../shared/skeletons/DashboardSkeleton';
 import AcwrChart from './load-monitoring/AcwrChart';
 import LoadBars from './load-monitoring/LoadBars';
 import MonotonyChart from './load-monitoring/MonotonyChart';
-import RpeComplianceCard from './load-monitoring/RpeComplianceCard';
+import RPEComplianceBySession from './load-monitoring/RPEComplianceBySession';
 import RpeDistributionCard from './load-monitoring/RpeDistributionCard';
 import SquadTable from './load-monitoring/SquadTable';
 import SpikeWarningBanner from './load-monitoring/SpikeWarningBanner';
@@ -65,7 +65,6 @@ export default function LoadMonitoringDashboard() {
     dailyLoads,
     acwrSeries,
     weeklyMonotony,
-    rpeCompliance,
     rpeDistribution,
     squadRows,
     spikeWarning,
@@ -73,6 +72,8 @@ export default function LoadMonitoringDashboard() {
     isSquadView,
     rangeLabel,
     methodLabel,
+    dateFrom,
+    dateTo,
   } = useLoadMonitoring();
 
   const acwrZone = getAcwrZone(statCards?.avgAcwr);
@@ -234,7 +235,7 @@ export default function LoadMonitoringDashboard() {
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">
-            <RpeComplianceCard compliance={rpeCompliance} />
+            <RPEComplianceBySession dateFrom={dateFrom} dateTo={dateTo} />
             <RpeDistributionCard distribution={rpeDistribution} />
           </section>
 
