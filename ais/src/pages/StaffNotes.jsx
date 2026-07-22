@@ -10,7 +10,7 @@ import Sidebar from '../components/Sidebar'
 import LogSkeleton from '../components/shared/skeletons/LogSkeleton'
 
 const DOMAINS = ['s_and_c', 'physio', 'nutrition', 'psychology', 'analysis', 'coaching']
-const STAFF_ROLES = ['admin', 'superuser', 'head coach', 's&c coach', 'physio', 'analyst', 'nutritionist']
+const STAFF_ROLES = ['admin', 'superuser', 'manager', 'head coach', 's&c coach', 'physio', 'analyst', 'nutritionist']
 const DOMAIN_VARS = {
   s_and_c: 'var(--color-primary)',
   physio: 'var(--color-secondary)',
