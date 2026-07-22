@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { canSync } from '../../lib/auth';
 import { useUser } from '../../context/UserContext';
+import { useSessionConfig } from '../../context/SessionConfigContext';
 import { getEffectiveOrgId } from '../../lib/orgScope';
 import { useAttendanceSessions } from '../../hooks/useAttendanceSessions';
 import LogSkeleton from '../../components/shared/skeletons/LogSkeleton';
@@ -66,6 +67,7 @@ function ToastBanner({ toast, onDismiss }) {
 
 export default function AttendanceTab() {
   const { user, activeTeamId, activeOrgId, availableTeams } = useUser();
+  const { sessionTypeLabel } = useSessionConfig();
   const effectiveOrgId = getEffectiveOrgId(user, activeOrgId);
   const canView = canSync(user, 'attendance', 'view') || Boolean(user?.isSuperuser);
 
@@ -179,7 +181,7 @@ export default function AttendanceTab() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-base font-black text-[var(--color-on-surface)]">
-                      {session.name || 'Session'}
+                      {session.name || sessionTypeLabel(session.session_type) || 'Session'}
                     </p>
                     <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
                       {formatTimeRange(session.start_time, session.end_time)}

@@ -5,7 +5,7 @@ import { useUser } from '../context/UserContext';
 import { getEffectiveOrgId } from '../lib/orgScope';
 
 const SESSION_SELECT =
-  'id, org_id, team_id, athlete_id, session_date, start_time, end_time, name, plan_cell_id';
+  'id, org_id, team_id, athlete_id, session_date, start_time, end_time, name, session_type, plan_cell_id';
 
 function canAccessTeam(user, teamId) {
   if (!user || !teamId) return false;

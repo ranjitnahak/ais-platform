@@ -6,6 +6,7 @@ import {
   isExceptionComplete,
 } from '../../lib/attendanceRosterUi';
 import { formatRelativeTime, useAttendanceRoster } from '../../hooks/useAttendanceRoster';
+import { useSessionConfig } from '../../context/SessionConfigContext';
 import LogSkeleton from '../../components/shared/skeletons/LogSkeleton';
 
 const STATUS_STYLES = {
@@ -364,6 +365,7 @@ function AthleteRow({
 }
 
 export default function AttendanceRoster({ session, teamName, onBack, onToast }) {
+  const { sessionTypeLabel } = useSessionConfig();
   const viewOpenedAtRef = useRef(Date.now());
   const prevSavingAthleteIdRef = useRef(null);
   const [activeExpandedAthleteId, setActiveExpandedAthleteId] = useState(null);
@@ -420,7 +422,7 @@ export default function AttendanceRoster({ session, teamName, onBack, onToast })
           </button>
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-lg font-black text-[var(--color-on-surface)]">
-              {session.name || 'Session'}
+              {session.name || sessionTypeLabel(session.session_type) || 'Session'}
             </h2>
             <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
               {formatSessionDate(session.session_date)} · {teamName} ·{' '}
