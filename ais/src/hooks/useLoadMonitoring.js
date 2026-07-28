@@ -105,6 +105,34 @@ function countLoggedSessions(logs, sessionsById, athleteId) {
   }).length;
 }
 
+/** Mean duration (whole min) and RPE (1 decimal) over Sessions-eligible logs. */
+function computeAthleteSessionAverages(logs, sessionsById, athleteId) {
+  const eligible = logs.filter((log) => {
+    if (log.athlete_id !== athleteId) return false;
+    if (log.actual_rpe == null) return false;
+    if (log.session_id) return Boolean(sessionsById[log.session_id]);
+    return Boolean(log.session_date);
+  });
+
+  if (!eligible.length) return { avgDuration: null, avgRpe: null };
+
+  const durations = eligible
+    .map((log) => Number(log.actual_duration_min))
+    .filter((n) => !Number.isNaN(n));
+  const rpes = eligible
+    .map((log) => Number(log.actual_rpe))
+    .filter((n) => !Number.isNaN(n));
+
+  return {
+    avgDuration: durations.length
+      ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+      : null,
+    avgRpe: rpes.length
+      ? parseFloat((rpes.reduce((a, b) => a + b, 0) / rpes.length).toFixed(1))
+      : null,
+  };
+}
+
 const DEFAULT_FILTERS = {
   range: '4W',
   dateFrom: null,
@@ -341,6 +369,7 @@ export function useLoadMonitoring() {
       const { acute: aAcute, chronic: aChronic } = computeLoadSeries(athleteDaily, filters.method);
       const aAcwrSeries = dates.map((_, i) => calculateACWR(aAcute[i], aChronic[i]));
       const sessionCount = countLoggedSessions(logs, sessionsById, athlete.id);
+      const { avgDuration, avgRpe } = computeAthleteSessionAverages(logs, sessionsById, athlete.id);
       const athleteWeeks = computeWeeklyMonotony(dates, athleteDaily);
       const athleteLatestWeek = athleteWeeks[athleteWeeks.length - 1] ?? { monotony: null, strain: null };
       const idx = dates.length - 1;
@@ -353,6 +382,8 @@ export function useLoadMonitoring() {
         monotony: athleteLatestWeek.monotony,
         strain: athleteLatestWeek.strain,
         sessions: sessionCount,
+        avgDuration,
+        avgRpe,
       };
     }).sort((a, b) => {
       const av = a.acwr ?? -1;

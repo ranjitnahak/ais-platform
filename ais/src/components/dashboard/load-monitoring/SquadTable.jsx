@@ -49,7 +49,7 @@ export default function SquadTable({ rows, methodLabel, rangeLabel }) {
         </h3>
         <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-outline)]">Sorted by ACWR ↓</span>
       </div>
-      <table className="w-full min-w-[48rem] border-collapse text-left text-sm">
+      <table className="w-full min-w-[56rem] border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-[var(--color-border)] text-[10px] uppercase tracking-widest text-[var(--color-outline)]">
             <th className="px-5 py-3">Athlete</th>
@@ -57,6 +57,8 @@ export default function SquadTable({ rows, methodLabel, rangeLabel }) {
             <th className="px-3 py-3 text-center">Monotony</th>
             <th className="px-3 py-3 text-center">Strain</th>
             <th className="px-3 py-3 text-center">Sessions</th>
+            <th className="px-3 py-3 text-center">Avg Duration</th>
+            <th className="px-3 py-3 text-center">Avg RPE</th>
             <th className="px-5 py-3 text-right">Signal</th>
           </tr>
         </thead>
@@ -105,6 +107,12 @@ export default function SquadTable({ rows, methodLabel, rangeLabel }) {
                   {row.strain != null ? row.strain.toLocaleString() : '—'}
                 </td>
                 <td className="px-3 py-3 text-center font-black text-[var(--color-on-surface)]">{row.sessions}</td>
+                <td className="px-3 py-3 text-center font-black text-[var(--color-on-surface)]">
+                  {row.avgDuration != null ? `${row.avgDuration} min` : '—'}
+                </td>
+                <td className="px-3 py-3 text-center font-black text-[var(--color-on-surface)]">
+                  {row.avgRpe != null ? row.avgRpe.toFixed(1) : '—'}
+                </td>
                 <td className={`px-5 py-3 text-right text-xs font-black ${SIGNAL_STYLE[signal] ?? ''}`}>
                   {signal ? SIGNAL_LABEL[signal] : '—'}
                 </td>
